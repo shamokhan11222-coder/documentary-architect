@@ -199,26 +199,21 @@ function SceneCard({
   scene,
   topicId,
   busy,
-  editing,
-  onToggleEdit,
   onRegen,
   onReplace,
-  onUpdate,
   onDelete,
 }: {
   scene: VisualScene;
   topicId: string;
   busy: string | null;
-  editing: boolean;
-  onToggleEdit: () => void;
   onRegen: () => void;
   onReplace: (f: File | null) => void;
-  onUpdate: (patch: Partial<VisualScene>) => void;
   onDelete: () => void;
 }) {
   const img = useImage(sceneImageId(topicId, scene.sceneNumber));
   const inputId = `replace-${topicId}-${scene.sceneNumber}`;
   const generating = busy === `img-${scene.sceneNumber}`;
+  const status = generating ? "Generating…" : img ? "Ready" : "No image";
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="relative flex aspect-video items-center justify-center bg-muted/30">
@@ -237,27 +232,22 @@ function SceneCard({
         </span>
       </div>
       <div className="p-3">
-        {editing ? (
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">Voiceover</label>
-            <textarea
-              className="min-h-16 w-full rounded-md border border-input bg-background p-2 text-sm"
-              value={scene.voiceoverLine}
-              onChange={(e) => onUpdate({ voiceoverLine: e.target.value })}
-            />
-            <label className="text-xs text-muted-foreground">Scene description</label>
-            <textarea
-              className="min-h-16 w-full rounded-md border border-input bg-background p-2 text-sm"
-              value={scene.visualDescription}
-              onChange={(e) => onUpdate({ visualDescription: e.target.value })}
-            />
-          </div>
-        ) : (
-          <>
-            <p className="text-xs italic text-muted-foreground">“{scene.voiceoverLine}”</p>
-            <p className="mt-1 text-sm">{scene.visualDescription}</p>
-          </>
-        )}
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Voice line</span>
+          <span
+            className={[
+              "rounded-full px-2 py-0.5 text-[11px] font-medium",
+              generating
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                : img
+                  ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                  : "bg-muted text-muted-foreground",
+            ].join(" ")}
+          >
+            {status}
+          </span>
+        </div>
+        <p className="mt-1 text-sm italic">“{scene.voiceoverLine}”</p>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Button size="sm" variant="secondary" onClick={onRegen} disabled={!!busy}>
@@ -271,9 +261,6 @@ function SceneCard({
               </span>
             </Button>
           </label>
-          <Button size="sm" variant="ghost" onClick={onToggleEdit}>
-            <Pencil className="mr-1 h-3.5 w-3.5" /> {editing ? "Done" : "Edit"}
-          </Button>
           <Button size="sm" variant="ghost" onClick={onDelete}>
             <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
           </Button>
