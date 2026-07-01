@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
+import { Route as ThumbnailRouteImport } from './routes/thumbnail'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchRouteImport } from './routes/research'
@@ -25,6 +26,11 @@ const VisualRoute = VisualRouteImport.update({
 const TopicsRoute = TopicsRouteImport.update({
   id: '/topics',
   path: '/topics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThumbnailRoute = ThumbnailRouteImport.update({
+  id: '/thumbnail',
+  path: '/thumbnail',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StoryRoute = StoryRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/settings'
     | '/story'
+    | '/thumbnail'
     | '/topics'
     | '/visual'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/settings'
     | '/story'
+    | '/thumbnail'
     | '/topics'
     | '/visual'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/settings'
     | '/story'
+    | '/thumbnail'
     | '/topics'
     | '/visual'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
+  ThumbnailRoute: typeof ThumbnailRoute
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
 }
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/topics'
       fullPath: '/topics'
       preLoaderRoute: typeof TopicsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/thumbnail': {
+      id: '/thumbnail'
+      path: '/thumbnail'
+      fullPath: '/thumbnail'
+      preLoaderRoute: typeof ThumbnailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/story': {
@@ -181,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
+  ThumbnailRoute: ThumbnailRoute,
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
 }
