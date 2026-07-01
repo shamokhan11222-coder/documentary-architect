@@ -9,12 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as IndexRouteImport } from './routes/index'
 
+const VisualRoute = VisualRouteImport.update({
+  id: '/visual',
+  path: '/visual',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TopicsRoute = TopicsRouteImport.update({
   id: '/topics',
   path: '/topics',
@@ -35,6 +42,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PromptsRoute = PromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,44 +55,81 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
   '/topics': typeof TopicsRoute
+  '/visual': typeof VisualRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
   '/topics': typeof TopicsRoute
+  '/visual': typeof VisualRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
   '/topics': typeof TopicsRoute
+  '/visual': typeof VisualRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/research' | '/settings' | '/story' | '/topics'
+  fullPaths:
+    | '/'
+    | '/prompts'
+    | '/research'
+    | '/settings'
+    | '/story'
+    | '/topics'
+    | '/visual'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/research' | '/settings' | '/story' | '/topics'
-  id: '__root__' | '/' | '/research' | '/settings' | '/story' | '/topics'
+  to:
+    | '/'
+    | '/prompts'
+    | '/research'
+    | '/settings'
+    | '/story'
+    | '/topics'
+    | '/visual'
+  id:
+    | '__root__'
+    | '/'
+    | '/prompts'
+    | '/research'
+    | '/settings'
+    | '/story'
+    | '/topics'
+    | '/visual'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PromptsRoute: typeof PromptsRoute
   ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
   TopicsRoute: typeof TopicsRoute
+  VisualRoute: typeof VisualRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/visual': {
+      id: '/visual'
+      path: '/visual'
+      fullPath: '/visual'
+      preLoaderRoute: typeof VisualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/topics': {
       id: '/topics'
       path: '/topics'
@@ -109,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/prompts': {
+      id: '/prompts'
+      path: '/prompts'
+      fullPath: '/prompts'
+      preLoaderRoute: typeof PromptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -121,21 +177,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PromptsRoute: PromptsRoute,
   ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
   TopicsRoute: TopicsRoute,
+  VisualRoute: VisualRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

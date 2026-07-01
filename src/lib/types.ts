@@ -38,3 +38,46 @@ export interface Story {
   engagementScore: number;
   generatedAt: number;
 }
+
+export type SceneType =
+  | "character"
+  | "object"
+  | "nature"
+  | "timeline"
+  | "infographic"
+  | "abstract concept";
+
+export interface VisualScene {
+  sceneNumber: number;
+  voiceoverLine: string;
+  visualDescription: string;
+  mainSubject: string;
+  background: string;
+  cameraShot: string;
+  emotion: string;
+  objectsNeeded: string[];
+  sceneType: SceneType;
+  visualDifficulty: string;
+  notes: string;
+}
+
+export interface VisualMap {
+  topicId: string;
+  scenes: VisualScene[];
+  generatedAt: number;
+}
+
+export interface PromptItem {
+  sceneNumber: number;
+  voiceoverLine: string;
+  imagePrompt: string;
+  negativePrompt: string;
+  styleNotes: string;
+  consistencyNotes: string;
+}
+
+export interface PromptPack {
+  topicId: string;
+  prompts: PromptItem[];
+  generatedAt: number;
+}

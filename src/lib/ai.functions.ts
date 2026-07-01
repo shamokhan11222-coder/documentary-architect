@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
-import type { Research } from "./types";
+import type { PromptItem, Research, VisualScene } from "./types";
 
 interface GeneratedTopic {
   topic: string;
@@ -170,4 +170,131 @@ export const improveStory = createServerFn({ method: "POST" })
 SCRIPT:
 ${data.script}`;
     return { script: await callAiText(system, user) };
+  });
+
+// ---------------- Visual Engine ----------------
+
+const VISUAL_RULES = `You are a documentary visual director building a shot-by-shot beat map for image generation.
+RULES:
+- One visual beat = one image. Never combine multiple ideas into one image.
+- Every voiceover line must have a matching visual.
+- If one sentence contains multiple objects/actions, split it into multiple scenes.
+- A character should appear only when needed.
+- If the line is about an object, show only that object.
+- If the line is about a concept, create a simple visual metaphor.
+- Avoid repeated boring backgrounds — vary them.
+- Each scene must be understandable in 1 second.
+Return ONLY valid JSON.`;
+
+const SCENE_SHAPE = `{
+  "sceneNumber": number,
+  "voiceoverLine": "string - exact narration line this visual matches",
+  "visualDescription": "string - what is shown, one clear idea",
+  "mainSubject": "string",
+  "background": "string - simple background",
+  "cameraShot": "string e.g. close-up, wide shot, top-down",
+  "emotion": "string",
+  "objectsNeeded": ["string"],
+  "sceneType": "character | object | nature | timeline | infographic | abstract concept",
+  "visualDifficulty": "Low | Medium | High",
+  "notes": "string"
+}`;
+
+export const generateVisualMap = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; script: string }) => {
+    if (!data?.script?.trim()) throw new Error("Script is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary: "${data.topic}"
+
+Break the following script into a sequential visual beat map. Number scenes starting at 1.
+
+Return a JSON object:
+{ "scenes": [ ${SCENE_SHAPE} ] }
+
+SCRIPT:
+${data.script}`;
+    const result = await callAiJson<{ scenes: VisualScene[] }>(VISUAL_RULES, user);
+    return (result.scenes ?? []) as VisualScene[];
+  });
+
+export const regenerateScene = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; scene: VisualScene }) => {
+    if (!data?.scene) throw new Error("Scene is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary: "${data.topic}"
+
+Regenerate a single, better visual beat for the SAME voiceover line. Keep the same sceneNumber. Keep it one clear idea.
+
+Return a JSON object with this exact shape: ${SCENE_SHAPE}
+
+CURRENT SCENE:
+${JSON.stringify(data.scene)}`;
+    return await callAiJson<VisualScene>(VISUAL_RULES, user);
+  });
+
+// ---------------- Prompt Engine ----------------
+
+const STYLE_LOCK = `GLOBAL STYLE LOCK (must appear in every prompt):
+Simple MS Paint educational documentary style, flat colors, thick slightly rough black outlines, simple shapes, clean composition. No gradients, no shadows, no 3D, no realism, no cinematic lighting, no detailed textures, no text, no captions, no watermark, no frame.
+
+CHARACTER STYLE LOCK (only when a character is shown):
+Simple bald stickman, round white head, thick black outline, dot eyes, simple mouth, thin black line body, no hair, no clothes unless needed, no shine on face, no grey face highlights.`;
+
+const PROMPT_RULES = `You convert one visual scene into one image-generation prompt.
+RULES:
+- Each prompt must be short and direct.
+- One prompt = one image. No multiple concepts.
+- Mention the exact subject, a simple background, the style lock, and negative rules.
+- Keep it image-generator friendly.
+- Avoid violation-sensitive wording and words that may trigger safety filters.
+${STYLE_LOCK}
+Return ONLY valid JSON.`;
+
+const PROMPT_SHAPE = `{
+  "sceneNumber": number,
+  "voiceoverLine": "string",
+  "imagePrompt": "string - short direct prompt including the style lock",
+  "negativePrompt": "string - negative rules",
+  "styleNotes": "string",
+  "consistencyNotes": "string - how to keep the character/style consistent across scenes"
+}`;
+
+export const generatePrompts = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; scenes: VisualScene[] }) => {
+    if (!data?.scenes?.length) throw new Error("Scenes are required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary: "${data.topic}"
+
+Convert each visual scene into one image prompt. Preserve sceneNumber and voiceoverLine.
+
+Return a JSON object:
+{ "prompts": [ ${PROMPT_SHAPE} ] }
+
+SCENES:
+${JSON.stringify(data.scenes)}`;
+    const result = await callAiJson<{ prompts: PromptItem[] }>(PROMPT_RULES, user);
+    return (result.prompts ?? []) as PromptItem[];
+  });
+
+export const regeneratePrompt = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; scene: VisualScene }) => {
+    if (!data?.scene) throw new Error("Scene is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary: "${data.topic}"
+
+Generate a single improved image prompt for this scene. Keep the same sceneNumber and voiceoverLine.
+
+Return a JSON object with this exact shape: ${PROMPT_SHAPE}
+
+SCENE:
+${JSON.stringify(data.scene)}`;
+    return await callAiJson<PromptItem>(PROMPT_RULES, user);
   });

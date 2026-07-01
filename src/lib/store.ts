@@ -1,10 +1,12 @@
 import { useCallback, useSyncExternalStore } from "react";
-import type { Research, Story, Topic } from "./types";
+import type { PromptPack, Research, Story, Topic, VisualMap } from "./types";
 
 const KEYS = {
   topics: "docos.topics",
   research: "docos.research",
   story: "docos.story",
+  visual: "docos.visual",
+  prompts: "docos.prompts",
   settings: "docos.settings",
   selected: "docos.selectedTopic",
 } as const;
@@ -84,6 +86,12 @@ export function deleteTopic(id: string) {
   const story = read<Record<string, Story>>(KEYS.story, {});
   delete story[id];
   write(KEYS.story, story);
+  const visual = read<Record<string, VisualMap>>(KEYS.visual, {});
+  delete visual[id];
+  write(KEYS.visual, visual);
+  const prompts = read<Record<string, PromptPack>>(KEYS.prompts, {});
+  delete prompts[id];
+  write(KEYS.prompts, prompts);
 }
 
 export function toggleFavorite(id: string) {
@@ -130,6 +138,32 @@ export function saveStory(s: Story) {
   const all = read<Record<string, Story>>(KEYS.story, {});
   all[s.topicId] = s;
   write(KEYS.story, all);
+}
+
+// ---------------- Visual Map ----------------
+
+export function useVisualMap(topicId: string | null): VisualMap | null {
+  const all = useStored<Record<string, VisualMap>>(KEYS.visual, {});
+  return topicId ? (all[topicId] ?? null) : null;
+}
+
+export function saveVisualMap(v: VisualMap) {
+  const all = read<Record<string, VisualMap>>(KEYS.visual, {});
+  all[v.topicId] = v;
+  write(KEYS.visual, all);
+}
+
+// ---------------- Prompt Pack ----------------
+
+export function usePromptPack(topicId: string | null): PromptPack | null {
+  const all = useStored<Record<string, PromptPack>>(KEYS.prompts, {});
+  return topicId ? (all[topicId] ?? null) : null;
+}
+
+export function savePromptPack(p: PromptPack) {
+  const all = read<Record<string, PromptPack>>(KEYS.prompts, {});
+  all[p.topicId] = p;
+  write(KEYS.prompts, all);
 }
 
 // ---------------- Settings ----------------
