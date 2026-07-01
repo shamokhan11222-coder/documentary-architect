@@ -247,53 +247,77 @@ export const generateStory = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const system = `You are a master documentary scriptwriter for long-form YouTube. ${STORY_RULES}
+    const system = `${EXPERTS.story} ${STORY_RULES}
 Return ONLY valid JSON.`;
     const user = `Write a full documentary narration script for: "${data.topic}"
 
 ${buildResearchContext(data.research)}
 
+Write the narration as SEPARATE sections. Never merge them into one giant block.
+
 Return a JSON object:
 {
-  "script": "string - the complete narration script, using clear section markers and paragraphs (use \\n for line breaks)",
+  "sections": [
+    { "key": "hook", "title": "Hook", "content": "..." },
+    { "key": "intro", "title": "Intro", "content": "..." },
+    { "key": "part1", "title": "Part 1", "content": "..." },
+    { "key": "part2", "title": "Part 2", "content": "..." },
+    { "key": "part3", "title": "Part 3", "content": "..." },
+    { "key": "part4", "title": "Part 4", "content": "..." },
+    { "key": "ending", "title": "Ending", "content": "..." }
+  ],
   "hookScore": number (1-10),
   "storyScore": number (1-10),
   "engagementScore": number (1-10)
 }`;
-    return await callAiJson<{
-      script: string;
+    type StoryGen = {
+      sections: { key: string; title: string; content: string }[];
       hookScore: number;
       storyScore: number;
       engagementScore: number;
-    }>(system, user);
+    };
+    const gen = await callAiJson<StoryGen>(system, user);
+    const script = (gen.sections ?? [])
+      .map((s) => `## ${s.title}\n${s.content}`)
+      .join("\n\n");
+    const review = await reviewStage("documentary script", script);
+    return { ...gen, script, review };
   });
 
-export const rewriteHook = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script: string }) => {
-    if (!data?.script?.trim()) throw new Error("Script is required");
-    return data;
-  })
+// Section-level rewriting with a chosen creative direction.
+export type SectionMode =
+  | "rewrite"
+  | "shorter"
+  | "longer"
+  | "emotional"
+  | "cinematic"
+  | "curiosity";
+
+export const rewriteSection = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { topic: string; sectionTitle: string; content: string; mode: SectionMode }) => {
+      if (!data?.content?.trim()) throw new Error("Section content is required");
+      return data;
+    },
+  )
   .handler(async ({ data }) => {
-    const system = `You are a master documentary scriptwriter. ${STORY_RULES}`;
-    const user = `Here is a documentary script for "${data.topic}". Rewrite ONLY the opening hook (roughly the first 1-2 paragraphs) to be dramatically stronger — more curiosity, tension, and pull — then return the FULL script with the new hook and the rest unchanged. Return plain text only.
+    const map: Record<SectionMode, string> = {
+      rewrite: "Rewrite this section to be stronger while keeping its purpose and length.",
+      shorter: "Make this section noticeably shorter and tighter without losing the key idea.",
+      longer: "Expand this section with more depth and detail while staying on point.",
+      emotional: "Rewrite this section to be more emotional and human.",
+      cinematic: "Rewrite this section to be more cinematic and vivid.",
+      curiosity: "Rewrite this section to open stronger curiosity gaps and pull the viewer forward.",
+    };
+    const user = `Documentary: "${data.topic}"
+Section: "${data.sectionTitle}"
 
-SCRIPT:
-${data.script}`;
-    return { script: await callAiText(system, user) };
-  });
+${map[data.mode]} ${STORY_RULES}
+Return PLAIN TEXT only (just the new section content, no title, no preamble).
 
-export const improveStory = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script: string }) => {
-    if (!data?.script?.trim()) throw new Error("Script is required");
-    return data;
-  })
-  .handler(async ({ data }) => {
-    const system = `You are a master documentary scriptwriter and editor. ${STORY_RULES}`;
-    const user = `Improve the storytelling of this documentary script for "${data.topic}": tighten pacing, remove filler, strengthen transitions, and make each section reveal something new. Keep it the same topic and length range. Return the improved FULL script as plain text only.
-
-SCRIPT:
-${data.script}`;
-    return { script: await callAiText(system, user) };
+CURRENT SECTION:
+${data.content}`;
+    return { content: await callAiText(EXPERTS.story, user) };
   });
 
 // ---------------- Visual Engine ----------------
