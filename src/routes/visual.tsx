@@ -15,6 +15,7 @@ import {
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Meta } from "@/components/Score";
+import { Steps } from "@/components/Steps";
 import type { VisualScene } from "@/lib/types";
 
 export const Route = createFileRoute("/visual")({
@@ -118,6 +119,7 @@ function VisualPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
+      <Steps current="visual" />
       <h1 className="text-xl font-semibold">Visual Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Break the final script into a visual beat map — one beat per image.
