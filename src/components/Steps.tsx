@@ -15,7 +15,7 @@ const STEPS: { key: StepKey; label: string; to: string }[] = [
   { key: "topic", label: "Project", to: "/topics" },
   { key: "research", label: "Research", to: "/research" },
   { key: "story", label: "Story", to: "/story" },
-  { key: "visual", label: "Storyboard", to: "/visual" },
+  { key: "visual", label: "Images", to: "/visual" },
   { key: "thumbnail", label: "Thumbnail", to: "/thumbnail" },
   { key: "seo", label: "SEO", to: "/seo" },
   { key: "rating", label: "Rating", to: "/rating" },
