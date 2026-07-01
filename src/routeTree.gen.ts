@@ -23,6 +23,8 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as ChecklistRouteImport } from './routes/checklist'
+import { Route as AudioRouteImport } from './routes/audio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
@@ -98,6 +100,16 @@ const InstructionsRoute = InstructionsRouteImport.update({
   path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChecklistRoute = ChecklistRouteImport.update({
+  id: '/checklist',
+  path: '/checklist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AudioRoute = AudioRouteImport.update({
+  id: '/audio',
+  path: '/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -121,6 +133,8 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/audio': typeof AudioRoute
+  '/checklist': typeof ChecklistRoute
   '/instructions': typeof InstructionsRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
@@ -141,6 +155,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/audio': typeof AudioRoute
+  '/checklist': typeof ChecklistRoute
   '/instructions': typeof InstructionsRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
@@ -162,6 +178,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/audio': typeof AudioRoute
+  '/checklist': typeof ChecklistRoute
   '/instructions': typeof InstructionsRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
@@ -184,6 +202,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/audio'
+    | '/checklist'
     | '/instructions'
     | '/queue'
     | '/rating'
@@ -204,6 +224,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/audio'
+    | '/checklist'
     | '/instructions'
     | '/queue'
     | '/rating'
@@ -224,6 +246,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/audio'
+    | '/checklist'
     | '/instructions'
     | '/queue'
     | '/rating'
@@ -245,6 +269,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AudioRoute: typeof AudioRoute
+  ChecklistRoute: typeof ChecklistRoute
   InstructionsRoute: typeof InstructionsRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
@@ -364,6 +390,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/checklist': {
+      id: '/checklist'
+      path: '/checklist'
+      fullPath: '/checklist'
+      preLoaderRoute: typeof ChecklistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audio': {
+      id: '/audio'
+      path: '/audio'
+      fullPath: '/audio'
+      preLoaderRoute: typeof AudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -397,6 +437,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AudioRoute: AudioRoute,
+  ChecklistRoute: ChecklistRoute,
   InstructionsRoute: InstructionsRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
