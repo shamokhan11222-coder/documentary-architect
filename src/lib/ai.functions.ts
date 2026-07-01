@@ -648,3 +648,96 @@ Return a JSON object:
     const result = await callAiJson<{ music: MusicCue[]; sfx: SfxCue[] }>(system, user);
     return { music: result.music ?? [], sfx: result.sfx ?? [] };
   });
+
+// ---------------- V7: Deep Quality Reviews ----------------
+
+import type {
+  StoryReview,
+  ThumbnailReview,
+  ConsistencyReport,
+} from "./types";
+
+// Story Review — checks weak hook, slow pacing, repeated ideas, weak ending,
+// missing central conflict, and low curiosity, then suggests fixes.
+export const reviewStory = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; script: string }) => {
+    if (!data?.script?.trim()) throw new Error("Script is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Review this documentary script for "${data.topic}". Be ruthless.
+Return a JSON object:
+{
+  "weakHook": "assessment of the hook (or 'strong' with why)",
+  "slowPacing": "where pacing drags (or 'none')",
+  "repeatedIdeas": "any repeated ideas (or 'none')",
+  "weakEnding": "assessment of the ending",
+  "centralConflict": "is there ONE clear central conflict? explain",
+  "lowCuriosity": "where curiosity drops (or 'none')",
+  "suggestions": ["concrete improvements"],
+  "score": number (1-10)
+}
+
+SCRIPT:
+${data.script.slice(0, 9000)}`;
+    return await callAiJson<StoryReview>(EXPERTS.reviewer, user);
+  });
+
+// Thumbnail Review — scores each idea on CTR, emotion, composition,
+// readability, curiosity, then recommends the strongest.
+export const reviewThumbnails = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; ideas: ThumbnailIdea[] }) => {
+    if (!data?.ideas?.length) throw new Error("Ideas are required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Review these ${data.ideas.length} thumbnail ideas for "${data.topic}".
+Score each (0-based index matching input order) and recommend the strongest.
+Return a JSON object:
+{
+  "scored": [ { "index": number, "ctr": number(1-10), "emotion": number(1-10), "composition": number(1-10), "readability": number(1-10), "curiosity": number(1-10), "overall": number(1-10), "note": "one line" } ],
+  "recommendedIndex": number,
+  "reason": "why this one wins"
+}
+
+IDEAS:
+${JSON.stringify(data.ideas.map((i, idx) => ({ index: idx, title: i.thumbnailTitle, concept: i.mainVisualConcept, text: i.textOnThumbnail, emotion: i.emotion })))}`;
+    return await callAiJson<ThumbnailReview>(EXPERTS.thumbnail, user);
+  });
+
+// Image Consistency — reasons over scene metadata to flag consistency and
+// ordering problems, missing/duplicate scenes, and suggests fixes.
+export const checkImageConsistency = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { topic: string; scenes: VisualScene[]; withImages: number[] }) => {
+      if (!data?.scenes?.length) throw new Error("Scenes are required");
+      return data;
+    },
+  )
+  .handler(async ({ data }) => {
+    const numbers = data.scenes.map((s) => s.sceneNumber).sort((a, b) => a - b);
+    const user = `You review a documentary storyboard for consistency. The studio style is:
+Simple MS Paint educational style, flat colors, thick black outlines, bald stickman character, simple varied backgrounds.
+
+Check: character consistency, color consistency, outline consistency, background consistency, scene order (no skipped numbers), missing images, duplicate scenes.
+
+Scene numbers present: ${numbers.join(", ")}
+Scenes WITH a generated image: ${data.withImages.join(", ") || "none"}
+
+Return a JSON object:
+{
+  "characterConsistent": boolean,
+  "colorConsistent": boolean,
+  "outlineConsistent": boolean,
+  "backgroundConsistent": boolean,
+  "orderOk": boolean,
+  "missingScenes": [numbers with no generated image],
+  "duplicateScenes": [duplicated scene numbers],
+  "flagged": [ { "sceneNumber": number, "issues": ["..."], "fix": "..." } ],
+  "summary": "one paragraph overall verdict"
+}
+
+SCENES:
+${JSON.stringify(data.scenes.map((s) => ({ n: s.sceneNumber, subject: s.mainSubject, bg: s.background, type: s.sceneType, desc: s.visualDescription })))}`;
+    return await callAiJson<ConsistencyReport>(EXPERTS.visual, user);
+  });
