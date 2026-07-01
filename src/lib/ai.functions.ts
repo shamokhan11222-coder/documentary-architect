@@ -1,13 +1,92 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
+import { EXPERTS } from "./experts";
 import type {
+  GeneratedIdea,
+  IdeaCategory,
   PromptItem,
   RatingReport,
   Research,
   Seo,
+  StageReview,
   ThumbnailIdea,
   VisualScene,
 } from "./types";
+
+// ---------------- Self-review helper ----------------
+
+async function reviewStage(
+  stageName: string,
+  content: string,
+): Promise<StageReview> {
+  try {
+    const user = `Review this ${stageName} output for a YouTube documentary. Be ruthless but fair.
+
+Return a JSON object:
+{ "score": number (1-10), "issues": ["concrete problems"], "verdict": "one-line verdict" }
+
+OUTPUT:
+${content.slice(0, 8000)}`;
+    return await callAiJson<StageReview>(EXPERTS.reviewer, user);
+  } catch {
+    return { score: 7, issues: [], verdict: "Review unavailable." };
+  }
+}
+
+const CATEGORIES = [
+  "Today's Best Documentary Ideas",
+  "Trending Evergreen Ideas",
+  "Hidden Gems",
+  "Highest CTR Ideas",
+  "Most Original Ideas",
+  "Fast Production Ideas",
+  "Easy Visual Ideas",
+  "Long Documentary Ideas",
+  "Mini Documentary Ideas",
+];
+
+// ---------------- Home Idea Feed ----------------
+
+export const generateHomeIdeas = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { liked?: string[]; rejected?: string[]; completed?: string[]; perCategory?: number }) => data ?? {},
+  )
+  .handler(async ({ data }) => {
+    const taste = `EDITOR TASTE PROFILE (learn from this):
+Liked topics: ${(data.liked ?? []).slice(0, 40).join("; ") || "none yet"}
+Completed topics: ${(data.completed ?? []).slice(0, 40).join("; ") || "none yet"}
+REJECTED topics — NEVER propose anything similar in subject, angle, or vibe: ${(data.rejected ?? []).slice(0, 60).join("; ") || "none yet"}`;
+    const per = data.perCategory ?? 4;
+    const user = `${taste}
+
+Generate a fresh feed of documentary ideas grouped into these EXACT categories:
+${CATEGORIES.map((c) => `- ${c}`).join("\n")}
+
+Give ${per} distinct ideas per category. Lean toward the liked/completed style; avoid anything resembling the rejected list. Vary universes/themes widely.
+
+Return a JSON object:
+{
+  "categories": [
+    {
+      "category": "exact category name from the list above",
+      "ideas": [
+        {
+          "topic": "punchy documentary title",
+          "explanation": "1-2 sentence angle",
+          "ctrScore": number (1-10),
+          "evergreenScore": number (1-10),
+          "originalityScore": number (1-10),
+          "researchDifficulty": "Low | Medium | High",
+          "visualDifficulty": "Low | Medium | High",
+          "estimatedLength": "e.g. '12-18 min'"
+        }
+      ]
+    }
+  ]
+}`;
+    const result = await callAiJson<{ categories: IdeaCategory[] }>(EXPERTS.topic, user);
+    return (result.categories ?? []) as IdeaCategory[];
+  });
 
 interface GeneratedTopic {
   topic: string;
