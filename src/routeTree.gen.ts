@@ -16,6 +16,7 @@ import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as RatingRouteImport } from './routes/rating'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -54,6 +55,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RatingRoute = RatingRouteImport.update({
+  id: '/rating',
+  path: '/rating',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PromptsRoute = PromptsRouteImport.update({
   id: '/prompts',
   path: '/prompts',
@@ -68,6 +74,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
+  '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
+  '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
+  '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/prompts'
+    | '/rating'
     | '/research'
     | '/seo'
     | '/settings'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/prompts'
+    | '/rating'
     | '/research'
     | '/seo'
     | '/settings'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/prompts'
+    | '/rating'
     | '/research'
     | '/seo'
     | '/settings'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PromptsRoute: typeof PromptsRoute
+  RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rating': {
+      id: '/rating'
+      path: '/rating'
+      fullPath: '/rating'
+      preLoaderRoute: typeof RatingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/prompts': {
       id: '/prompts'
       path: '/prompts'
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PromptsRoute: PromptsRoute,
+  RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
