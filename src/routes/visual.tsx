@@ -101,14 +101,6 @@ function VisualPage() {
     }
   }
 
-  function updateScene(sceneNumber: number, patch: Partial<VisualScene>) {
-    if (!map) return;
-    saveVisualMap({
-      ...map,
-      scenes: map.scenes.map((s) => (s.sceneNumber === sceneNumber ? { ...s, ...patch } : s)),
-    });
-  }
-
   function deleteScene(sceneNumber: number) {
     if (!map || !selected) return;
     deleteImage(sceneImageId(selected.id, sceneNumber));
