@@ -42,16 +42,17 @@ function write<T>(key: string, value: T) {
 }
 
 function useStored<T>(key: string, fallback: T): T {
-  return useSyncExternalStore(
+  const snapshot = useSyncExternalStore(
     subscribe,
-    () => {
-      const raw = localStorage.getItem(key);
-      return raw ?? JSON.stringify(fallback);
-    },
-    () => JSON.stringify(fallback),
-  ) === undefined
-    ? fallback
-    : read(key, fallback);
+    () => localStorage.getItem(key) ?? "",
+    () => "",
+  );
+  if (!snapshot) return fallback;
+  try {
+    return JSON.parse(snapshot) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 // ---------------- Topics ----------------
