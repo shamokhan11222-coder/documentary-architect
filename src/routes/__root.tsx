@@ -148,6 +148,7 @@ function RootComponent() {
 }
 
 const NAV = [
+  { section: "Studio" },
   { to: "/", label: "Home" },
   { to: "/topics", label: "Projects" },
   { to: "/research", label: "Research" },
@@ -156,6 +157,16 @@ const NAV = [
   { to: "/thumbnail", label: "Thumbnail" },
   { to: "/seo", label: "SEO" },
   { to: "/rating", label: "Rating" },
+  { section: "Production" },
+  { to: "/voice", label: "Voice Studio" },
+  { to: "/subtitles", label: "Subtitles" },
+  { to: "/queue", label: "Image Queue" },
+  { to: "/timeline", label: "Timeline" },
+  { to: "/audio", label: "Music & SFX" },
+  { to: "/checklist", label: "Checklist" },
+  { to: "/export", label: "Export" },
+  { section: "Library" },
+  { to: "/assets", label: "Assets Library" },
   { to: "/visual-dna", label: "Visual DNA" },
   { to: "/instructions", label: "AI Instructions" },
   { to: "/settings", label: "Settings" },
@@ -170,16 +181,25 @@ function Sidebar() {
         <div className="text-xs text-muted-foreground">AI production assistant</div>
       </div>
       <nav className="flex flex-col gap-1 overflow-y-auto px-2">
-        {NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            activeOptions={{ exact: item.to === "/" }}
-            className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
-          >
-            {item.label}
-          </Link>
-        ))}
+        {NAV.map((item, i) =>
+          "section" in item ? (
+            <div
+              key={`s-${i}`}
+              className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
+            >
+              {item.section}
+            </div>
+          ) : (
+            <Link
+              key={item.to}
+              to={item.to}
+              activeOptions={{ exact: item.to === "/" }}
+              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
+            >
+              {item.label}
+            </Link>
+          ),
+        )}
       </nav>
       <div className="mt-auto p-2">
         <button
