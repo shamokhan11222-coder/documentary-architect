@@ -1,3 +1,15 @@
+import type { Research } from "./types";
+
+interface GeneratedTopic {
+  topic: string;
+  explanation: string;
+  ctrScore: number;
+  evergreenScore: number;
+  originalityScore: number;
+  researchDifficulty: string;
+  visualDifficulty: string;
+  estimatedLength: string;
+}
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
 import type { Research } from "./types";
@@ -30,8 +42,8 @@ Return a JSON object with this exact shape:
     }
   ]
 }`;
-    const result = await callAiJson<{ topics: unknown[] }>(system, user);
-    return result.topics ?? [];
+    const result = await callAiJson<{ topics: GeneratedTopic[] }>(system, user);
+    return (result.topics ?? []) as GeneratedTopic[];
   });
 
 // ---------------- Research Engine ----------------
