@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
 import { EXPERTS } from "./experts";
 import type {
-  GeneratedIdea,
   IdeaCategory,
   PromptItem,
   RatingReport,
