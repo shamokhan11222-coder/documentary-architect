@@ -23,6 +23,10 @@ function SettingsPage() {
       story: localStorage.getItem("docos.story"),
       visual: localStorage.getItem("docos.visual"),
       prompts: localStorage.getItem("docos.prompts"),
+      thumbnails: localStorage.getItem("docos.thumbnails"),
+      seo: localStorage.getItem("docos.seo"),
+      rating: localStorage.getItem("docos.rating"),
+      taste: localStorage.getItem("docos.taste"),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -44,6 +48,10 @@ function SettingsPage() {
       "docos.story",
       "docos.visual",
       "docos.prompts",
+      "docos.thumbnails",
+      "docos.seo",
+      "docos.rating",
+      "docos.taste",
       "docos.selectedTopic",
     ].forEach((k) => localStorage.removeItem(k));
     window.dispatchEvent(new Event("storage"));
