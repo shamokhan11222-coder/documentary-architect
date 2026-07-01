@@ -322,7 +322,7 @@ ${data.content}`;
 
 // ---------------- Visual Engine ----------------
 
-const VISUAL_RULES = `You are a documentary visual director building a shot-by-shot beat map for image generation.
+const VISUAL_RULES = `${EXPERTS.visual}
 RULES:
 - One visual beat = one image. Never combine multiple ideas into one image.
 - Every voiceover line must have a matching visual.
@@ -392,7 +392,8 @@ Simple MS Paint educational documentary style, flat colors, thick slightly rough
 CHARACTER STYLE LOCK (only when a character is shown):
 Simple bald stickman, round white head, thick black outline, dot eyes, simple mouth, thin black line body, no hair, no clothes unless needed, no shine on face, no grey face highlights.`;
 
-const PROMPT_RULES = `You convert one visual scene into one image-generation prompt.
+const PROMPT_RULES = `${EXPERTS.prompt}
+You convert one visual scene into one image-generation prompt.
 RULES:
 - Each prompt must be short and direct.
 - One prompt = one image. No multiple concepts.
@@ -449,7 +450,7 @@ ${JSON.stringify(data.scene)}`;
 
 // ---------------- Thumbnail Engine ----------------
 
-const THUMB_RULES = `You are a YouTube thumbnail strategist for documentary channels.
+const THUMB_RULES = `${EXPERTS.thumbnail}
 STYLE RULES for every idea:
 - Simple MS Paint documentary style (flat colors, thick black outlines, simple shapes).
 - One clear visual idea, big readable thumbnail text, strong curiosity.
@@ -507,7 +508,7 @@ ${JSON.stringify(data.idea)}`;
 
 // ---------------- SEO Engine ----------------
 
-const SEO_RULES = `You generate upload-ready YouTube metadata for documentary videos.
+const SEO_RULES = `${EXPERTS.seo}
 TITLE RULES: curiosity-driven, simple English, USA-audience friendly, NOT clickbait, not too long, documentary-style.
 Return ONLY valid JSON.`;
 
@@ -520,7 +521,8 @@ const SEO_SHAPE = `{
   "keywords": ["seo keywords"],
   "pinnedComment": "string",
   "shortSummary": "string - 1-2 sentences",
-  "longSummary": "string - a full paragraph"
+  "longSummary": "string - a full paragraph",
+  "uploadChecklist": ["step-by-step upload checklist items (cards, end screen, chapters, pinned comment, etc.)"]
 }`;
 
 export const generateSeo = createServerFn({ method: "POST" })
@@ -558,7 +560,7 @@ Return a JSON object: { "titleOptions": ["..."], "bestTitle": "string" }`;
 
 // ---------------- Rating Engine ----------------
 
-const RATING_RULES = `You are a ruthless but fair YouTube documentary reviewer. You rate a video BEFORE production so it can be fixed. Be specific and honest. Return ONLY valid JSON.`;
+const RATING_RULES = `${EXPERTS.reviewer} You rate a documentary video BEFORE production so it can be fixed. Be specific and honest. Return ONLY valid JSON.`;
 
 const RATING_SHAPE = `{
   "hookScore": number (1-10),
@@ -569,6 +571,10 @@ const RATING_SHAPE = `{
   "originalityScore": number (1-10),
   "evergreenScore": number (1-10),
   "overallScore": number (1-10),
+  "ctrPrediction": "string - predicted click-through performance with reasoning",
+  "retentionPrediction": "string - predicted audience retention with reasoning",
+  "weakestPart": "string - the single weakest part of the video",
+  "bestPart": "string - the single best part of the video",
   "weakPoints": ["..."],
   "strongPoints": ["..."],
   "whatToImprove": ["..."],
