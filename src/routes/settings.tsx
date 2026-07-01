@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useTopics } from "@/lib/store";
+import { useTopics, useSelectedTopicId, exportProject } from "@/lib/store";
+import { Steps } from "@/components/Steps";
+import { downloadJson, slugify } from "@/lib/io";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Documentary Studio" }] }),
@@ -10,6 +12,8 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const topics = useTopics();
+  const selectedId = useSelectedTopicId();
+  const selected = topics.find((t) => t.id === selectedId) ?? null;
 
   function exportData() {
     const data = {
@@ -47,6 +51,7 @@ function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
+      <Steps current="export" />
       <h1 className="text-xl font-semibold">Settings</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Private tool. Data is stored locally in this browser.
@@ -60,9 +65,28 @@ function SettingsPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="rounded-lg border border-border p-4">
+          <div className="text-sm font-medium">Current project</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {selected ? selected.topic : "No project selected."}
+          </p>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              disabled={!selected}
+              onClick={() =>
+                selected &&
+                downloadJson(slugify(selected.topic) + "-project", exportProject(selected.id))
+              }
+            >
+              Export current project
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={exportData}>
-            Export backup
+            Export All (backup)
           </Button>
           <Button variant="destructive" onClick={clearAll}>
             Clear all data
