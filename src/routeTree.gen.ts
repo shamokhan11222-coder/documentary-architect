@@ -14,6 +14,7 @@ import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
+import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
@@ -48,6 +49,11 @@ const TopicsRoute = TopicsRouteImport.update({
 const ThumbnailRoute = ThumbnailRouteImport.update({
   id: '/thumbnail',
   path: '/thumbnail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubtitlesRoute = SubtitlesRouteImport.update({
+  id: '/subtitles',
+  path: '/subtitles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StoryRoute = StoryRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
@@ -144,6 +152,7 @@ export interface FileRoutesById {
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/seo'
     | '/settings'
     | '/story'
+    | '/subtitles'
     | '/thumbnail'
     | '/topics'
     | '/visual'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/seo'
     | '/settings'
     | '/story'
+    | '/subtitles'
     | '/thumbnail'
     | '/topics'
     | '/visual'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/seo'
     | '/settings'
     | '/story'
+    | '/subtitles'
     | '/thumbnail'
     | '/topics'
     | '/visual'
@@ -215,6 +227,7 @@ export interface RootRouteChildren {
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
+  SubtitlesRoute: typeof SubtitlesRoute
   ThumbnailRoute: typeof ThumbnailRoute
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
@@ -260,6 +273,13 @@ declare module '@tanstack/react-router' {
       path: '/thumbnail'
       fullPath: '/thumbnail'
       preLoaderRoute: typeof ThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subtitles': {
+      id: '/subtitles'
+      path: '/subtitles'
+      fullPath: '/subtitles'
+      preLoaderRoute: typeof SubtitlesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/story': {
@@ -343,6 +363,7 @@ const rootRouteChildren: RootRouteChildren = {
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
+  SubtitlesRoute: SubtitlesRoute,
   ThumbnailRoute: ThumbnailRoute,
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
