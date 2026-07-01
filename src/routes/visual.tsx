@@ -119,10 +119,10 @@ function VisualPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <Steps current="visual" />
-      <h1 className="text-xl font-semibold">Storyboard</h1>
+      <h1 className="text-xl font-semibold">Images</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        The AI turns your script into a storyboard and generates real images automatically, using
-        your Visual DNA for consistency. You never touch prompts.
+        The AI turns your script into ordered storyboard images and generates them automatically,
+        using your Visual DNA for consistency. You never touch prompts.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -176,17 +176,16 @@ function VisualPage() {
 
       {map && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {map.scenes.map((s) => (
+          {[...map.scenes]
+            .sort((a, b) => a.sceneNumber - b.sceneNumber)
+            .map((s) => (
             <SceneCard
               key={s.sceneNumber}
               scene={s}
               topicId={selected.id}
               busy={busy}
-              editing={editing === s.sceneNumber}
-              onToggleEdit={() => setEditing(editing === s.sceneNumber ? null : s.sceneNumber)}
               onRegen={() => handleRegenImage(s)}
               onReplace={(f) => handleReplace(s, f)}
-              onUpdate={(patch) => updateScene(s.sceneNumber, patch)}
               onDelete={() => deleteScene(s.sceneNumber)}
             />
           ))}
