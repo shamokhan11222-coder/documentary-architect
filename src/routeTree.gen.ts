@@ -13,6 +13,7 @@ import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
+import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
 import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
@@ -45,6 +46,11 @@ const VisualRoute = VisualRouteImport.update({
 const TopicsRoute = TopicsRouteImport.update({
   id: '/topics',
   path: '/topics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimelineRoute = TimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ThumbnailRoute = ThumbnailRouteImport.update({
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
+  '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
+  '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
+  '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
@@ -184,6 +193,7 @@ export interface FileRouteTypes {
     | '/story'
     | '/subtitles'
     | '/thumbnail'
+    | '/timeline'
     | '/topics'
     | '/visual'
     | '/visual-dna'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/story'
     | '/subtitles'
     | '/thumbnail'
+    | '/timeline'
     | '/topics'
     | '/visual'
     | '/visual-dna'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/story'
     | '/subtitles'
     | '/thumbnail'
+    | '/timeline'
     | '/topics'
     | '/visual'
     | '/visual-dna'
@@ -242,6 +254,7 @@ export interface RootRouteChildren {
   StoryRoute: typeof StoryRoute
   SubtitlesRoute: typeof SubtitlesRoute
   ThumbnailRoute: typeof ThumbnailRoute
+  TimelineRoute: typeof TimelineRoute
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
   VisualDnaRoute: typeof VisualDnaRoute
@@ -279,6 +292,13 @@ declare module '@tanstack/react-router' {
       path: '/topics'
       fullPath: '/topics'
       preLoaderRoute: typeof TopicsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline': {
+      id: '/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/thumbnail': {
@@ -386,6 +406,7 @@ const rootRouteChildren: RootRouteChildren = {
   StoryRoute: StoryRoute,
   SubtitlesRoute: SubtitlesRoute,
   ThumbnailRoute: ThumbnailRoute,
+  TimelineRoute: TimelineRoute,
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
   VisualDnaRoute: VisualDnaRoute,
