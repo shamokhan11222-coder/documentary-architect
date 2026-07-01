@@ -33,7 +33,7 @@ const CARDS: CardDef[] = [
   { key: "unexpectedTwists", title: "Unexpected Twists", list: true },
   { key: "commonMyths", title: "Common Myths", list: true },
   { key: "bestAngle", title: "Best Story Angle", list: false },
-  { key: "endingIdea", title: "Ending Idea", list: true === false ? true : false },
+  { key: "endingIdea", title: "Ending Idea", list: false },
   { key: "sources", title: "Verified Sources", list: true },
 ];
 
