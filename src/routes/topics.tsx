@@ -174,7 +174,7 @@ function ProjectProgress({ topicId }: { topicId: string }) {
       {items.map(([label, done]) => (
         <span key={label} className="inline-flex items-center gap-1 text-[11px]">
           <span className="text-muted-foreground">{label}</span>
-          <StatusBadge status={done ? "Completed" : "Pending"} />
+          <StatusBadge status={done ? "Completed" : "Not Started"} />
         </span>
       ))}
     </div>
