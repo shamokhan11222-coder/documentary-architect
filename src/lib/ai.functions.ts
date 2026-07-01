@@ -13,6 +13,21 @@ interface GeneratedTopic {
   estimatedLength: string;
 }
 
+interface ResearchData {
+  mainConflict: string;
+  timeline: string[];
+  historicalFacts: string[];
+  scientificFacts: string[];
+  interestingFacts: string[];
+  commonMyths: string[];
+  storyAngles: string[];
+  unexpectedTwists: string[];
+  importantPeople: string[];
+  importantDates: string[];
+  sources: string[];
+  keyTakeaways: string[];
+}
+
 // ---------------- Topic Engine ----------------
 
 export const generateTopics = createServerFn({ method: "POST" })
@@ -72,7 +87,7 @@ Perform deep documentary research. Be specific and concrete (real names, real da
   "sources": ["credible source types / references to pursue"],
   "keyTakeaways": ["the core things the viewer should remember"]
 }`;
-    return await callAiJson<Record<string, unknown>>(system, user);
+    return await callAiJson<ResearchData>(system, user);
   });
 
 // ---------------- Story Engine ----------------
