@@ -14,6 +14,7 @@ import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as IndexRouteImport } from './routes/index'
 
 const VisualRoute = VisualRouteImport.update({
@@ -41,6 +42,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PromptsRoute = PromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
@@ -74,12 +83,27 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/research' | '/settings' | '/story' | '/topics' | '/visual'
+  fullPaths:
+    | '/'
+    | '/prompts'
+    | '/research'
+    | '/settings'
+    | '/story'
+    | '/topics'
+    | '/visual'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/research' | '/settings' | '/story' | '/topics' | '/visual'
+  to:
+    | '/'
+    | '/prompts'
+    | '/research'
+    | '/settings'
+    | '/story'
+    | '/topics'
+    | '/visual'
   id:
     | '__root__'
     | '/'
+    | '/prompts'
     | '/research'
     | '/settings'
     | '/story'
@@ -89,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PromptsRoute: typeof PromptsRoute
   ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
@@ -133,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/prompts': {
+      id: '/prompts'
+      path: '/prompts'
+      fullPath: '/prompts'
+      preLoaderRoute: typeof PromptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -145,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PromptsRoute: PromptsRoute,
   ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
