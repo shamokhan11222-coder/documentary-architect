@@ -7,7 +7,6 @@ import { Loader2, CheckCircle2, Play, RotateCw, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectHeader, useSelectedProject } from "@/components/ProjectPicker";
 import { PIPELINE, stageDone, nextStage, completionPercent, type StageKey } from "@/lib/manager";
-import { EXPERTS } from "@/lib/experts";
 import { getStyleProfile } from "@/lib/preferences";
 import { getKnowledgeContext } from "@/lib/knowledge";
 import {

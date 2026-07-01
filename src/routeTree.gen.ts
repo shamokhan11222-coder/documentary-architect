@@ -22,6 +22,7 @@ import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
+import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as ChecklistRouteImport } from './routes/checklist'
@@ -97,6 +98,11 @@ const QueueRoute = QueueRouteImport.update({
   path: '/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ManagerRoute = ManagerRouteImport.update({
+  id: '/manager',
+  path: '/manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstructionsRoute = InstructionsRouteImport.update({
   id: '/instructions',
   path: '/instructions',
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -225,6 +234,7 @@ export interface FileRouteTypes {
     | '/checklist'
     | '/export'
     | '/instructions'
+    | '/manager'
     | '/queue'
     | '/rating'
     | '/research'
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/checklist'
     | '/export'
     | '/instructions'
+    | '/manager'
     | '/queue'
     | '/rating'
     | '/research'
@@ -273,6 +284,7 @@ export interface FileRouteTypes {
     | '/checklist'
     | '/export'
     | '/instructions'
+    | '/manager'
     | '/queue'
     | '/rating'
     | '/research'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   ChecklistRoute: typeof ChecklistRoute
   ExportRoute: typeof ExportRoute
   InstructionsRoute: typeof InstructionsRoute
+  ManagerRoute: typeof ManagerRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
@@ -409,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/manager': {
+      id: '/manager'
+      path: '/manager'
+      fullPath: '/manager'
+      preLoaderRoute: typeof ManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/instructions': {
       id: '/instructions'
       path: '/instructions'
@@ -482,6 +502,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChecklistRoute: ChecklistRoute,
   ExportRoute: ExportRoute,
   InstructionsRoute: InstructionsRoute,
+  ManagerRoute: ManagerRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
