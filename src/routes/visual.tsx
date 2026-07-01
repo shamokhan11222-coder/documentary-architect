@@ -20,7 +20,7 @@ import { Steps } from "@/components/Steps";
 import type { VisualScene } from "@/lib/types";
 
 export const Route = createFileRoute("/visual")({
-  head: () => ({ meta: [{ title: "Storyboard — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Images — Documentary Studio" }] }),
   component: VisualPage,
 });
 
