@@ -45,6 +45,9 @@ function seoToText(s: Seo): string {
     "",
     "LONG SUMMARY:",
     s.longSummary,
+    "",
+    "UPLOAD CHECKLIST:",
+    ...(s.uploadChecklist ?? []).map((c) => `- ${c}`),
   ].join("\n");
 }
 
@@ -180,6 +183,14 @@ function SeoPage() {
           <EditableCard label="Pinned Comment" value={seo.pinnedComment} rows={3} onChange={(v) => update({ pinnedComment: v })} />
           <EditableCard label="Short Summary" value={seo.shortSummary} rows={2} onChange={(v) => update({ shortSummary: v })} />
           <EditableCard label="Long Summary" value={seo.longSummary} rows={5} onChange={(v) => update({ longSummary: v })} />
+
+          <Card title="Upload Checklist">
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {(seo.uploadChecklist ?? []).map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          </Card>
         </div>
       )}
     </div>
