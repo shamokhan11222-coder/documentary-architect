@@ -20,6 +20,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
+import { Route as QueueRouteImport } from './routes/queue'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
@@ -81,6 +82,11 @@ const RatingRoute = RatingRouteImport.update({
   path: '/rating',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QueueRoute = QueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstructionsRoute = InstructionsRouteImport.update({
   id: '/instructions',
   path: '/instructions',
@@ -110,6 +116,7 @@ const ApiChatRoute = ApiChatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/instructions': typeof InstructionsRoute
+  '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/instructions': typeof InstructionsRoute
+  '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/instructions': typeof InstructionsRoute
+  '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/instructions'
+    | '/queue'
     | '/rating'
     | '/research'
     | '/seo'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/instructions'
+    | '/queue'
     | '/rating'
     | '/research'
     | '/seo'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/instructions'
+    | '/queue'
     | '/rating'
     | '/research'
     | '/seo'
@@ -222,6 +234,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InstructionsRoute: typeof InstructionsRoute
+  QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
   SeoRoute: typeof SeoRoute
@@ -317,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RatingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/queue': {
+      id: '/queue'
+      path: '/queue'
+      fullPath: '/queue'
+      preLoaderRoute: typeof QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/instructions': {
       id: '/instructions'
       path: '/instructions'
@@ -358,6 +378,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InstructionsRoute: InstructionsRoute,
+  QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
   SeoRoute: SeoRoute,
