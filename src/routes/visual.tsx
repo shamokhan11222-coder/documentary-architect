@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Upload, Trash2, ImagePlus } from "lucide-react";
 
-import { generateVisualMap } from "@/lib/ai.functions";
+import { generateVisualMap, checkImageConsistency } from "@/lib/ai.functions";
 import {
   useTopics,
   useSelectedTopicId,
@@ -13,11 +13,11 @@ import {
   useVisualMap,
   saveVisualMap,
 } from "@/lib/store";
-import { useImage, putImage, deleteImage, fileToDataUrl } from "@/lib/images";
+import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage } from "@/lib/generate-image";
 import { Button } from "@/components/ui/button";
 import { Steps } from "@/components/Steps";
-import type { VisualScene } from "@/lib/types";
+import type { VisualScene, ConsistencyReport } from "@/lib/types";
 
 export const Route = createFileRoute("/visual")({
   head: () => ({ meta: [{ title: "Images — Documentary Studio" }] }),
@@ -34,8 +34,10 @@ function VisualPage() {
   const map = useVisualMap(selectedId);
 
   const gen = useServerFn(generateVisualMap);
+  const doCheck = useServerFn(checkImageConsistency);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [report, setReport] = useState<ConsistencyReport | null>(null);
 
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -107,6 +109,22 @@ function VisualPage() {
     saveVisualMap({ ...map, scenes: map.scenes.filter((s) => s.sceneNumber !== sceneNumber) });
   }
 
+  function handleConsistency() {
+    if (!selected || !map) return;
+    return withBusy("check", async () => {
+      const withImages: number[] = [];
+      for (const s of map.scenes) {
+        const img = await loadImage(sceneImageId(selected.id, s.sceneNumber));
+        if (img) withImages.push(s.sceneNumber);
+      }
+      const r = (await doCheck({
+        data: { topic: selected.topic, scenes: map.scenes, withImages },
+      })) as ConsistencyReport;
+      setReport(r);
+      toast.success("Consistency checked");
+    });
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <Steps current="visual" />
@@ -139,7 +157,53 @@ function VisualPage() {
             <ImagePlus className="mr-2 h-4 w-4" /> Generate All Images
           </Button>
         )}
+        {map && (
+          <Button variant="outline" onClick={handleConsistency} disabled={!!busy}>
+            {busy === "check" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Check Consistency
+          </Button>
+        )}
       </div>
+
+      {report && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-4 text-xs">
+          <div className="mb-2 text-sm font-semibold">Consistency Report</div>
+          <div className="flex flex-wrap gap-1.5">
+            {([
+              ["Character", report.characterConsistent],
+              ["Color", report.colorConsistent],
+              ["Outline", report.outlineConsistent],
+              ["Background", report.backgroundConsistent],
+              ["Order", report.orderOk],
+            ] as [string, boolean][]).map(([k, ok]) => (
+              <span
+                key={k}
+                className={`rounded-full px-2 py-0.5 font-medium ${
+                  ok ? "bg-green-500/15 text-green-600" : "bg-red-500/15 text-red-600"
+                }`}
+              >
+                {k}: {ok ? "OK" : "Issue"}
+              </span>
+            ))}
+          </div>
+          {report.missingScenes?.length > 0 && (
+            <p className="mt-2 text-amber-600">Missing images: {report.missingScenes.join(", ")}</p>
+          )}
+          {report.duplicateScenes?.length > 0 && (
+            <p className="mt-1 text-amber-600">Duplicate scenes: {report.duplicateScenes.join(", ")}</p>
+          )}
+          <p className="mt-2 text-muted-foreground">{report.summary}</p>
+          {report.flagged?.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {report.flagged.map((f) => (
+                <li key={f.sceneNumber} className="rounded-md bg-muted/50 p-2">
+                  <strong>Scene {f.sceneNumber}:</strong> {f.issues.join("; ")} — <em>{f.fix}</em>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {progress && (
         <div className="mt-4">

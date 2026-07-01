@@ -283,3 +283,107 @@ export interface AudioPack {
   sfx: SfxCue[];
   generatedAt: number;
 }
+// ---------------- V7: Intelligence Layer ----------------
+
+// Learn My Style — a single user reaction to any generated item.
+export type FeedbackRating = "good" | "favorite" | "bad";
+
+export interface FeedbackEntry {
+  id: string;
+  kind: string; // "hook" | "story" | "thumbnail" | "title" | "camera" | "background" | "expression" | "pacing" | "storytelling" | ...
+  rating: FeedbackRating;
+  content: string; // the thing that was rated (short)
+  topicId?: string;
+  at: number;
+}
+
+// Knowledge Base — curated "best of" memory the AI can learn from.
+export type KnowledgeKind =
+  | "hook"
+  | "story"
+  | "visualStyle"
+  | "thumbnail"
+  | "seo"
+  | "voice"
+  | "instruction"
+  | "completedProject"
+  | "approvedTopic"
+  | "rejectedTopic";
+
+export interface KnowledgeItem {
+  id: string;
+  kind: KnowledgeKind;
+  content: string;
+  note?: string;
+  topicId?: string;
+  at: number;
+}
+
+// API Settings — prepared, NOT yet activated.
+export type ApiProvider =
+  | "OpenAI"
+  | "Google Gemini"
+  | "Fal.ai"
+  | "Replicate"
+  | "ElevenLabs"
+  | "Custom Provider";
+
+export interface ApiKeyEntry {
+  id: string;
+  provider: ApiProvider;
+  apiKey: string;
+  purpose: string;
+  modelName: string;
+  lastTested?: number;
+  testResult?: string;
+  at: number;
+}
+
+// Story Review (dedicated deep review).
+export interface StoryReview {
+  weakHook: string;
+  slowPacing: string;
+  repeatedIdeas: string;
+  weakEnding: string;
+  centralConflict: string;
+  lowCuriosity: string;
+  suggestions: string[];
+  score: number;
+}
+
+// Thumbnail Review.
+export interface ThumbnailScored {
+  index: number;
+  ctr: number;
+  emotion: number;
+  composition: number;
+  readability: number;
+  curiosity: number;
+  overall: number;
+  note: string;
+}
+
+export interface ThumbnailReview {
+  scored: ThumbnailScored[];
+  recommendedIndex: number;
+  reason: string;
+}
+
+// Image Consistency Review.
+export interface SceneIssue {
+  sceneNumber: number;
+  issues: string[];
+  fix: string;
+}
+
+export interface ConsistencyReport {
+  characterConsistent: boolean;
+  colorConsistent: boolean;
+  outlineConsistent: boolean;
+  backgroundConsistent: boolean;
+  orderOk: boolean;
+  missingScenes: number[];
+  duplicateScenes: number[];
+  flagged: SceneIssue[];
+  summary: string;
+}

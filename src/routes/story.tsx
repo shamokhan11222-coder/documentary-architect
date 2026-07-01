@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Copy, Download } from "lucide-react";
 
-import { generateStory, rewriteSection, type SectionMode } from "@/lib/ai.functions";
+import { generateStory, rewriteSection, reviewStory, type SectionMode } from "@/lib/ai.functions";
 import {
   useTopics,
   useSelectedTopicId,
@@ -17,7 +17,8 @@ import { Score } from "@/components/Score";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
-import type { Story, StorySection } from "@/lib/types";
+import { Feedback } from "@/components/Feedback";
+import type { Story, StorySection, StoryReview } from "@/lib/types";
 
 export const Route = createFileRoute("/story")({
   head: () => ({ meta: [{ title: "Story — Documentary Studio" }] }),
@@ -46,7 +47,23 @@ function StoryPage() {
 
   const gen = useServerFn(generateStory);
   const rewrite = useServerFn(rewriteSection);
+  const deepReview = useServerFn(reviewStory);
   const [busy, setBusy] = useState<string | null>(null);
+  const [review, setReview] = useState<StoryReview | null>(null);
+
+  async function runDeepReview() {
+    if (!selected || !story) return;
+    setBusy("review");
+    try {
+      const r = (await deepReview({ data: { topic: selected.topic, script: story.script } })) as StoryReview;
+      setReview(r);
+      toast.success("Story reviewed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   function handleGenerate() {
     if (!selected) return;
@@ -147,7 +164,42 @@ function StoryPage() {
             >
               <Download className="mr-1 h-3.5 w-3.5" /> Download
             </Button>
+            <Button size="sm" variant="outline" onClick={runDeepReview} disabled={!!busy}>
+              {busy === "review" && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              Story Review
+            </Button>
           </div>
+
+          {review && (
+            <div className="rounded-lg border border-border bg-card p-4 text-xs">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-sm font-semibold">Story Review</span>
+                <Score label="Score" value={review.score} />
+              </div>
+              <dl className="grid gap-1.5 sm:grid-cols-2">
+                {([
+                  ["Weak Hook", review.weakHook],
+                  ["Slow Pacing", review.slowPacing],
+                  ["Repeated Ideas", review.repeatedIdeas],
+                  ["Weak Ending", review.weakEnding],
+                  ["Central Conflict", review.centralConflict],
+                  ["Low Curiosity", review.lowCuriosity],
+                ] as [string, string][]).map(([k, v]) => (
+                  <div key={k} className="rounded-md bg-muted/50 p-2">
+                    <dt className="font-medium text-foreground">{k}</dt>
+                    <dd className="text-muted-foreground">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              {review.suggestions?.length > 0 && (
+                <ul className="mt-2 list-disc space-y-0.5 pl-4 text-muted-foreground">
+                  {review.suggestions.map((s, i) => (
+                    <li key={i}>{s}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {story.review?.verdict && (
             <p className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
@@ -159,15 +211,22 @@ function StoryPage() {
             <section key={section.key} className="rounded-lg border border-border p-4">
               <div className="mb-2 flex items-center justify-between">
                 <h2 className="text-sm font-semibold">{section.title}</h2>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={() => copyText(section.content)}
-                  aria-label="Copy section"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Feedback
+                    kind={section.key === "hook" ? "hook" : "story"}
+                    content={`${section.title}: ${section.content}`}
+                    topicId={selected.id}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => copyText(section.content)}
+                    aria-label="Copy section"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
               <textarea
                 className="min-h-[100px] w-full resize-y rounded-md border border-input bg-background p-2 text-sm leading-relaxed"

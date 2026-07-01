@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Check, Sparkles, Code } from "lucide-react";
 
-import { generateThumbnails, regenerateThumbnail } from "@/lib/ai.functions";
+import { generateThumbnails, regenerateThumbnail, reviewThumbnails } from "@/lib/ai.functions";
 import {
   useTopics,
   useSelectedTopicId,
@@ -19,7 +19,8 @@ import { generateThumbnailImage } from "@/lib/generate-image";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
 import { Steps } from "@/components/Steps";
-import type { ThumbnailIdea } from "@/lib/types";
+import { Feedback } from "@/components/Feedback";
+import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 
 export const Route = createFileRoute("/thumbnail")({
   head: () => ({ meta: [{ title: "Thumbnail — Documentary Studio" }] }),
@@ -38,9 +39,20 @@ function ThumbnailPage() {
 
   const gen = useServerFn(generateThumbnails);
   const regen = useServerFn(regenerateThumbnail);
+  const doReview = useServerFn(reviewThumbnails);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [dev, setDev] = useState(false);
+  const [review, setReview] = useState<ThumbnailReview | null>(null);
+
+  function handleReview() {
+    if (!selected || !pack) return;
+    return withBusy("review", async () => {
+      const r = (await doReview({ data: { topic: selected.topic, ideas: pack.ideas } })) as ThumbnailReview;
+      setReview(r);
+      toast.success("Reviewed — strongest thumbnail highlighted");
+    });
+  }
 
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -123,7 +135,20 @@ function ThumbnailPage() {
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {pack ? "Regenerate Thumbnails" : "Generate Thumbnails"}
         </Button>
+        {pack && (
+          <Button variant="outline" onClick={handleReview} disabled={!!busy}>
+            {busy === "review" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Review Thumbnails
+          </Button>
+        )}
       </div>
+
+      {review && (
+        <p className="mt-3 rounded-md border border-primary/40 bg-primary/5 p-3 text-xs text-muted-foreground">
+          <strong className="text-foreground">Recommended: #{review.recommendedIndex + 1}.</strong>{" "}
+          {review.reason}
+        </p>
+      )}
 
       {progress && (
         <div className="mt-4">
@@ -148,6 +173,8 @@ function ThumbnailPage() {
               topicId={selected.id}
               busy={busy}
               dev={dev}
+              scored={review?.scored.find((s) => s.index === i) ?? null}
+              recommended={review?.recommendedIndex === i}
               onRegen={() => handleRegen(i)}
               onChoose={() => handleChoose(i)}
             />
@@ -164,6 +191,8 @@ function ThumbCard({
   topicId,
   busy,
   dev,
+  scored,
+  recommended,
   onRegen,
   onChoose,
 }: {
@@ -172,13 +201,15 @@ function ThumbCard({
   topicId: string;
   busy: string | null;
   dev: boolean;
+  scored: ThumbnailReview["scored"][number] | null;
+  recommended: boolean;
   onRegen: () => void;
   onChoose: () => void;
 }) {
   const img = useImage(thumbImageId(topicId, index));
   const working = busy === `i-${index}`;
   return (
-    <div className={`overflow-hidden rounded-xl border ${idea.chosen ? "border-primary ring-1 ring-primary" : "border-border"}`}>
+    <div className={`overflow-hidden rounded-xl border ${idea.chosen || recommended ? "border-primary ring-1 ring-primary" : "border-border"}`}>
       <div className="relative flex aspect-video items-center justify-center bg-muted/30">
         {img ? (
           <img src={img} alt={idea.thumbnailTitle} className="h-full w-full object-cover" />
@@ -190,6 +221,11 @@ function ThumbCard({
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         )}
+        {recommended && (
+          <span className="absolute left-2 top-2 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+            Recommended
+          </span>
+        )}
         {idea.chosen && (
           <span className="absolute right-2 top-2 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
             Chosen
@@ -197,12 +233,22 @@ function ThumbCard({
         )}
       </div>
       <div className="p-3">
-        <div className="text-sm font-medium">{idea.thumbnailTitle}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="text-sm font-medium">{idea.thumbnailTitle}</div>
+          <Feedback kind="thumbnail" content={`${idea.thumbnailTitle} — ${idea.mainVisualConcept}`} topicId={topicId} />
+        </div>
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Score label="CTR" value={idea.ctrScore} />
           <Meta label="Emotion" value={idea.emotion} />
           <Meta label="Composition" value={idea.composition} />
         </div>
+        {scored && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Score label="Read" value={scored.readability} />
+            <Score label="Curiosity" value={scored.curiosity} />
+            <Score label="Overall" value={scored.overall} />
+          </div>
+        )}
         <p className="mt-2 text-xs text-muted-foreground">{idea.whyItWorks}</p>
         {dev && (
           <p className="mt-2 rounded bg-muted p-2 text-[11px] text-muted-foreground">

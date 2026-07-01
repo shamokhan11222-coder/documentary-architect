@@ -22,11 +22,14 @@ import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
+import { Route as ManagerRouteImport } from './routes/manager'
+import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as AudioRouteImport } from './routes/audio'
 import { Route as AssetsRouteImport } from './routes/assets'
+import { Route as ApiKeysRouteImport } from './routes/api-keys'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
@@ -97,6 +100,16 @@ const QueueRoute = QueueRouteImport.update({
   path: '/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ManagerRoute = ManagerRouteImport.update({
+  id: '/manager',
+  path: '/manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KnowledgeRoute = KnowledgeRouteImport.update({
+  id: '/knowledge',
+  path: '/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstructionsRoute = InstructionsRouteImport.update({
   id: '/instructions',
   path: '/instructions',
@@ -122,6 +135,11 @@ const AssetsRoute = AssetsRouteImport.update({
   path: '/assets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKeysRoute = ApiKeysRouteImport.update({
+  id: '/api-keys',
+  path: '/api-keys',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -145,11 +163,14 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/knowledge': typeof KnowledgeRoute
+  '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -169,11 +190,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/knowledge': typeof KnowledgeRoute
+  '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -194,11 +218,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/knowledge': typeof KnowledgeRoute
+  '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -220,11 +247,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/api-keys'
     | '/assets'
     | '/audio'
     | '/checklist'
     | '/export'
     | '/instructions'
+    | '/knowledge'
+    | '/manager'
     | '/queue'
     | '/rating'
     | '/research'
@@ -244,11 +274,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api-keys'
     | '/assets'
     | '/audio'
     | '/checklist'
     | '/export'
     | '/instructions'
+    | '/knowledge'
+    | '/manager'
     | '/queue'
     | '/rating'
     | '/research'
@@ -268,11 +301,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/api-keys'
     | '/assets'
     | '/audio'
     | '/checklist'
     | '/export'
     | '/instructions'
+    | '/knowledge'
+    | '/manager'
     | '/queue'
     | '/rating'
     | '/research'
@@ -293,11 +329,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiKeysRoute: typeof ApiKeysRoute
   AssetsRoute: typeof AssetsRoute
   AudioRoute: typeof AudioRoute
   ChecklistRoute: typeof ChecklistRoute
   ExportRoute: typeof ExportRoute
   InstructionsRoute: typeof InstructionsRoute
+  KnowledgeRoute: typeof KnowledgeRoute
+  ManagerRoute: typeof ManagerRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
@@ -409,6 +448,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/manager': {
+      id: '/manager'
+      path: '/manager'
+      fullPath: '/manager'
+      preLoaderRoute: typeof ManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/knowledge': {
+      id: '/knowledge'
+      path: '/knowledge'
+      fullPath: '/knowledge'
+      preLoaderRoute: typeof KnowledgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/instructions': {
       id: '/instructions'
       path: '/instructions'
@@ -444,6 +497,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api-keys': {
+      id: '/api-keys'
+      path: '/api-keys'
+      fullPath: '/api-keys'
+      preLoaderRoute: typeof ApiKeysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -477,11 +537,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiKeysRoute: ApiKeysRoute,
   AssetsRoute: AssetsRoute,
   AudioRoute: AudioRoute,
   ChecklistRoute: ChecklistRoute,
   ExportRoute: ExportRoute,
   InstructionsRoute: InstructionsRoute,
+  KnowledgeRoute: KnowledgeRoute,
+  ManagerRoute: ManagerRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,

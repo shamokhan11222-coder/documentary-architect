@@ -150,6 +150,7 @@ function RootComponent() {
 const NAV = [
   { section: "Studio" },
   { to: "/", label: "Home" },
+  { to: "/manager", label: "AI Manager" },
   { to: "/topics", label: "Projects" },
   { to: "/research", label: "Research" },
   { to: "/story", label: "Story" },
@@ -169,6 +170,8 @@ const NAV = [
   { to: "/assets", label: "Assets Library" },
   { to: "/visual-dna", label: "Visual DNA" },
   { to: "/instructions", label: "AI Instructions" },
+  { to: "/knowledge", label: "Knowledge Base" },
+  { to: "/api-keys", label: "API Settings" },
   { to: "/settings", label: "Settings" },
 ] as const;
 
