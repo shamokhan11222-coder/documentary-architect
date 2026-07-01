@@ -16,6 +16,8 @@ function SettingsPage() {
       topics: localStorage.getItem("docos.topics"),
       research: localStorage.getItem("docos.research"),
       story: localStorage.getItem("docos.story"),
+      visual: localStorage.getItem("docos.visual"),
+      prompts: localStorage.getItem("docos.prompts"),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -31,9 +33,14 @@ function SettingsPage() {
   function clearAll() {
     if (!confirm("Delete ALL topics, research and scripts? This cannot be undone."))
       return;
-    ["docos.topics", "docos.research", "docos.story", "docos.selectedTopic"].forEach(
-      (k) => localStorage.removeItem(k),
-    );
+    [
+      "docos.topics",
+      "docos.research",
+      "docos.story",
+      "docos.visual",
+      "docos.prompts",
+      "docos.selectedTopic",
+    ].forEach((k) => localStorage.removeItem(k));
     window.dispatchEvent(new Event("storage"));
     toast.success("All data cleared");
   }
