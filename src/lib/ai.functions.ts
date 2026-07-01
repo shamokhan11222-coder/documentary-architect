@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
-import type { Research } from "./types";
+import type { PromptItem, Research, VisualScene } from "./types";
 
 interface GeneratedTopic {
   topic: string;
