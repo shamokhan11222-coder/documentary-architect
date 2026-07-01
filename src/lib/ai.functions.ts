@@ -1,3 +1,5 @@
+import { createServerFn } from "@tanstack/react-start";
+import { callAiJson, callAiText } from "./ai-gateway.server";
 import type { Research } from "./types";
 
 interface GeneratedTopic {
@@ -10,9 +12,6 @@ interface GeneratedTopic {
   visualDifficulty: string;
   estimatedLength: string;
 }
-import { createServerFn } from "@tanstack/react-start";
-import { callAiJson, callAiText } from "./ai-gateway.server";
-import type { Research } from "./types";
 
 // ---------------- Topic Engine ----------------
 
