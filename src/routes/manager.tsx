@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle2, Play, RotateCw, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ProjectHeader, useSelectedProject } from "@/components/ProjectPicker";
+import { useSelectedProject } from "@/components/ProjectPicker";
+import { ProjectHeader } from "@/components/ProjectHeader";
 import { PIPELINE, stageDone, nextStage, completionPercent, type StageKey } from "@/lib/manager";
 import { getStyleProfile } from "@/lib/preferences";
 import { getKnowledgeContext } from "@/lib/knowledge";
