@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { Toaster } from "../components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -77,11 +78,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Documentary Studio — AI Production Assistant" },
+      {
+        name: "description",
+        content:
+          "Private AI workflow for YouTube documentaries: topic engine, research engine, and story engine.",
+      },
+      { name: "author", content: "Documentary Studio" },
+      { property: "og:title", content: "Documentary Studio" },
+      {
+        property: "og:description",
+        content: "Private AI documentary production assistant.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -119,8 +127,43 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <div className="flex min-h-screen bg-background text-foreground">
+        <Sidebar />
+        <main className="flex-1 overflow-x-hidden">
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </main>
+      </div>
+      <Toaster />
     </QueryClientProvider>
+  );
+}
+
+const NAV = [
+  { to: "/topics", label: "Topics" },
+  { to: "/research", label: "Research" },
+  { to: "/story", label: "Story" },
+  { to: "/settings", label: "Settings" },
+] as const;
+
+function Sidebar() {
+  return (
+    <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-card">
+      <div className="px-4 py-5">
+        <div className="text-sm font-semibold tracking-tight">Documentary Studio</div>
+        <div className="text-xs text-muted-foreground">AI production assistant</div>
+      </div>
+      <nav className="flex flex-col gap-1 px-2">
+        {NAV.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+    </aside>
   );
 }
