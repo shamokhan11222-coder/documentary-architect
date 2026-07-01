@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useTopics, useSelectedTopicId, exportProject } from "@/lib/store";
+import { useTopics, useSelectedTopicId, exportProject, useTaste, clearTaste } from "@/lib/store";
 import { Steps } from "@/components/Steps";
 import { downloadJson, slugify } from "@/lib/io";
 
@@ -14,6 +14,7 @@ function SettingsPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
+  const taste = useTaste();
 
   function exportData() {
     const data = {
@@ -63,6 +64,26 @@ function SettingsPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {topics.length} saved topic(s). AI runs on Lovable AI (server-side key).
           </p>
+        </div>
+
+        <div className="rounded-lg border border-border p-4">
+          <div className="text-sm font-medium">AI Taste Memory</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Liked {taste.liked.length} · Rejected {taste.rejected.length} · Completed{" "}
+            {taste.completed.length}. The Home feed learns from this.
+          </p>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                clearTaste();
+                toast.success("Taste memory reset");
+              }}
+            >
+              Reset taste memory
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border p-4">
