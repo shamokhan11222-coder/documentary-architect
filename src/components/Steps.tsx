@@ -33,7 +33,7 @@ export function Steps({ current }: { current: StepKey }) {
   function done(key: StepKey): boolean {
     if (key === "topic") return hasTopic;
     if (key === "export") return false;
-    return (status as Record<string, boolean>)[key] ?? false;
+    return (status as unknown as Record<string, boolean>)[key] ?? false;
   }
 
   return (
