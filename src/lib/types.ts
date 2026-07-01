@@ -155,6 +155,7 @@ export interface Seo {
   pinnedComment: string;
   shortSummary: string;
   longSummary: string;
+  uploadChecklist: string[];
   generatedAt: number;
 }
 
@@ -170,6 +171,10 @@ export interface RatingReport {
   originalityScore: number;
   evergreenScore: number;
   overallScore: number;
+  ctrPrediction: string;
+  retentionPrediction: string;
+  weakestPart: string;
+  bestPart: string;
   weakPoints: string[];
   strongPoints: string[];
   whatToImprove: string[];
