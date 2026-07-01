@@ -6,18 +6,16 @@ type StepKey =
   | "research"
   | "story"
   | "visual"
-  | "prompts"
   | "thumbnail"
   | "seo"
   | "rating"
   | "export";
 
 const STEPS: { key: StepKey; label: string; to: string }[] = [
-  { key: "topic", label: "Topic", to: "/topics" },
+  { key: "topic", label: "Project", to: "/topics" },
   { key: "research", label: "Research", to: "/research" },
   { key: "story", label: "Story", to: "/story" },
-  { key: "visual", label: "Visuals", to: "/visual" },
-  { key: "prompts", label: "Prompts", to: "/prompts" },
+  { key: "visual", label: "Storyboard", to: "/visual" },
   { key: "thumbnail", label: "Thumbnail", to: "/thumbnail" },
   { key: "seo", label: "SEO", to: "/seo" },
   { key: "rating", label: "Rating", to: "/rating" },

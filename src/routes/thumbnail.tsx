@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw, Check, Sparkles, Code } from "lucide-react";
 
 import { generateThumbnails, regenerateThumbnail } from "@/lib/ai.functions";
 import {
@@ -14,10 +14,11 @@ import {
   useThumbnails,
   saveThumbnails,
 } from "@/lib/store";
+import { useImage, putImage } from "@/lib/images";
+import { generateThumbnailImage } from "@/lib/generate-image";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
 import { Steps } from "@/components/Steps";
-import { copyText, downloadTxt, downloadJson, slugify } from "@/lib/io";
 import type { ThumbnailIdea } from "@/lib/types";
 
 export const Route = createFileRoute("/thumbnail")({
@@ -25,21 +26,7 @@ export const Route = createFileRoute("/thumbnail")({
   component: ThumbnailPage,
 });
 
-function ideaToText(idx: number, i: ThumbnailIdea): string {
-  return [
-    `Thumbnail ${idx + 1}: ${i.thumbnailTitle}`,
-    `Concept: ${i.mainVisualConcept}`,
-    `Main Subject: ${i.mainSubject}`,
-    `Background: ${i.background}`,
-    `Emotion: ${i.emotion}`,
-    `Text on Thumbnail: ${i.textOnThumbnail}`,
-    `Composition: ${i.composition}`,
-    `CTR Score: ${i.ctrScore}/10`,
-    `Why It Works: ${i.whyItWorks}`,
-    `Image Prompt: ${i.imagePrompt}`,
-    `Negative Prompt: ${i.negativePrompt}`,
-  ].join("\n");
-}
+const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
 function ThumbnailPage() {
   const topics = useTopics();
@@ -52,6 +39,8 @@ function ThumbnailPage() {
   const gen = useServerFn(generateThumbnails);
   const regen = useServerFn(regenerateThumbnail);
   const [busy, setBusy] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [dev, setDev] = useState(false);
 
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -68,13 +57,20 @@ function ThumbnailPage() {
     if (!selected) return;
     return withBusy("gen", async () => {
       const ideas = (await gen({
-        data: {
-          topic: selected.topic,
-          script: story?.script,
-          angle: research?.storyAngles?.[0],
-        },
+        data: { topic: selected.topic, script: story?.script, angle: research?.storyAngles?.[0] },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
+      setProgress({ done: 0, total: ideas.length });
+      for (let i = 0; i < ideas.length; i++) {
+        try {
+          const url = await generateThumbnailImage(ideas[i]);
+          await putImage(thumbImageId(selected.id, i), url);
+        } catch (e) {
+          toast.error(`Thumbnail ${i + 1}: ${e instanceof Error ? e.message : "failed"}`);
+        }
+        setProgress({ done: i + 1, total: ideas.length });
+      }
+      setProgress(null);
       toast.success("Thumbnails generated");
     });
   }
@@ -82,26 +78,32 @@ function ThumbnailPage() {
   function handleRegen(index: number) {
     if (!selected || !pack) return;
     return withBusy(`i-${index}`, async () => {
-      const updated = (await regen({
-        data: { topic: selected.topic, idea: pack.ideas[index] },
-      })) as ThumbnailIdea;
+      const updated = (await regen({ data: { topic: selected.topic, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
-      toast.success("Idea regenerated");
+      const url = await generateThumbnailImage(updated);
+      await putImage(thumbImageId(selected.id, index), url);
+      toast.success("Thumbnail regenerated");
     });
   }
 
-  const allText = () =>
-    !pack || !selected
-      ? ""
-      : `THUMBNAILS — ${selected.topic}\n\n${pack.ideas.map((it, i) => ideaToText(i, it)).join("\n\n")}`;
+  function handleChoose(index: number) {
+    if (!pack) return;
+    saveThumbnails({ ...pack, ideas: pack.ideas.map((it, i) => ({ ...it, chosen: i === index })) });
+    toast.success("Thumbnail chosen");
+  }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
+    <div className="mx-auto max-w-5xl px-6 py-8">
       <Steps current="thumbnail" />
-      <h1 className="text-xl font-semibold">Thumbnail Engine</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Thumbnail Engine</h1>
+        <Button size="sm" variant="ghost" onClick={() => setDev((v) => !v)}>
+          <Code className="mr-1 h-4 w-4" /> {dev ? "Hide" : "Developer"} Mode
+        </Button>
+      </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        High-CTR thumbnail concepts in MS Paint documentary style.
+        Real generated thumbnail concepts with CTR scoring. No prompts — just pick a winner.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -110,7 +112,7 @@ function ThumbnailPage() {
           value={selectedId ?? ""}
           onChange={(e) => setSelectedTopicId(e.target.value || null)}
         >
-          <option value="">Select a saved topic…</option>
+          <option value="">Select a project…</option>
           {topics.map((t) => (
             <option key={t.id} value={t.id}>
               {t.topic}
@@ -123,74 +125,102 @@ function ThumbnailPage() {
         </Button>
       </div>
 
-      {!selected && (
-        <p className="mt-6 text-sm text-muted-foreground">Select a topic to start.</p>
-      )}
-
-      {pack && selected && (
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={() => copyText(allText(), "All copied")}>
-              Copy All
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => downloadTxt(slugify(selected.topic) + "-thumbnails", allText())}
-            >
-              Download TXT
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => downloadJson(slugify(selected.topic) + "-thumbnails", pack.ideas)}
-            >
-              Download JSON
-            </Button>
+      {progress && (
+        <div className="mt-4">
+          <div className="mb-1 text-xs text-muted-foreground">
+            Generating thumbnails… {progress.done}/{progress.total}
           </div>
-
-          <div className="space-y-3">
-            {pack.ideas.map((it, i) => (
-              <div key={i} className="rounded-lg border border-border p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-medium">
-                    {i + 1}. {it.thumbnailTitle}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copyText(it.imagePrompt, "Prompt copied")}
-                    >
-                      Copy Thumbnail Prompt
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleRegen(i)}
-                      disabled={!!busy}
-                    >
-                      {busy === `i-${i}` && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Regenerate Idea
-                    </Button>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm">{it.mainVisualConcept}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <Score label="CTR" value={it.ctrScore} />
-                  <Meta label="Subject" value={it.mainSubject} />
-                  <Meta label="Background" value={it.background} />
-                  <Meta label="Emotion" value={it.emotion} />
-                  <Meta label="Text" value={it.textOnThumbnail} />
-                  <Meta label="Composition" value={it.composition} />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Why it works: {it.whyItWorks}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Prompt: {it.imagePrompt}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Negative: {it.negativePrompt}</p>
-              </div>
-            ))}
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full bg-primary transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
           </div>
         </div>
       )}
+
+      {!selected && <p className="mt-6 text-sm text-muted-foreground">Select a project to start.</p>}
+
+      {pack && selected && (
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {pack.ideas.map((it, i) => (
+            <ThumbCard
+              key={i}
+              idea={it}
+              index={i}
+              topicId={selected.id}
+              busy={busy}
+              dev={dev}
+              onRegen={() => handleRegen(i)}
+              onChoose={() => handleChoose(i)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThumbCard({
+  idea,
+  index,
+  topicId,
+  busy,
+  dev,
+  onRegen,
+  onChoose,
+}: {
+  idea: ThumbnailIdea;
+  index: number;
+  topicId: string;
+  busy: string | null;
+  dev: boolean;
+  onRegen: () => void;
+  onChoose: () => void;
+}) {
+  const img = useImage(thumbImageId(topicId, index));
+  const working = busy === `i-${index}`;
+  return (
+    <div className={`overflow-hidden rounded-xl border ${idea.chosen ? "border-primary ring-1 ring-primary" : "border-border"}`}>
+      <div className="relative flex aspect-video items-center justify-center bg-muted/30">
+        {img ? (
+          <img src={img} alt={idea.thumbnailTitle} className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-xs text-muted-foreground">No image</span>
+        )}
+        {working && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        )}
+        {idea.chosen && (
+          <span className="absolute right-2 top-2 rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+            Chosen
+          </span>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="text-sm font-medium">{idea.thumbnailTitle}</div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Score label="CTR" value={idea.ctrScore} />
+          <Meta label="Emotion" value={idea.emotion} />
+          <Meta label="Composition" value={idea.composition} />
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">{idea.whyItWorks}</p>
+        {dev && (
+          <p className="mt-2 rounded bg-muted p-2 text-[11px] text-muted-foreground">
+            Prompt: {idea.imagePrompt}
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Button size="sm" onClick={onChoose} disabled={!!busy}>
+            <Check className="mr-1 h-3.5 w-3.5" /> Choose
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onRegen} disabled={!!busy}>
+            <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onRegen} disabled={!!busy}>
+            <Sparkles className="mr-1 h-3.5 w-3.5" /> Upscale
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
@@ -17,9 +18,16 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
-import { Route as PromptsRouteImport } from './routes/prompts'
+import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
 
+const VisualDnaRoute = VisualDnaRouteImport.update({
+  id: '/visual-dna',
+  path: '/visual-dna',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisualRoute = VisualRouteImport.update({
   id: '/visual',
   path: '/visual',
@@ -60,9 +68,9 @@ const RatingRoute = RatingRouteImport.update({
   path: '/rating',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PromptsRoute = PromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
+const InstructionsRoute = InstructionsRouteImport.update({
+  id: '/instructions',
+  path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -70,10 +78,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
+  id: '/api/generate-image',
+  path: '/api/generate-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/prompts': typeof PromptsRoute
+  '/instructions': typeof InstructionsRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
@@ -82,10 +100,13 @@ export interface FileRoutesByFullPath {
   '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
+  '/visual-dna': typeof VisualDnaRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/generate-image': typeof ApiGenerateImageRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/prompts': typeof PromptsRoute
+  '/instructions': typeof InstructionsRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
@@ -94,11 +115,14 @@ export interface FileRoutesByTo {
   '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
+  '/visual-dna': typeof VisualDnaRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/generate-image': typeof ApiGenerateImageRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/prompts': typeof PromptsRoute
+  '/instructions': typeof InstructionsRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
@@ -107,12 +131,15 @@ export interface FileRoutesById {
   '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
+  '/visual-dna': typeof VisualDnaRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/generate-image': typeof ApiGenerateImageRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/prompts'
+    | '/instructions'
     | '/rating'
     | '/research'
     | '/seo'
@@ -121,10 +148,13 @@ export interface FileRouteTypes {
     | '/thumbnail'
     | '/topics'
     | '/visual'
+    | '/visual-dna'
+    | '/api/chat'
+    | '/api/generate-image'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/prompts'
+    | '/instructions'
     | '/rating'
     | '/research'
     | '/seo'
@@ -133,10 +163,13 @@ export interface FileRouteTypes {
     | '/thumbnail'
     | '/topics'
     | '/visual'
+    | '/visual-dna'
+    | '/api/chat'
+    | '/api/generate-image'
   id:
     | '__root__'
     | '/'
-    | '/prompts'
+    | '/instructions'
     | '/rating'
     | '/research'
     | '/seo'
@@ -145,11 +178,14 @@ export interface FileRouteTypes {
     | '/thumbnail'
     | '/topics'
     | '/visual'
+    | '/visual-dna'
+    | '/api/chat'
+    | '/api/generate-image'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  PromptsRoute: typeof PromptsRoute
+  InstructionsRoute: typeof InstructionsRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
   SeoRoute: typeof SeoRoute
@@ -158,10 +194,20 @@ export interface RootRouteChildren {
   ThumbnailRoute: typeof ThumbnailRoute
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
+  VisualDnaRoute: typeof VisualDnaRoute
+  ApiChatRoute: typeof ApiChatRoute
+  ApiGenerateImageRoute: typeof ApiGenerateImageRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/visual-dna': {
+      id: '/visual-dna'
+      path: '/visual-dna'
+      fullPath: '/visual-dna'
+      preLoaderRoute: typeof VisualDnaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visual': {
       id: '/visual'
       path: '/visual'
@@ -218,11 +264,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RatingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/prompts': {
-      id: '/prompts'
-      path: '/prompts'
-      fullPath: '/prompts'
-      preLoaderRoute: typeof PromptsRouteImport
+    '/instructions': {
+      id: '/instructions'
+      path: '/instructions'
+      fullPath: '/instructions'
+      preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -232,12 +278,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate-image': {
+      id: '/api/generate-image'
+      path: '/api/generate-image'
+      fullPath: '/api/generate-image'
+      preLoaderRoute: typeof ApiGenerateImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  PromptsRoute: PromptsRoute,
+  InstructionsRoute: InstructionsRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
   SeoRoute: SeoRoute,
@@ -246,6 +306,9 @@ const rootRouteChildren: RootRouteChildren = {
   ThumbnailRoute: ThumbnailRoute,
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
+  VisualDnaRoute: VisualDnaRoute,
+  ApiChatRoute: ApiChatRoute,
+  ApiGenerateImageRoute: ApiGenerateImageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

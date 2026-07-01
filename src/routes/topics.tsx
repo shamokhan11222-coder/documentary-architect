@@ -1,6 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Star, Trash2, Search as SearchIcon, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
+import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2 } from "lucide-react";
 
 import {
   deleteTopic,
@@ -11,13 +13,29 @@ import {
   useProjectStatus,
   useSelectedTopicId,
   exportProject,
+  saveResearch,
+  saveStory,
+  saveVisualMap,
+  saveThumbnails,
+  saveSeo,
+  saveRating,
 } from "@/lib/store";
+import {
+  researchTopic,
+  generateStory,
+  generateVisualMap,
+  generateThumbnails,
+  generateSeo,
+  rateVideo,
+} from "@/lib/ai.functions";
+import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
+import { putImage } from "@/lib/images";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Score, Meta } from "@/components/Score";
 import { StatusBadge } from "@/components/StatusBadge";
 import { downloadJson, slugify } from "@/lib/io";
-import type { Topic } from "@/lib/types";
+import type { Research, Story, ThumbnailIdea, VisualScene, Topic } from "@/lib/types";
 
 export const Route = createFileRoute("/topics")({
   head: () => ({ meta: [{ title: "Projects — Documentary Studio" }] }),
@@ -30,10 +48,76 @@ function ProjectsPage() {
   const selectedId = useSelectedTopicId();
   const [query, setQuery] = useState("");
   const [favOnly, setFavOnly] = useState(false);
+  const [autoId, setAutoId] = useState<string | null>(null);
+  const [autoStep, setAutoStep] = useState("");
+
+  const doResearch = useServerFn(researchTopic);
+  const doStory = useServerFn(generateStory);
+  const doVisual = useServerFn(generateVisualMap);
+  const doThumbs = useServerFn(generateThumbnails);
+  const doSeo = useServerFn(generateSeo);
+  const doRate = useServerFn(rateVideo);
 
   function openProject(t: Topic) {
     setSelectedTopicId(t.id);
     router.navigate({ to: "/research" });
+  }
+
+  async function autoGenerate(t: Topic) {
+    setAutoId(t.id);
+    setSelectedTopicId(t.id);
+    try {
+      setAutoStep("Researching…");
+      const research = (await doResearch({ data: { topic: t.topic, explanation: t.explanation } })) as Omit<Research, "topicId" | "generatedAt">;
+      const researchFull: Research = { ...research, topicId: t.id, generatedAt: Date.now() };
+      saveResearch(researchFull);
+
+      setAutoStep("Writing story…");
+      const story = (await doStory({ data: { topic: t.topic, research: researchFull } })) as Omit<Story, "topicId" | "generatedAt">;
+      saveStory({ ...story, topicId: t.id, generatedAt: Date.now() });
+
+      setAutoStep("Building storyboard…");
+      const scenes = (await doVisual({ data: { topic: t.topic, script: story.script } })) as VisualScene[];
+      saveVisualMap({ topicId: t.id, scenes, generatedAt: Date.now() });
+
+      for (let i = 0; i < scenes.length; i++) {
+        setAutoStep(`Generating images… ${i + 1}/${scenes.length}`);
+        try {
+          const url = await generateSceneImage(scenes[i]);
+          await putImage(`scene:${t.id}:${scenes[i].sceneNumber}`, url);
+        } catch {
+          /* skip a failed scene */
+        }
+      }
+
+      setAutoStep("Designing thumbnails…");
+      const ideas = (await doThumbs({ data: { topic: t.topic, script: story.script, angle: research.storyAngles?.[0] } })) as ThumbnailIdea[];
+      saveThumbnails({ topicId: t.id, ideas, generatedAt: Date.now() });
+      for (let i = 0; i < ideas.length; i++) {
+        setAutoStep(`Rendering thumbnails… ${i + 1}/${ideas.length}`);
+        try {
+          const url = await generateThumbnailImage(ideas[i]);
+          await putImage(`thumb:${t.id}:${i}`, url);
+        } catch {
+          /* skip */
+        }
+      }
+
+      setAutoStep("Writing SEO…");
+      const seo = await doSeo({ data: { topic: t.topic, script: story.script } });
+      saveSeo({ ...seo, topicId: t.id, generatedAt: Date.now() });
+
+      setAutoStep("Rating…");
+      const rating = await doRate({ data: { topic: t.topic, script: story.script } });
+      saveRating({ ...rating, topicId: t.id, generatedAt: Date.now() });
+
+      toast.success("Full production generated 🎬");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Auto-generation failed");
+    } finally {
+      setAutoId(null);
+      setAutoStep("");
+    }
   }
 
   const filtered = topics
@@ -130,7 +214,15 @@ function ProjectsPage() {
               <Meta label="Length" value={t.estimatedLength} />
             </div>
             <ProjectProgress topicId={t.id} />
+            {autoId === t.id && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-primary">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {autoStep}
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => autoGenerate(t)} disabled={!!autoId}>
+                <Zap className="mr-1 h-4 w-4" /> Auto-Generate
+              </Button>
               <Button size="sm" onClick={() => openProject(t)}>
                 Open project →
               </Button>
@@ -164,7 +256,6 @@ function ProjectProgress({ topicId }: { topicId: string }) {
     ["Research", s.research],
     ["Story", s.story],
     ["Visuals", s.visual],
-    ["Prompts", s.prompts],
     ["Thumbnail", s.thumbnail],
     ["SEO", s.seo],
     ["Rating", s.rating],
