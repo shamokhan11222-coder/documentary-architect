@@ -127,6 +127,10 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    applyTheme();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen bg-background text-foreground">
@@ -147,10 +151,14 @@ const NAV = [
   { to: "/story", label: "Story" },
   { to: "/visual", label: "Visual" },
   { to: "/prompts", label: "Prompts" },
+  { to: "/thumbnail", label: "Thumbnail" },
+  { to: "/seo", label: "SEO" },
+  { to: "/rating", label: "Rating" },
   { to: "/settings", label: "Settings" },
 ] as const;
 
 function Sidebar() {
+  const theme = useTheme();
   return (
     <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-card">
       <div className="px-4 py-5">
@@ -168,6 +176,15 @@ function Sidebar() {
           </Link>
         ))}
       </nav>
+      <div className="mt-auto p-2">
+        <button
+          onClick={toggleTheme}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
+      </div>
     </aside>
   );
 }
