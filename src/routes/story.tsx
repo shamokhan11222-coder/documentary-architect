@@ -2,26 +2,40 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Download } from "lucide-react";
 
-import { generateStory, rewriteHook, improveStory } from "@/lib/ai.functions";
+import { generateStory, rewriteSection, type SectionMode } from "@/lib/ai.functions";
 import {
   useTopics,
   useSelectedTopicId,
-  setSelectedTopicId,
   useResearch,
   useStory,
   saveStory,
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Score } from "@/components/Score";
-import { Steps } from "@/components/Steps";
-import type { Story } from "@/lib/types";
+import { StatusBadge } from "@/components/StatusBadge";
+import { ProjectHeader } from "@/components/ProjectHeader";
+import { copyText, downloadTxt, slugify } from "@/lib/io";
+import type { Story, StorySection } from "@/lib/types";
 
 export const Route = createFileRoute("/story")({
   head: () => ({ meta: [{ title: "Story — Documentary Studio" }] }),
   component: StoryPage,
 });
+
+const MODES: { mode: SectionMode; label: string }[] = [
+  { mode: "rewrite", label: "Rewrite" },
+  { mode: "shorter", label: "Shorter" },
+  { mode: "longer", label: "Longer" },
+  { mode: "emotional", label: "More Emotional" },
+  { mode: "cinematic", label: "More Cinematic" },
+  { mode: "curiosity", label: "More Curiosity" },
+];
+
+function rebuildScript(sections: StorySection[]) {
+  return sections.map((s) => `## ${s.title}\n${s.content}`).join("\n\n");
+}
 
 function StoryPage() {
   const topics = useTopics();
@@ -31,159 +45,154 @@ function StoryPage() {
   const story = useStory(selectedId);
 
   const gen = useServerFn(generateStory);
-  const rewrite = useServerFn(rewriteHook);
-  const improve = useServerFn(improveStory);
+  const rewrite = useServerFn(rewriteSection);
   const [busy, setBusy] = useState<string | null>(null);
 
-  async function withBusy(key: string, fn: () => Promise<void>) {
-    setBusy(key);
+  function handleGenerate() {
+    if (!selected) return;
+    setBusy("gen");
+    (async () => {
+      try {
+        const data = (await gen({
+          data: { topic: selected.topic, research: research ?? undefined },
+        })) as Omit<Story, "topicId" | "generatedAt">;
+        saveStory({ ...data, topicId: selected.id, generatedAt: Date.now() });
+        toast.success("Script generated — reviewed by Story Architect");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed");
+      } finally {
+        setBusy(null);
+      }
+    })();
+  }
+
+  async function applyMode(section: StorySection, mode: SectionMode) {
+    if (!selected || !story) return;
+    setBusy(section.key + mode);
     try {
-      await fn();
+      const { content } = await rewrite({
+        data: {
+          topic: selected.topic,
+          sectionTitle: section.title,
+          content: section.content,
+          mode,
+        },
+      });
+      const sections = story.sections.map((s) =>
+        s.key === section.key ? { ...s, content } : s,
+      );
+      saveStory({ ...story, sections, script: rebuildScript(sections), generatedAt: Date.now() });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
       setBusy(null);
     }
   }
 
-  function handleGenerate() {
-    if (!selected) return;
-    return withBusy("gen", async () => {
-      const data = (await gen({
-        data: { topic: selected.topic, research: research ?? undefined },
-      })) as Omit<Story, "topicId" | "generatedAt">;
-      saveStory({ ...data, topicId: selected.id, generatedAt: Date.now() });
-      toast.success("Script generated");
-    });
-  }
-
-  function handleRewriteHook() {
-    if (!selected || !story) return;
-    return withBusy("hook", async () => {
-      const { script } = await rewrite({
-        data: { topic: selected.topic, script: story.script },
-      });
-      saveStory({ ...story, script, generatedAt: Date.now() });
-      toast.success("Hook rewritten");
-    });
-  }
-
-  function handleImprove() {
-    if (!selected || !story) return;
-    return withBusy("improve", async () => {
-      const { script } = await improve({
-        data: { topic: selected.topic, script: story.script },
-      });
-      saveStory({ ...story, script, generatedAt: Date.now() });
-      toast.success("Story improved");
-    });
-  }
-
-  function handleCopy() {
+  function editSection(section: StorySection, content: string) {
     if (!story) return;
-    navigator.clipboard.writeText(story.script);
-    toast.success("Script copied");
-  }
-
-  function handleDownload() {
-    if (!story || !selected) return;
-    const blob = new Blob([story.script], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${selected.topic.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const sections = story.sections.map((s) =>
+      s.key === section.key ? { ...s, content } : s,
+    );
+    saveStory({ ...story, sections, script: rebuildScript(sections) });
   }
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
-      <Steps current="story" />
-      <h1 className="text-xl font-semibold">Story Engine</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Turn research into a documentary script.
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          value={selectedId ?? ""}
-          onChange={(e) => setSelectedTopicId(e.target.value || null)}
-        >
-          <option value="">Select a saved topic…</option>
-          {topics.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.topic}
-            </option>
-          ))}
-        </select>
-        <Button onClick={handleGenerate} disabled={!selected || !!busy}>
-          {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {story ? "Regenerate" : "Generate script"}
-        </Button>
+      <ProjectHeader topics={topics} selectedId={selectedId} />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Story Engine</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Story Architect script, split into editable sections.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {story?.review && (
+            <span className="flex items-center gap-1 text-xs">
+              <StatusBadge status="Needs Review" /> {story.review.score}/10
+            </span>
+          )}
+          <Button onClick={handleGenerate} disabled={!selected || !!busy}>
+            {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {story ? "Regenerate" : "Generate script"}
+          </Button>
+        </div>
       </div>
 
       {selected && !research && (
         <p className="mt-3 text-xs text-amber-600">
-          No research found for this topic yet — the script will be less grounded. Run
-          the Research Engine first for best results.
+          No research found — run the Research Engine first for a grounded script.
         </p>
       )}
-
       {!selected && (
         <p className="mt-6 text-sm text-muted-foreground">
-          Select a topic to generate a script.
+          Select a project above to generate a script.
         </p>
       )}
 
       {story && selected && (
         <div className="mt-6 space-y-4">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Score label="Hook" value={story.hookScore} />
             <Score label="Story" value={story.storyScore} />
             <Score label="Engagement" value={story.engagementScore} />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={handleCopy}>
-              Copy Script
+            <Button size="sm" variant="secondary" onClick={() => copyText(story.script, "Full script copied")}>
+              <Copy className="mr-1 h-3.5 w-3.5" /> Copy All
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              onClick={handleRewriteHook}
-              disabled={!!busy}
+              onClick={() => downloadTxt(slugify(selected.topic) + "-script", story.script)}
             >
-              {busy === "hook" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Rewrite Hook
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleImprove}
-              disabled={!!busy}
-            >
-              {busy === "improve" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Improve Story
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleGenerate}
-              disabled={!!busy}
-            >
-              Regenerate
-            </Button>
-            <Button size="sm" onClick={handleDownload}>
-              Download Script
+              <Download className="mr-1 h-3.5 w-3.5" /> Download
             </Button>
           </div>
 
-          <div className="rounded-lg border border-border p-4">
-            <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
-              {story.script}
-            </pre>
-          </div>
+          {story.review?.verdict && (
+            <p className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <strong>Quality Reviewer:</strong> {story.review.verdict}
+            </p>
+          )}
+
+          {story.sections.map((section) => (
+            <section key={section.key} className="rounded-lg border border-border p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">{section.title}</h2>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => copyText(section.content)}
+                  aria-label="Copy section"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <textarea
+                className="min-h-[100px] w-full resize-y rounded-md border border-input bg-background p-2 text-sm leading-relaxed"
+                value={section.content}
+                onChange={(e) => editSection(section, e.target.value)}
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {MODES.map((m) => (
+                  <Button
+                    key={m.mode}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={!!busy}
+                    onClick={() => applyMode(section, m.mode)}
+                  >
+                    {busy === section.key + m.mode && (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    )}
+                    {m.label}
+                  </Button>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </div>

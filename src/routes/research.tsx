@@ -4,16 +4,17 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-import { researchTopic } from "@/lib/ai.functions";
+import { researchTopic, refineCard } from "@/lib/ai.functions";
 import {
   useTopics,
   useSelectedTopicId,
-  setSelectedTopicId,
   useResearch,
   saveResearch,
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Steps } from "@/components/Steps";
+import { ProjectHeader } from "@/components/ProjectHeader";
+import { EditableCard } from "@/components/EditableCard";
+import { StatusBadge } from "@/components/StatusBadge";
 import type { Research } from "@/lib/types";
 
 export const Route = createFileRoute("/research")({
@@ -21,12 +22,28 @@ export const Route = createFileRoute("/research")({
   component: ResearchPage,
 });
 
+type CardDef = { key: keyof Research; title: string; list: boolean };
+
+const CARDS: CardDef[] = [
+  { key: "mainConflict", title: "Main Conflict", list: false },
+  { key: "timeline", title: "Timeline", list: true },
+  { key: "interestingFacts", title: "Interesting Facts", list: true },
+  { key: "scientificFacts", title: "Scientific Facts", list: true },
+  { key: "historicalFacts", title: "Historical Facts", list: true },
+  { key: "unexpectedTwists", title: "Unexpected Twists", list: true },
+  { key: "commonMyths", title: "Common Myths", list: true },
+  { key: "bestAngle", title: "Best Story Angle", list: false },
+  { key: "endingIdea", title: "Ending Idea", list: false },
+  { key: "sources", title: "Verified Sources", list: true },
+];
+
 function ResearchPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const research = useResearch(selectedId);
   const run = useServerFn(researchTopic);
+  const refine = useServerFn(refineCard);
   const [loading, setLoading] = useState(false);
 
   async function handleResearch() {
@@ -37,7 +54,7 @@ function ResearchPage() {
         data: { topic: selected.topic, explanation: selected.explanation },
       })) as Omit<Research, "topicId" | "generatedAt">;
       saveResearch({ ...data, topicId: selected.id, generatedAt: Date.now() });
-      toast.success("Research complete");
+      toast.success("Research complete — reviewed by Research Expert");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Research failed");
     } finally {
@@ -45,79 +62,80 @@ function ResearchPage() {
     }
   }
 
+  function updateField(key: keyof Research, list: boolean, text: string) {
+    if (!research) return;
+    const value = list
+      ? text.split("\n").map((l) => l.trim()).filter(Boolean)
+      : text;
+    saveResearch({ ...research, [key]: value } as Research);
+  }
+
+  async function refineField(
+    def: CardDef,
+    mode: "improve" | "rewrite" | "expand",
+  ) {
+    if (!research || !selected) return;
+    const raw = research[def.key];
+    const content = Array.isArray(raw) ? raw.join("\n") : String(raw ?? "");
+    const { content: out } = (await refine({
+      data: { topic: selected.topic, cardTitle: def.title, content, mode },
+    })) as { content: string };
+    updateField(def.key, def.list, out);
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
-      <Steps current="research" />
-      <h1 className="text-xl font-semibold">Research Engine</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Deep documentary research for the selected topic.
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <select
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          value={selectedId ?? ""}
-          onChange={(e) => setSelectedTopicId(e.target.value || null)}
-        >
-          <option value="">Select a saved topic…</option>
-          {topics.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.topic}
-            </option>
-          ))}
-        </select>
-        <Button onClick={handleResearch} disabled={!selected || loading}>
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {research ? "Re-run research" : "Run research"}
-        </Button>
+      <ProjectHeader topics={topics} selectedId={selectedId} />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Research Engine</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Research Expert dossier, organized into editable cards.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {research?.review && (
+            <span className="flex items-center gap-1 text-xs">
+              <StatusBadge status="Needs Review" />
+              {research.review.score}/10
+            </span>
+          )}
+          <Button onClick={handleResearch} disabled={!selected || loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {research ? "Re-run research" : "Run research"}
+          </Button>
+        </div>
       </div>
 
       {!selected && (
         <p className="mt-6 text-sm text-muted-foreground">
-          Pick a topic here or click “Research this” from the Topics page.
+          Select a project above, or open one from the Projects page.
+        </p>
+      )}
+
+      {research?.review?.verdict && (
+        <p className="mt-4 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          <strong>Quality Reviewer:</strong> {research.review.verdict}
         </p>
       )}
 
       {research && selected && (
-        <div className="mt-6 space-y-5">
-          <Section title="Main Conflict">
-            <p className="text-sm">{research.mainConflict}</p>
-          </Section>
-          <ListSection title="Timeline" items={research.timeline} />
-          <ListSection title="Historical Facts" items={research.historicalFacts} />
-          <ListSection title="Scientific Facts" items={research.scientificFacts} />
-          <ListSection title="Interesting Facts" items={research.interestingFacts} />
-          <ListSection title="Common Myths" items={research.commonMyths} />
-          <ListSection title="Story Angles" items={research.storyAngles} />
-          <ListSection title="Unexpected Twists" items={research.unexpectedTwists} />
-          <ListSection title="Important People" items={research.importantPeople} />
-          <ListSection title="Important Dates" items={research.importantDates} />
-          <ListSection title="Sources" items={research.sources} />
-          <ListSection title="Key Takeaways" items={research.keyTakeaways} />
+        <div className="mt-6 grid gap-3 md:grid-cols-2">
+          {CARDS.map((def) => {
+            const raw = research[def.key];
+            const value = Array.isArray(raw) ? raw.join("\n") : String(raw ?? "");
+            return (
+              <EditableCard
+                key={String(def.key)}
+                title={def.title}
+                value={value}
+                onSave={(t) => updateField(def.key, def.list, t)}
+                onRefine={(mode) => refineField(def, mode)}
+              />
+            );
+          })}
         </div>
       )}
     </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border p-4">
-      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function ListSection({ title, items }: { title: string; items?: string[] }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <Section title={title}>
-      <ul className="list-disc space-y-1 pl-5 text-sm">
-        {items.map((it, i) => (
-          <li key={i}>{it}</li>
-        ))}
-      </ul>
-    </Section>
   );
 }

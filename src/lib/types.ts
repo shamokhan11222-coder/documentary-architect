@@ -11,6 +11,37 @@ export interface Topic {
   estimatedLength: string;
   favorite: boolean;
   savedAt: number;
+  completed?: boolean;
+}
+
+// A shared self-review verdict attached to a stage's output.
+export interface StageReview {
+  score: number;
+  issues: string[];
+  verdict: string;
+}
+
+export interface GeneratedIdea {
+  topic: string;
+  explanation: string;
+  ctrScore: number;
+  evergreenScore: number;
+  originalityScore: number;
+  researchDifficulty: string;
+  visualDifficulty: string;
+  estimatedLength: string;
+}
+
+export interface IdeaCategory {
+  category: string;
+  ideas: GeneratedIdea[];
+}
+
+export interface TasteMemory {
+  liked: string[];
+  rejected: string[];
+  completed: string[];
+  highRated: string[];
 }
 
 export interface Research {
@@ -27,15 +58,26 @@ export interface Research {
   importantDates: string[];
   sources: string[];
   keyTakeaways: string[];
+  bestAngle: string;
+  endingIdea: string;
+  review?: StageReview;
   generatedAt: number;
+}
+
+export interface StorySection {
+  key: string;
+  title: string;
+  content: string;
 }
 
 export interface Story {
   topicId: string;
+  sections: StorySection[];
   script: string;
   hookScore: number;
   storyScore: number;
   engagementScore: number;
+  review?: StageReview;
   generatedAt: number;
 }
 
@@ -113,6 +155,7 @@ export interface Seo {
   pinnedComment: string;
   shortSummary: string;
   longSummary: string;
+  uploadChecklist: string[];
   generatedAt: number;
 }
 
@@ -128,6 +171,10 @@ export interface RatingReport {
   originalityScore: number;
   evergreenScore: number;
   overallScore: number;
+  ctrPrediction: string;
+  retentionPrediction: string;
+  weakestPart: string;
+  bestPart: string;
   weakPoints: string[];
   strongPoints: string[];
   whatToImprove: string[];

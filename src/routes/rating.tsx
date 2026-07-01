@@ -40,6 +40,11 @@ function reportToText(topic: string, r: RatingReport): string {
     `Evergreen: ${r.evergreenScore}/10`,
     `OVERALL: ${r.overallScore}/10`,
     "",
+    `CTR PREDICTION: ${r.ctrPrediction ?? "—"}`,
+    `RETENTION PREDICTION: ${r.retentionPrediction ?? "—"}`,
+    `WEAKEST PART: ${r.weakestPart ?? "—"}`,
+    `BEST PART: ${r.bestPart ?? "—"}`,
+    "",
     `RECOMMENDATION: ${r.recommendation}`,
     "",
     "STRONG POINTS:",
@@ -183,6 +188,26 @@ function RatingPage() {
           </div>
 
           <ListCard title="Strong Points" items={rating.strongPoints} />
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <section className="rounded-lg border border-border p-4">
+              <h2 className="mb-1 text-sm font-semibold">CTR Prediction</h2>
+              <p className="text-sm text-muted-foreground">{rating.ctrPrediction ?? "—"}</p>
+            </section>
+            <section className="rounded-lg border border-border p-4">
+              <h2 className="mb-1 text-sm font-semibold">Retention Prediction</h2>
+              <p className="text-sm text-muted-foreground">{rating.retentionPrediction ?? "—"}</p>
+            </section>
+            <section className="rounded-lg border border-green-600/30 p-4">
+              <h2 className="mb-1 text-sm font-semibold">Best Part</h2>
+              <p className="text-sm text-muted-foreground">{rating.bestPart ?? "—"}</p>
+            </section>
+            <section className="rounded-lg border border-red-600/30 p-4">
+              <h2 className="mb-1 text-sm font-semibold">Weakest Part</h2>
+              <p className="text-sm text-muted-foreground">{rating.weakestPart ?? "—"}</p>
+            </section>
+          </div>
+
           <ListCard title="Weak Points" items={rating.weakPoints} />
           <ListCard title="What To Improve" items={rating.whatToImprove} />
 

@@ -1,13 +1,91 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
+import { EXPERTS } from "./experts";
 import type {
+  IdeaCategory,
   PromptItem,
   RatingReport,
   Research,
   Seo,
+  StageReview,
   ThumbnailIdea,
   VisualScene,
 } from "./types";
+
+// ---------------- Self-review helper ----------------
+
+async function reviewStage(
+  stageName: string,
+  content: string,
+): Promise<StageReview> {
+  try {
+    const user = `Review this ${stageName} output for a YouTube documentary. Be ruthless but fair.
+
+Return a JSON object:
+{ "score": number (1-10), "issues": ["concrete problems"], "verdict": "one-line verdict" }
+
+OUTPUT:
+${content.slice(0, 8000)}`;
+    return await callAiJson<StageReview>(EXPERTS.reviewer, user);
+  } catch {
+    return { score: 7, issues: [], verdict: "Review unavailable." };
+  }
+}
+
+const CATEGORIES = [
+  "Today's Best Documentary Ideas",
+  "Trending Evergreen Ideas",
+  "Hidden Gems",
+  "Highest CTR Ideas",
+  "Most Original Ideas",
+  "Fast Production Ideas",
+  "Easy Visual Ideas",
+  "Long Documentary Ideas",
+  "Mini Documentary Ideas",
+];
+
+// ---------------- Home Idea Feed ----------------
+
+export const generateHomeIdeas = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { liked?: string[]; rejected?: string[]; completed?: string[]; perCategory?: number }) => data ?? {},
+  )
+  .handler(async ({ data }) => {
+    const taste = `EDITOR TASTE PROFILE (learn from this):
+Liked topics: ${(data.liked ?? []).slice(0, 40).join("; ") || "none yet"}
+Completed topics: ${(data.completed ?? []).slice(0, 40).join("; ") || "none yet"}
+REJECTED topics — NEVER propose anything similar in subject, angle, or vibe: ${(data.rejected ?? []).slice(0, 60).join("; ") || "none yet"}`;
+    const per = data.perCategory ?? 4;
+    const user = `${taste}
+
+Generate a fresh feed of documentary ideas grouped into these EXACT categories:
+${CATEGORIES.map((c) => `- ${c}`).join("\n")}
+
+Give ${per} distinct ideas per category. Lean toward the liked/completed style; avoid anything resembling the rejected list. Vary universes/themes widely.
+
+Return a JSON object:
+{
+  "categories": [
+    {
+      "category": "exact category name from the list above",
+      "ideas": [
+        {
+          "topic": "punchy documentary title",
+          "explanation": "1-2 sentence angle",
+          "ctrScore": number (1-10),
+          "evergreenScore": number (1-10),
+          "originalityScore": number (1-10),
+          "researchDifficulty": "Low | Medium | High",
+          "visualDifficulty": "Low | Medium | High",
+          "estimatedLength": "e.g. '12-18 min'"
+        }
+      ]
+    }
+  ]
+}`;
+    const result = await callAiJson<{ categories: IdeaCategory[] }>(EXPERTS.topic, user);
+    return (result.categories ?? []) as IdeaCategory[];
+  });
 
 interface GeneratedTopic {
   topic: string;
@@ -33,6 +111,8 @@ interface ResearchData {
   importantDates: string[];
   sources: string[];
   keyTakeaways: string[];
+  bestAngle: string;
+  endingIdea: string;
 }
 
 // ---------------- Topic Engine ----------------
@@ -75,7 +155,7 @@ export const researchTopic = createServerFn({ method: "POST" })
     return { topic: data.topic.trim(), explanation: data.explanation ?? "" };
   })
   .handler(async ({ data }) => {
-    const system = `You are an elite documentary researcher, not a chatbot. You dig for the real story: the central tension, surprising truths, myths people believe, and the human drama. You are rigorous, specific, and cite real, credible source types. Return ONLY valid JSON.`;
+    const system = `${EXPERTS.research} Return ONLY valid JSON.`;
     const user = `Documentary topic: "${data.topic}"
 ${data.explanation ? `Angle: ${data.explanation}` : ""}
 
@@ -92,9 +172,46 @@ Perform deep documentary research. Be specific and concrete (real names, real da
   "importantPeople": ["Name — why they matter"],
   "importantDates": ["Date — what happened"],
   "sources": ["credible source types / references to pursue"],
-  "keyTakeaways": ["the core things the viewer should remember"]
+  "keyTakeaways": ["the core things the viewer should remember"],
+  "bestAngle": "string - the single strongest narrative angle to build the documentary on",
+  "endingIdea": "string - a memorable, resonant way to end the documentary"
 }`;
-    return await callAiJson<ResearchData>(system, user);
+    const research = await callAiJson<ResearchData>(system, user);
+    const review = await reviewStage("documentary research", JSON.stringify(research));
+    if (review.score < 6) {
+      const retry = await callAiJson<ResearchData>(
+        system,
+        `${user}\n\nA reviewer flagged issues: ${review.issues.join("; ")}. Produce a stronger, more specific version.`,
+      );
+      return { ...retry, review: await reviewStage("documentary research", JSON.stringify(retry)) };
+    }
+    return { ...research, review };
+  });
+
+// Card-level refinement for the research engine (Improve / Rewrite / Expand).
+export const refineCard = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { topic: string; cardTitle: string; content: string; mode: "improve" | "rewrite" | "expand" }) => {
+      if (!data?.content?.trim()) throw new Error("Content is required");
+      return data;
+    },
+  )
+  .handler(async ({ data }) => {
+    const instruction =
+      data.mode === "improve"
+        ? "Improve this: sharpen accuracy, specificity, and clarity while keeping the same length."
+        : data.mode === "rewrite"
+          ? "Rewrite this from a fresh angle while covering the same ground."
+          : "Expand this with more specific, verified detail and additional strong entries.";
+    const user = `Documentary: "${data.topic}"
+Research card: "${data.cardTitle}"
+
+${instruction}
+If the content is a bulleted list (one item per line), return the same format (one item per line, no numbering, no bullets characters). If it is a paragraph, return a paragraph. Return PLAIN TEXT only, no preamble.
+
+CURRENT CONTENT:
+${data.content}`;
+    return { content: await callAiText(EXPERTS.research, user) };
   });
 
 // ---------------- Story Engine ----------------
@@ -130,58 +247,82 @@ export const generateStory = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const system = `You are a master documentary scriptwriter for long-form YouTube. ${STORY_RULES}
+    const system = `${EXPERTS.story} ${STORY_RULES}
 Return ONLY valid JSON.`;
     const user = `Write a full documentary narration script for: "${data.topic}"
 
 ${buildResearchContext(data.research)}
 
+Write the narration as SEPARATE sections. Never merge them into one giant block.
+
 Return a JSON object:
 {
-  "script": "string - the complete narration script, using clear section markers and paragraphs (use \\n for line breaks)",
+  "sections": [
+    { "key": "hook", "title": "Hook", "content": "..." },
+    { "key": "intro", "title": "Intro", "content": "..." },
+    { "key": "part1", "title": "Part 1", "content": "..." },
+    { "key": "part2", "title": "Part 2", "content": "..." },
+    { "key": "part3", "title": "Part 3", "content": "..." },
+    { "key": "part4", "title": "Part 4", "content": "..." },
+    { "key": "ending", "title": "Ending", "content": "..." }
+  ],
   "hookScore": number (1-10),
   "storyScore": number (1-10),
   "engagementScore": number (1-10)
 }`;
-    return await callAiJson<{
-      script: string;
+    type StoryGen = {
+      sections: { key: string; title: string; content: string }[];
       hookScore: number;
       storyScore: number;
       engagementScore: number;
-    }>(system, user);
+    };
+    const gen = await callAiJson<StoryGen>(system, user);
+    const script = (gen.sections ?? [])
+      .map((s) => `## ${s.title}\n${s.content}`)
+      .join("\n\n");
+    const review = await reviewStage("documentary script", script);
+    return { ...gen, script, review };
   });
 
-export const rewriteHook = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script: string }) => {
-    if (!data?.script?.trim()) throw new Error("Script is required");
-    return data;
-  })
+// Section-level rewriting with a chosen creative direction.
+export type SectionMode =
+  | "rewrite"
+  | "shorter"
+  | "longer"
+  | "emotional"
+  | "cinematic"
+  | "curiosity";
+
+export const rewriteSection = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { topic: string; sectionTitle: string; content: string; mode: SectionMode }) => {
+      if (!data?.content?.trim()) throw new Error("Section content is required");
+      return data;
+    },
+  )
   .handler(async ({ data }) => {
-    const system = `You are a master documentary scriptwriter. ${STORY_RULES}`;
-    const user = `Here is a documentary script for "${data.topic}". Rewrite ONLY the opening hook (roughly the first 1-2 paragraphs) to be dramatically stronger — more curiosity, tension, and pull — then return the FULL script with the new hook and the rest unchanged. Return plain text only.
+    const map: Record<SectionMode, string> = {
+      rewrite: "Rewrite this section to be stronger while keeping its purpose and length.",
+      shorter: "Make this section noticeably shorter and tighter without losing the key idea.",
+      longer: "Expand this section with more depth and detail while staying on point.",
+      emotional: "Rewrite this section to be more emotional and human.",
+      cinematic: "Rewrite this section to be more cinematic and vivid.",
+      curiosity: "Rewrite this section to open stronger curiosity gaps and pull the viewer forward.",
+    };
+    const user = `Documentary: "${data.topic}"
+Section: "${data.sectionTitle}"
 
-SCRIPT:
-${data.script}`;
-    return { script: await callAiText(system, user) };
-  });
+${map[data.mode]} ${STORY_RULES}
+Return PLAIN TEXT only (just the new section content, no title, no preamble).
 
-export const improveStory = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script: string }) => {
-    if (!data?.script?.trim()) throw new Error("Script is required");
-    return data;
-  })
-  .handler(async ({ data }) => {
-    const system = `You are a master documentary scriptwriter and editor. ${STORY_RULES}`;
-    const user = `Improve the storytelling of this documentary script for "${data.topic}": tighten pacing, remove filler, strengthen transitions, and make each section reveal something new. Keep it the same topic and length range. Return the improved FULL script as plain text only.
-
-SCRIPT:
-${data.script}`;
-    return { script: await callAiText(system, user) };
+CURRENT SECTION:
+${data.content}`;
+    return { content: await callAiText(EXPERTS.story, user) };
   });
 
 // ---------------- Visual Engine ----------------
 
-const VISUAL_RULES = `You are a documentary visual director building a shot-by-shot beat map for image generation.
+const VISUAL_RULES = `${EXPERTS.visual}
 RULES:
 - One visual beat = one image. Never combine multiple ideas into one image.
 - Every voiceover line must have a matching visual.
@@ -251,7 +392,8 @@ Simple MS Paint educational documentary style, flat colors, thick slightly rough
 CHARACTER STYLE LOCK (only when a character is shown):
 Simple bald stickman, round white head, thick black outline, dot eyes, simple mouth, thin black line body, no hair, no clothes unless needed, no shine on face, no grey face highlights.`;
 
-const PROMPT_RULES = `You convert one visual scene into one image-generation prompt.
+const PROMPT_RULES = `${EXPERTS.prompt}
+You convert one visual scene into one image-generation prompt.
 RULES:
 - Each prompt must be short and direct.
 - One prompt = one image. No multiple concepts.
@@ -308,7 +450,7 @@ ${JSON.stringify(data.scene)}`;
 
 // ---------------- Thumbnail Engine ----------------
 
-const THUMB_RULES = `You are a YouTube thumbnail strategist for documentary channels.
+const THUMB_RULES = `${EXPERTS.thumbnail}
 STYLE RULES for every idea:
 - Simple MS Paint documentary style (flat colors, thick black outlines, simple shapes).
 - One clear visual idea, big readable thumbnail text, strong curiosity.
@@ -366,7 +508,7 @@ ${JSON.stringify(data.idea)}`;
 
 // ---------------- SEO Engine ----------------
 
-const SEO_RULES = `You generate upload-ready YouTube metadata for documentary videos.
+const SEO_RULES = `${EXPERTS.seo}
 TITLE RULES: curiosity-driven, simple English, USA-audience friendly, NOT clickbait, not too long, documentary-style.
 Return ONLY valid JSON.`;
 
@@ -379,7 +521,8 @@ const SEO_SHAPE = `{
   "keywords": ["seo keywords"],
   "pinnedComment": "string",
   "shortSummary": "string - 1-2 sentences",
-  "longSummary": "string - a full paragraph"
+  "longSummary": "string - a full paragraph",
+  "uploadChecklist": ["step-by-step upload checklist items (cards, end screen, chapters, pinned comment, etc.)"]
 }`;
 
 export const generateSeo = createServerFn({ method: "POST" })
@@ -417,7 +560,7 @@ Return a JSON object: { "titleOptions": ["..."], "bestTitle": "string" }`;
 
 // ---------------- Rating Engine ----------------
 
-const RATING_RULES = `You are a ruthless but fair YouTube documentary reviewer. You rate a video BEFORE production so it can be fixed. Be specific and honest. Return ONLY valid JSON.`;
+const RATING_RULES = `${EXPERTS.reviewer} You rate a documentary video BEFORE production so it can be fixed. Be specific and honest. Return ONLY valid JSON.`;
 
 const RATING_SHAPE = `{
   "hookScore": number (1-10),
@@ -428,6 +571,10 @@ const RATING_SHAPE = `{
   "originalityScore": number (1-10),
   "evergreenScore": number (1-10),
   "overallScore": number (1-10),
+  "ctrPrediction": "string - predicted click-through performance with reasoning",
+  "retentionPrediction": "string - predicted audience retention with reasoning",
+  "weakestPart": "string - the single weakest part of the video",
+  "bestPart": "string - the single best part of the video",
   "weakPoints": ["..."],
   "strongPoints": ["..."],
   "whatToImprove": ["..."],

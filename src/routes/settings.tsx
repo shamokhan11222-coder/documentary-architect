@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useTopics, useSelectedTopicId, exportProject } from "@/lib/store";
+import { useTopics, useSelectedTopicId, exportProject, useTaste, clearTaste } from "@/lib/store";
 import { Steps } from "@/components/Steps";
 import { downloadJson, slugify } from "@/lib/io";
 
@@ -14,6 +14,7 @@ function SettingsPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
+  const taste = useTaste();
 
   function exportData() {
     const data = {
@@ -22,6 +23,10 @@ function SettingsPage() {
       story: localStorage.getItem("docos.story"),
       visual: localStorage.getItem("docos.visual"),
       prompts: localStorage.getItem("docos.prompts"),
+      thumbnails: localStorage.getItem("docos.thumbnails"),
+      seo: localStorage.getItem("docos.seo"),
+      rating: localStorage.getItem("docos.rating"),
+      taste: localStorage.getItem("docos.taste"),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -43,6 +48,10 @@ function SettingsPage() {
       "docos.story",
       "docos.visual",
       "docos.prompts",
+      "docos.thumbnails",
+      "docos.seo",
+      "docos.rating",
+      "docos.taste",
       "docos.selectedTopic",
     ].forEach((k) => localStorage.removeItem(k));
     window.dispatchEvent(new Event("storage"));
@@ -63,6 +72,26 @@ function SettingsPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {topics.length} saved topic(s). AI runs on Lovable AI (server-side key).
           </p>
+        </div>
+
+        <div className="rounded-lg border border-border p-4">
+          <div className="text-sm font-medium">AI Taste Memory</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Liked {taste.liked.length} · Rejected {taste.rejected.length} · Completed{" "}
+            {taste.completed.length}. The Home feed learns from this.
+          </p>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                clearTaste();
+                toast.success("Taste memory reset");
+              }}
+            >
+              Reset taste memory
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border p-4">

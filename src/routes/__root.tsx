@@ -146,7 +146,8 @@ function RootComponent() {
 }
 
 const NAV = [
-  { to: "/topics", label: "Topics" },
+  { to: "/", label: "Home" },
+  { to: "/topics", label: "Projects" },
   { to: "/research", label: "Research" },
   { to: "/story", label: "Story" },
   { to: "/visual", label: "Visual" },
@@ -170,6 +171,7 @@ function Sidebar() {
           <Link
             key={item.to}
             to={item.to}
+            activeOptions={{ exact: item.to === "/" }}
             className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
           >
             {item.label}

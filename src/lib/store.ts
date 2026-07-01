@@ -5,6 +5,7 @@ import type {
   Research,
   Seo,
   Story,
+  TasteMemory,
   ThumbnailPack,
   Topic,
   VisualMap,
@@ -21,6 +22,7 @@ const KEYS = {
   rating: "docos.rating",
   settings: "docos.settings",
   selected: "docos.selectedTopic",
+  taste: "docos.taste",
 } as const;
 
 type Listener = () => void;
@@ -122,6 +124,35 @@ export function toggleFavorite(id: string) {
       t.id === id ? { ...t, favorite: !t.favorite } : t,
     ),
   );
+}
+
+export function markCompleted(id: string, completed = true) {
+  const topics = read<Topic[]>(KEYS.topics, []);
+  const t = topics.find((x) => x.id === id);
+  write(
+    KEYS.topics,
+    topics.map((x) => (x.id === id ? { ...x, completed } : x)),
+  );
+  if (t && completed) addTaste("completed", t.topic);
+}
+
+// ---------------- Taste Memory ----------------
+
+const EMPTY_TASTE: TasteMemory = { liked: [], rejected: [], completed: [], highRated: [] };
+
+export function useTaste(): TasteMemory {
+  return useStored<TasteMemory>(KEYS.taste, EMPTY_TASTE);
+}
+
+export function addTaste(bucket: keyof TasteMemory, value: string) {
+  const cur = read<TasteMemory>(KEYS.taste, EMPTY_TASTE);
+  const list = cur[bucket] ?? [];
+  if (list.includes(value)) return;
+  write(KEYS.taste, { ...cur, [bucket]: [value, ...list].slice(0, 200) });
+}
+
+export function clearTaste() {
+  write(KEYS.taste, EMPTY_TASTE);
 }
 
 // ---------------- Selected topic ----------------
