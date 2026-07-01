@@ -136,6 +136,7 @@ export interface ThumbnailIdea {
   whyItWorks: string;
   imagePrompt: string;
   negativePrompt: string;
+  chosen?: boolean;
 }
 
 export interface ThumbnailPack {

@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
 import { Moon, Sun } from "lucide-react";
+import { AIChat } from "../components/AIChat";
 
 function NotFoundComponent() {
   return (
@@ -140,6 +141,7 @@ function RootComponent() {
           <Outlet />
         </main>
       </div>
+      <AIChat />
       <Toaster />
     </QueryClientProvider>
   );
@@ -150,23 +152,24 @@ const NAV = [
   { to: "/topics", label: "Projects" },
   { to: "/research", label: "Research" },
   { to: "/story", label: "Story" },
-  { to: "/visual", label: "Visual" },
-  { to: "/prompts", label: "Prompts" },
+  { to: "/visual", label: "Storyboard" },
   { to: "/thumbnail", label: "Thumbnail" },
   { to: "/seo", label: "SEO" },
   { to: "/rating", label: "Rating" },
+  { to: "/visual-dna", label: "Visual DNA" },
+  { to: "/instructions", label: "AI Instructions" },
   { to: "/settings", label: "Settings" },
 ] as const;
 
 function Sidebar() {
   const theme = useTheme();
   return (
-    <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-card">
+    <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-border bg-card">
       <div className="px-4 py-5">
         <div className="text-sm font-semibold tracking-tight">Documentary Studio</div>
         <div className="text-xs text-muted-foreground">AI production assistant</div>
       </div>
-      <nav className="flex flex-col gap-1 px-2">
+      <nav className="flex flex-col gap-1 overflow-y-auto px-2">
         {NAV.map((item) => (
           <Link
             key={item.to}
