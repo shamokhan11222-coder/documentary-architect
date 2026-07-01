@@ -111,6 +111,8 @@ interface ResearchData {
   importantDates: string[];
   sources: string[];
   keyTakeaways: string[];
+  bestAngle: string;
+  endingIdea: string;
 }
 
 // ---------------- Topic Engine ----------------
@@ -153,7 +155,7 @@ export const researchTopic = createServerFn({ method: "POST" })
     return { topic: data.topic.trim(), explanation: data.explanation ?? "" };
   })
   .handler(async ({ data }) => {
-    const system = `You are an elite documentary researcher, not a chatbot. You dig for the real story: the central tension, surprising truths, myths people believe, and the human drama. You are rigorous, specific, and cite real, credible source types. Return ONLY valid JSON.`;
+    const system = `${EXPERTS.research} Return ONLY valid JSON.`;
     const user = `Documentary topic: "${data.topic}"
 ${data.explanation ? `Angle: ${data.explanation}` : ""}
 
@@ -170,9 +172,46 @@ Perform deep documentary research. Be specific and concrete (real names, real da
   "importantPeople": ["Name — why they matter"],
   "importantDates": ["Date — what happened"],
   "sources": ["credible source types / references to pursue"],
-  "keyTakeaways": ["the core things the viewer should remember"]
+  "keyTakeaways": ["the core things the viewer should remember"],
+  "bestAngle": "string - the single strongest narrative angle to build the documentary on",
+  "endingIdea": "string - a memorable, resonant way to end the documentary"
 }`;
-    return await callAiJson<ResearchData>(system, user);
+    const research = await callAiJson<ResearchData>(system, user);
+    const review = await reviewStage("documentary research", JSON.stringify(research));
+    if (review.score < 6) {
+      const retry = await callAiJson<ResearchData>(
+        system,
+        `${user}\n\nA reviewer flagged issues: ${review.issues.join("; ")}. Produce a stronger, more specific version.`,
+      );
+      return { ...retry, review: await reviewStage("documentary research", JSON.stringify(retry)) };
+    }
+    return { ...research, review };
+  });
+
+// Card-level refinement for the research engine (Improve / Rewrite / Expand).
+export const refineCard = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { topic: string; cardTitle: string; content: string; mode: "improve" | "rewrite" | "expand" }) => {
+      if (!data?.content?.trim()) throw new Error("Content is required");
+      return data;
+    },
+  )
+  .handler(async ({ data }) => {
+    const instruction =
+      data.mode === "improve"
+        ? "Improve this: sharpen accuracy, specificity, and clarity while keeping the same length."
+        : data.mode === "rewrite"
+          ? "Rewrite this from a fresh angle while covering the same ground."
+          : "Expand this with more specific, verified detail and additional strong entries.";
+    const user = `Documentary: "${data.topic}"
+Research card: "${data.cardTitle}"
+
+${instruction}
+If the content is a bulleted list (one item per line), return the same format (one item per line, no numbering, no bullets characters). If it is a paragraph, return a paragraph. Return PLAIN TEXT only, no preamble.
+
+CURRENT CONTENT:
+${data.content}`;
+    return { content: await callAiText(EXPERTS.research, user) };
   });
 
 // ---------------- Story Engine ----------------
