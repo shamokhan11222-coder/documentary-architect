@@ -11,6 +11,7 @@ import type {
   ThumbnailIdea,
   VisualScene,
 } from "./types";
+import type { MusicCue, SfxCue } from "./types";
 
 // ---------------- Self-review helper ----------------
 
