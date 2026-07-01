@@ -9,20 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
+import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
+import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
+import { Route as QueueRouteImport } from './routes/queue'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as ExportRouteImport } from './routes/export'
+import { Route as ChecklistRouteImport } from './routes/checklist'
+import { Route as AudioRouteImport } from './routes/audio'
+import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 
+const VoiceRoute = VoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisualDnaRoute = VisualDnaRouteImport.update({
   id: '/visual-dna',
   path: '/visual-dna',
@@ -38,9 +52,19 @@ const TopicsRoute = TopicsRouteImport.update({
   path: '/topics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TimelineRoute = TimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ThumbnailRoute = ThumbnailRouteImport.update({
   id: '/thumbnail',
   path: '/thumbnail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubtitlesRoute = SubtitlesRouteImport.update({
+  id: '/subtitles',
+  path: '/subtitles',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StoryRoute = StoryRouteImport.update({
@@ -68,14 +92,44 @@ const RatingRoute = RatingRouteImport.update({
   path: '/rating',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QueueRoute = QueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InstructionsRoute = InstructionsRouteImport.update({
   id: '/instructions',
   path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExportRoute = ExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChecklistRoute = ChecklistRouteImport.update({
+  id: '/checklist',
+  path: '/checklist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AudioRoute = AudioRouteImport.update({
+  id: '/audio',
+  path: '/audio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsRoute = AssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
@@ -91,116 +145,186 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/audio': typeof AudioRoute
+  '/checklist': typeof ChecklistRoute
+  '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
+  '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/audio': typeof AudioRoute
+  '/checklist': typeof ChecklistRoute
+  '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
+  '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/audio': typeof AudioRoute
+  '/checklist': typeof ChecklistRoute
+  '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
+  '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
+  '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/assets'
+    | '/audio'
+    | '/checklist'
+    | '/export'
     | '/instructions'
+    | '/queue'
     | '/rating'
     | '/research'
     | '/seo'
     | '/settings'
     | '/story'
+    | '/subtitles'
     | '/thumbnail'
+    | '/timeline'
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/voice'
     | '/api/chat'
     | '/api/generate-image'
+    | '/api/tts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/assets'
+    | '/audio'
+    | '/checklist'
+    | '/export'
     | '/instructions'
+    | '/queue'
     | '/rating'
     | '/research'
     | '/seo'
     | '/settings'
     | '/story'
+    | '/subtitles'
     | '/thumbnail'
+    | '/timeline'
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/voice'
     | '/api/chat'
     | '/api/generate-image'
+    | '/api/tts'
   id:
     | '__root__'
     | '/'
+    | '/assets'
+    | '/audio'
+    | '/checklist'
+    | '/export'
     | '/instructions'
+    | '/queue'
     | '/rating'
     | '/research'
     | '/seo'
     | '/settings'
     | '/story'
+    | '/subtitles'
     | '/thumbnail'
+    | '/timeline'
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/voice'
     | '/api/chat'
     | '/api/generate-image'
+    | '/api/tts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AssetsRoute: typeof AssetsRoute
+  AudioRoute: typeof AudioRoute
+  ChecklistRoute: typeof ChecklistRoute
+  ExportRoute: typeof ExportRoute
   InstructionsRoute: typeof InstructionsRoute
+  QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
+  SubtitlesRoute: typeof SubtitlesRoute
   ThumbnailRoute: typeof ThumbnailRoute
+  TimelineRoute: typeof TimelineRoute
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
   VisualDnaRoute: typeof VisualDnaRoute
+  VoiceRoute: typeof VoiceRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiGenerateImageRoute: typeof ApiGenerateImageRoute
+  ApiTtsRoute: typeof ApiTtsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/voice': {
+      id: '/voice'
+      path: '/voice'
+      fullPath: '/voice'
+      preLoaderRoute: typeof VoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visual-dna': {
       id: '/visual-dna'
       path: '/visual-dna'
@@ -222,11 +346,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TopicsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/timeline': {
+      id: '/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/thumbnail': {
       id: '/thumbnail'
       path: '/thumbnail'
       fullPath: '/thumbnail'
       preLoaderRoute: typeof ThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subtitles': {
+      id: '/subtitles'
+      path: '/subtitles'
+      fullPath: '/subtitles'
+      preLoaderRoute: typeof SubtitlesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/story': {
@@ -264,6 +402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RatingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/queue': {
+      id: '/queue'
+      path: '/queue'
+      fullPath: '/queue'
+      preLoaderRoute: typeof QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/instructions': {
       id: '/instructions'
       path: '/instructions'
@@ -271,11 +416,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/export': {
+      id: '/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof ExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checklist': {
+      id: '/checklist'
+      path: '/checklist'
+      fullPath: '/checklist'
+      preLoaderRoute: typeof ChecklistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audio': {
+      id: '/audio'
+      path: '/audio'
+      fullPath: '/audio'
+      preLoaderRoute: typeof AudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets': {
+      id: '/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AssetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/generate-image': {
@@ -297,18 +477,27 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AssetsRoute: AssetsRoute,
+  AudioRoute: AudioRoute,
+  ChecklistRoute: ChecklistRoute,
+  ExportRoute: ExportRoute,
   InstructionsRoute: InstructionsRoute,
+  QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
+  SubtitlesRoute: SubtitlesRoute,
   ThumbnailRoute: ThumbnailRoute,
+  TimelineRoute: TimelineRoute,
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
   VisualDnaRoute: VisualDnaRoute,
+  VoiceRoute: VoiceRoute,
   ApiChatRoute: ApiChatRoute,
   ApiGenerateImageRoute: ApiGenerateImageRoute,
+  ApiTtsRoute: ApiTtsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

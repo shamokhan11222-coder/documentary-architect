@@ -1,0 +1,310 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Loader2, Play, RefreshCw, Plus, X, Mic } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
+import { useStory } from "@/lib/store";
+import {
+  DEFAULT_VOICE_SETTINGS,
+  useVoice,
+  saveVoice,
+  scriptToParagraphs,
+  estimateSeconds,
+  fmtClock,
+} from "@/lib/production";
+import { useImage } from "@/lib/images";
+import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
+import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
+
+export const Route = createFileRoute("/voice")({
+  head: () => ({ meta: [{ title: "Voice Studio — Documentary Studio" }] }),
+  component: VoicePage,
+});
+
+const PROFILES: { key: NarratorProfile; label: string; desc: string }[] = [
+  { key: "deep", label: "Deep Documentary", desc: "Authoritative, resonant" },
+  { key: "calm", label: "Calm Narrator", desc: "Warm, measured" },
+  { key: "storyteller", label: "Story Teller", desc: "Expressive, engaging" },
+  { key: "educational", label: "Educational", desc: "Clear, explanatory" },
+  { key: "cinematic", label: "Cinematic", desc: "Dramatic, trailer-like" },
+];
+
+function VoicePage() {
+  const { selected } = useSelectedProject();
+  const story = useStory(selected?.id ?? null);
+  const voice = useVoice(selected?.id ?? null);
+  const settings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
+  const [busy, setBusy] = useState<string | null>(null);
+
+  function update(patch: Partial<VoiceSettings>) {
+    if (!selected) return;
+    const blocks = voice?.blocks ?? [];
+    saveVoice({ topicId: selected.id, settings: { ...settings, ...patch }, blocks, generatedAt: Date.now() });
+  }
+
+  function buildBlocks() {
+    if (!selected || !story) return;
+    const paras = scriptToParagraphs(story.script);
+    const blocks: VoiceBlock[] = paras.map((text, i) => ({
+      index: i,
+      text,
+      estSeconds: estimateSeconds(text),
+    }));
+    saveVoice({ topicId: selected.id, settings, blocks, generatedAt: Date.now() });
+    toast.success(`${blocks.length} voice blocks created`);
+  }
+
+  async function genBlock(block: VoiceBlock) {
+    if (!selected || !voice) return;
+    setBusy(`b-${block.index}`);
+    try {
+      const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
+      const blocks = voice.blocks.map((b) =>
+        b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b,
+      );
+      saveVoice({ ...voice, blocks });
+      toast.success(`Block ${block.index + 1} narrated`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Voice failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function genAll() {
+    if (!selected || !voice) return;
+    setBusy("all");
+    let blocks = [...voice.blocks];
+    for (const block of voice.blocks) {
+      try {
+        const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
+        blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
+        saveVoice({ ...voice, blocks });
+      } catch (e) {
+        toast.error(`Block ${block.index + 1}: ${e instanceof Error ? e.message : "failed"}`);
+        break;
+      }
+    }
+    setBusy(null);
+    toast.success("Narration complete");
+  }
+
+  function editText(index: number, text: string) {
+    if (!voice) return;
+    saveVoice({
+      ...voice,
+      blocks: voice.blocks.map((b) => (b.index === index ? { ...b, text, estSeconds: estimateSeconds(text) } : b)),
+    });
+  }
+
+  const totalEst = (voice?.blocks ?? []).reduce((s, b) => s + (b.realSeconds ?? b.estSeconds), 0);
+
+  return (
+    <div className="mx-auto max-w-5xl px-6 py-8">
+      <h1 className="text-xl font-semibold">Voice Studio</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Generate natural documentary narration. Each paragraph is its own voice block you can preview and regenerate.
+      </p>
+
+      <div className="mt-4"><ProjectPicker /></div>
+
+      {!selected && <p className="mt-6 text-sm text-muted-foreground">Select a project to begin.</p>}
+      {selected && !story && (
+        <p className="mt-4 text-xs text-amber-600">No script found. Run the Story Engine first.</p>
+      )}
+
+      {selected && story && (
+        <>
+          <div className="mt-6 rounded-xl border border-border p-4">
+            <div className="text-sm font-medium">Narrator profile</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {PROFILES.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => update({ profile: p.key })}
+                  className={[
+                    "rounded-lg border p-3 text-left transition-colors",
+                    settings.profile === p.key
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-accent",
+                  ].join(" ")}
+                >
+                  <div className="text-sm font-medium">{p.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{p.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <Ctrl label="Speed" value={settings.speed} min={0.7} max={1.2} step={0.05} onChange={(v) => update({ speed: v })} />
+              <Ctrl label="Stability" value={settings.stability} onChange={(v) => update({ stability: v })} />
+              <Ctrl label="Emotion" value={settings.emotion} onChange={(v) => update({ emotion: v })} />
+              <Ctrl label="Pause Strength" value={settings.pauseStrength} onChange={(v) => update({ pauseStrength: v })} />
+              <Ctrl label="Pitch" value={settings.pitch} onChange={(v) => update({ pitch: v })} />
+            </div>
+
+            <Dictionary settings={settings} onChange={(dictionary) => update({ dictionary })} />
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Button onClick={buildBlocks}>
+              <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
+            </Button>
+            {voice?.blocks.length ? (
+              <Button variant="secondary" onClick={genAll} disabled={!!busy}>
+                {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Generate All
+              </Button>
+            ) : null}
+            {voice?.blocks.length ? (
+              <span className="text-xs text-muted-foreground">
+                Estimated total: <span className="font-medium text-foreground">{fmtClock(totalEst)}</span> · {voice.blocks.length} blocks
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {(voice?.blocks ?? []).map((b) => (
+              <VoiceBlockCard
+                key={b.index}
+                topicId={selected.id}
+                block={b}
+                busy={busy === `b-${b.index}`}
+                onGen={() => genBlock(b)}
+                onEdit={(t) => editText(b.index, t)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Ctrl({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 1,
+  step = 0.05,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="font-medium">{label}</span>
+        <span className="text-muted-foreground">{value.toFixed(2)}</span>
+      </div>
+      <Slider value={[value]} min={min} max={max} step={step} onValueChange={(v) => onChange(v[0])} />
+    </div>
+  );
+}
+
+function Dictionary({
+  settings,
+  onChange,
+}: {
+  settings: VoiceSettings;
+  onChange: (d: VoiceSettings["dictionary"]) => void;
+}) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <div className="text-sm font-medium">Pronunciation Dictionary</div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input
+          className="h-8 w-32 rounded-md border border-input bg-background px-2 text-sm"
+          placeholder="Word"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <input
+          className="h-8 w-40 rounded-md border border-input bg-background px-2 text-sm"
+          placeholder="Say it as…"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            if (!from.trim() || !to.trim()) return;
+            onChange([...settings.dictionary, { from: from.trim(), to: to.trim() }]);
+            setFrom("");
+            setTo("");
+          }}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" /> Add
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {settings.dictionary.map((d, i) => (
+          <span key={i} className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs">
+            {d.from} → {d.to}
+            <button onClick={() => onChange(settings.dictionary.filter((_, x) => x !== i))}>
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VoiceBlockCard({
+  topicId,
+  block,
+  busy,
+  onGen,
+  onEdit,
+}: {
+  topicId: string;
+  block: VoiceBlock;
+  busy: boolean;
+  onGen: () => void;
+  onEdit: (t: string) => void;
+}) {
+  const audio = useImage(voiceBlockId(topicId, block.index));
+  return (
+    <div className="rounded-xl border border-border p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">Block {block.index + 1}</span>
+        <span className="text-xs text-muted-foreground">
+          ~{fmtClock(block.estSeconds)}
+          {block.realSeconds ? ` · actual ${fmtClock(block.realSeconds)}` : ""}
+        </span>
+      </div>
+      <textarea
+        className="mt-2 w-full resize-y rounded-md border border-input bg-background p-2 text-sm"
+        rows={2}
+        value={block.text}
+        onChange={(e) => onEdit(e.target.value)}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={onGen} disabled={busy}>
+          {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+          {audio ? "Regenerate" : "Generate"}
+        </Button>
+        {audio && (
+          <>
+            <audio controls src={audio} className="h-8" />
+            <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] font-medium text-green-600 dark:text-green-400">
+              <Play className="h-3 w-3" /> Ready
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
