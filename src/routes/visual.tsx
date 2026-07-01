@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Pencil, Trash2, ImagePlus } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Trash2, ImagePlus } from "lucide-react";
 
 import { generateVisualMap } from "@/lib/ai.functions";
 import {
@@ -36,7 +36,6 @@ function VisualPage() {
   const gen = useServerFn(generateVisualMap);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [editing, setEditing] = useState<number | null>(null);
 
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
