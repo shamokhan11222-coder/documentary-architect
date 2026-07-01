@@ -14,6 +14,7 @@ import {
   savePromptPack,
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { Steps } from "@/components/Steps";
 import type { PromptItem } from "@/lib/types";
 
 export const Route = createFileRoute("/prompts")({
@@ -128,6 +129,7 @@ function PromptsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
+      <Steps current="prompts" />
       <h1 className="text-xl font-semibold">Prompt Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Turn each visual scene into an image-generator prompt with a locked style.
