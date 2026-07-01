@@ -14,6 +14,7 @@ import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as IndexRouteImport } from './routes/index'
@@ -43,6 +44,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SeoRoute = SeoRouteImport.update({
+  id: '/seo',
+  path: '/seo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
+  '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
   '/thumbnail': typeof ThumbnailRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
+  '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
   '/thumbnail': typeof ThumbnailRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
   '/research': typeof ResearchRoute
+  '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
   '/thumbnail': typeof ThumbnailRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/prompts'
     | '/research'
+    | '/seo'
     | '/settings'
     | '/story'
     | '/thumbnail'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/prompts'
     | '/research'
+    | '/seo'
     | '/settings'
     | '/story'
     | '/thumbnail'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/prompts'
     | '/research'
+    | '/seo'
     | '/settings'
     | '/story'
     | '/thumbnail'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PromptsRoute: typeof PromptsRoute
   ResearchRoute: typeof ResearchRoute
+  SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
   ThumbnailRoute: typeof ThumbnailRoute
@@ -171,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/seo': {
+      id: '/seo'
+      path: '/seo'
+      fullPath: '/seo'
+      preLoaderRoute: typeof SeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/research': {
       id: '/research'
       path: '/research'
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PromptsRoute: PromptsRoute,
   ResearchRoute: ResearchRoute,
+  SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
   ThumbnailRoute: ThumbnailRoute,
