@@ -1,5 +1,14 @@
 import { useCallback, useSyncExternalStore } from "react";
-import type { PromptPack, Research, Story, Topic, VisualMap } from "./types";
+import type {
+  PromptPack,
+  RatingReport,
+  Research,
+  Seo,
+  Story,
+  ThumbnailPack,
+  Topic,
+  VisualMap,
+} from "./types";
 
 const KEYS = {
   topics: "docos.topics",
@@ -7,6 +16,9 @@ const KEYS = {
   story: "docos.story",
   visual: "docos.visual",
   prompts: "docos.prompts",
+  thumbnails: "docos.thumbnails",
+  seo: "docos.seo",
+  rating: "docos.rating",
   settings: "docos.settings",
   selected: "docos.selectedTopic",
 } as const;
@@ -92,6 +104,15 @@ export function deleteTopic(id: string) {
   const prompts = read<Record<string, PromptPack>>(KEYS.prompts, {});
   delete prompts[id];
   write(KEYS.prompts, prompts);
+  const thumbnails = read<Record<string, ThumbnailPack>>(KEYS.thumbnails, {});
+  delete thumbnails[id];
+  write(KEYS.thumbnails, thumbnails);
+  const seo = read<Record<string, Seo>>(KEYS.seo, {});
+  delete seo[id];
+  write(KEYS.seo, seo);
+  const rating = read<Record<string, RatingReport>>(KEYS.rating, {});
+  delete rating[id];
+  write(KEYS.rating, rating);
 }
 
 export function toggleFavorite(id: string) {
@@ -164,6 +185,92 @@ export function savePromptPack(p: PromptPack) {
   const all = read<Record<string, PromptPack>>(KEYS.prompts, {});
   all[p.topicId] = p;
   write(KEYS.prompts, all);
+}
+
+// ---------------- Thumbnails ----------------
+
+export function useThumbnails(topicId: string | null): ThumbnailPack | null {
+  const all = useStored<Record<string, ThumbnailPack>>(KEYS.thumbnails, {});
+  return topicId ? (all[topicId] ?? null) : null;
+}
+
+export function saveThumbnails(t: ThumbnailPack) {
+  const all = read<Record<string, ThumbnailPack>>(KEYS.thumbnails, {});
+  all[t.topicId] = t;
+  write(KEYS.thumbnails, all);
+}
+
+// ---------------- SEO ----------------
+
+export function useSeo(topicId: string | null): Seo | null {
+  const all = useStored<Record<string, Seo>>(KEYS.seo, {});
+  return topicId ? (all[topicId] ?? null) : null;
+}
+
+export function saveSeo(s: Seo) {
+  const all = read<Record<string, Seo>>(KEYS.seo, {});
+  all[s.topicId] = s;
+  write(KEYS.seo, all);
+}
+
+// ---------------- Rating ----------------
+
+export function useRating(topicId: string | null): RatingReport | null {
+  const all = useStored<Record<string, RatingReport>>(KEYS.rating, {});
+  return topicId ? (all[topicId] ?? null) : null;
+}
+
+export function saveRating(r: RatingReport) {
+  const all = read<Record<string, RatingReport>>(KEYS.rating, {});
+  all[r.topicId] = r;
+  write(KEYS.rating, all);
+}
+
+// ---------------- Project status / export ----------------
+
+export interface ProjectStatus {
+  research: boolean;
+  story: boolean;
+  visual: boolean;
+  prompts: boolean;
+  thumbnail: boolean;
+  seo: boolean;
+  rating: boolean;
+}
+
+export function useProjectStatus(topicId: string | null): ProjectStatus {
+  const research = useStored<Record<string, unknown>>(KEYS.research, {});
+  const story = useStored<Record<string, unknown>>(KEYS.story, {});
+  const visual = useStored<Record<string, unknown>>(KEYS.visual, {});
+  const prompts = useStored<Record<string, unknown>>(KEYS.prompts, {});
+  const thumbnails = useStored<Record<string, unknown>>(KEYS.thumbnails, {});
+  const seo = useStored<Record<string, unknown>>(KEYS.seo, {});
+  const rating = useStored<Record<string, unknown>>(KEYS.rating, {});
+  const has = (r: Record<string, unknown>) => !!(topicId && r[topicId]);
+  return {
+    research: has(research),
+    story: has(story),
+    visual: has(visual),
+    prompts: has(prompts),
+    thumbnail: has(thumbnails),
+    seo: has(seo),
+    rating: has(rating),
+  };
+}
+
+export function exportProject(topicId: string) {
+  const pick = <T,>(key: string) => read<Record<string, T>>(key, {})[topicId];
+  const topic = read<Topic[]>(KEYS.topics, []).find((t) => t.id === topicId);
+  return {
+    topic,
+    research: pick<Research>(KEYS.research) ?? null,
+    story: pick<Story>(KEYS.story) ?? null,
+    visualMap: pick<VisualMap>(KEYS.visual) ?? null,
+    promptPack: pick<PromptPack>(KEYS.prompts) ?? null,
+    thumbnails: pick<ThumbnailPack>(KEYS.thumbnails) ?? null,
+    seo: pick<Seo>(KEYS.seo) ?? null,
+    rating: pick<RatingReport>(KEYS.rating) ?? null,
+  };
 }
 
 // ---------------- Settings ----------------
