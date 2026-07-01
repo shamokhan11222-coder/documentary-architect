@@ -624,3 +624,27 @@ WEAK POINTS:
 ${data.weakPoints.map((w, i) => `${i + 1}. ${w}`).join("\n")}`;
     return { text: await callAiText(system, user) };
   });
+// ---------------- Audio Suggestion Engine (V6) ----------------
+
+export const suggestAudio = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; script?: string }) => {
+    if (!data?.topic?.trim()) throw new Error("Topic is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const system = `You are the AUDIO DIRECTOR of a documentary production studio. You suggest background music moods and sound effects placement. You never generate audio. Return ONLY valid JSON.`;
+    const user = `Documentary: "${data.topic}"
+${data.script ? `SCRIPT:\n${data.script.slice(0, 7000)}` : ""}
+
+Suggest background music cues and sound effect placements for this documentary.
+Music moods to draw from: Curious, Epic, Emotional, Dark, Historical, Educational.
+SFX examples: Whoosh, Pop, Clock Tick, Explosion, Wind, Paper, Footsteps.
+
+Return a JSON object:
+{
+  "music": [ { "mood": "one of the moods", "placement": "where in the video it should play / change", "reason": "why" } ],
+  "sfx": [ { "effect": "sound effect name", "placement": "exact moment/line it should hit" } ]
+}`;
+    const result = await callAiJson<{ music: MusicCue[]; sfx: SfxCue[] }>(system, user);
+    return { music: result.music ?? [], sfx: result.sfx ?? [] };
+  });
