@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
@@ -24,6 +25,11 @@ import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 
+const VoiceRoute = VoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisualDnaRoute = VisualDnaRouteImport.update({
   id: '/visual-dna',
   path: '/visual-dna',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
   '/api/tts': typeof ApiTtsRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
   '/api/tts': typeof ApiTtsRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
   '/api/tts': typeof ApiTtsRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/voice'
     | '/api/chat'
     | '/api/generate-image'
     | '/api/tts'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/voice'
     | '/api/chat'
     | '/api/generate-image'
     | '/api/tts'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/voice'
     | '/api/chat'
     | '/api/generate-image'
     | '/api/tts'
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
   VisualDnaRoute: typeof VisualDnaRoute
+  VoiceRoute: typeof VoiceRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiGenerateImageRoute: typeof ApiGenerateImageRoute
   ApiTtsRoute: typeof ApiTtsRoute
@@ -214,6 +227,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/voice': {
+      id: '/voice'
+      path: '/voice'
+      fullPath: '/voice'
+      preLoaderRoute: typeof VoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visual-dna': {
       id: '/visual-dna'
       path: '/visual-dna'
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
   VisualDnaRoute: VisualDnaRoute,
+  VoiceRoute: VoiceRoute,
   ApiChatRoute: ApiChatRoute,
   ApiGenerateImageRoute: ApiGenerateImageRoute,
   ApiTtsRoute: ApiTtsRoute,
