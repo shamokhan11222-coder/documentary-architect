@@ -81,3 +81,56 @@ export interface PromptPack {
   prompts: PromptItem[];
   generatedAt: number;
 }
+
+export interface ThumbnailIdea {
+  thumbnailTitle: string;
+  mainVisualConcept: string;
+  mainSubject: string;
+  background: string;
+  emotion: string;
+  textOnThumbnail: string;
+  composition: string;
+  ctrScore: number;
+  whyItWorks: string;
+  imagePrompt: string;
+  negativePrompt: string;
+}
+
+export interface ThumbnailPack {
+  topicId: string;
+  ideas: ThumbnailIdea[];
+  generatedAt: number;
+}
+
+export interface Seo {
+  topicId: string;
+  titleOptions: string[];
+  bestTitle: string;
+  description: string;
+  tags: string[];
+  hashtags: string[];
+  keywords: string[];
+  pinnedComment: string;
+  shortSummary: string;
+  longSummary: string;
+  generatedAt: number;
+}
+
+export type Recommendation = "Ready" | "Needs Rewrite" | "Weak Topic";
+
+export interface RatingReport {
+  topicId: string;
+  hookScore: number;
+  storyScore: number;
+  retentionScore: number;
+  visualClarityScore: number;
+  thumbnailCtrScore: number;
+  originalityScore: number;
+  evergreenScore: number;
+  overallScore: number;
+  weakPoints: string[];
+  strongPoints: string[];
+  whatToImprove: string[];
+  recommendation: Recommendation;
+  generatedAt: number;
+}

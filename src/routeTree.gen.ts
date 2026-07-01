@@ -11,9 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
+import { Route as ThumbnailRouteImport } from './routes/thumbnail'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as RatingRouteImport } from './routes/rating'
 import { Route as PromptsRouteImport } from './routes/prompts'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -27,6 +30,11 @@ const TopicsRoute = TopicsRouteImport.update({
   path: '/topics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ThumbnailRoute = ThumbnailRouteImport.update({
+  id: '/thumbnail',
+  path: '/thumbnail',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StoryRoute = StoryRouteImport.update({
   id: '/story',
   path: '/story',
@@ -37,9 +45,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SeoRoute = SeoRouteImport.update({
+  id: '/seo',
+  path: '/seo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RatingRoute = RatingRouteImport.update({
+  id: '/rating',
+  path: '/rating',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PromptsRoute = PromptsRouteImport.update({
@@ -56,18 +74,24 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
+  '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
+  '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
 }
@@ -75,9 +99,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/prompts': typeof PromptsRoute
+  '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
+  '/thumbnail': typeof ThumbnailRoute
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
 }
@@ -86,27 +113,36 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/prompts'
+    | '/rating'
     | '/research'
+    | '/seo'
     | '/settings'
     | '/story'
+    | '/thumbnail'
     | '/topics'
     | '/visual'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/prompts'
+    | '/rating'
     | '/research'
+    | '/seo'
     | '/settings'
     | '/story'
+    | '/thumbnail'
     | '/topics'
     | '/visual'
   id:
     | '__root__'
     | '/'
     | '/prompts'
+    | '/rating'
     | '/research'
+    | '/seo'
     | '/settings'
     | '/story'
+    | '/thumbnail'
     | '/topics'
     | '/visual'
   fileRoutesById: FileRoutesById
@@ -114,9 +150,12 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PromptsRoute: typeof PromptsRoute
+  RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
+  SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
+  ThumbnailRoute: typeof ThumbnailRoute
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
 }
@@ -137,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TopicsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/thumbnail': {
+      id: '/thumbnail'
+      path: '/thumbnail'
+      fullPath: '/thumbnail'
+      preLoaderRoute: typeof ThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/story': {
       id: '/story'
       path: '/story'
@@ -151,11 +197,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/seo': {
+      id: '/seo'
+      path: '/seo'
+      fullPath: '/seo'
+      preLoaderRoute: typeof SeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/research': {
       id: '/research'
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof ResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rating': {
+      id: '/rating'
+      path: '/rating'
+      fullPath: '/rating'
+      preLoaderRoute: typeof RatingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/prompts': {
@@ -178,9 +238,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PromptsRoute: PromptsRoute,
+  RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
+  SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
+  ThumbnailRoute: ThumbnailRoute,
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
 }

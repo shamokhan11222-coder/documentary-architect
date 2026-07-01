@@ -17,6 +17,10 @@ import { useSettings, useSaveSettings } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Score, Meta } from "@/components/Score";
+import { Steps } from "@/components/Steps";
+import { StatusBadge } from "@/components/StatusBadge";
+import { useProjectStatus, useSelectedTopicId, exportProject } from "@/lib/store";
+import { downloadJson, slugify } from "@/lib/io";
 import type { Topic } from "@/lib/types";
 
 export const Route = createFileRoute("/topics")({
@@ -41,6 +45,7 @@ function TopicsPage() {
   const saveSettings = useSaveSettings();
   const topics = useTopics();
   const gen = useServerFn(generateTopics);
+  const selectedId = useSelectedTopicId();
 
   const [universe, setUniverse] = useState(settings.lastUniverse);
   const [results, setResults] = useState<Generated[]>([]);
@@ -85,6 +90,7 @@ function TopicsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
+      <Steps current="topic" />
       <h1 className="text-xl font-semibold">Topic Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Generate documentary ideas from a universe / theme.
@@ -166,7 +172,12 @@ function TopicsPage() {
             <p className="text-sm text-muted-foreground">No saved topics yet.</p>
           )}
           {filtered.map((t) => (
-            <div key={t.id} className="rounded-lg border border-border p-4">
+            <div
+              key={t.id}
+              className={`rounded-lg border p-4 ${
+                t.id === selectedId ? "border-primary" : "border-border"
+              }`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-medium">{t.topic}</div>
@@ -204,15 +215,48 @@ function TopicsPage() {
                 <Meta label="Visual" value={t.visualDifficulty} />
                 <Meta label="Length" value={t.estimatedLength} />
               </div>
-              <div className="mt-3">
+              <ProjectProgress topicId={t.id} />
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => goResearch(t)}>
-                  Research this →
+                  Open project →
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    downloadJson(slugify(t.topic) + "-project", exportProject(t.id))
+                  }
+                >
+                  Export project
                 </Button>
               </div>
             </div>
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function ProjectProgress({ topicId }: { topicId: string }) {
+  const s = useProjectStatus(topicId);
+  const items: [string, boolean][] = [
+    ["Research", s.research],
+    ["Story", s.story],
+    ["Visuals", s.visual],
+    ["Prompts", s.prompts],
+    ["Thumbnail", s.thumbnail],
+    ["SEO", s.seo],
+    ["Rating", s.rating],
+  ];
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+      {items.map(([label, done]) => (
+        <span key={label} className="inline-flex items-center gap-1 text-[11px]">
+          <span className="text-muted-foreground">{label}</span>
+          <StatusBadge status={done ? "Completed" : "Not Started"} />
+        </span>
+      ))}
     </div>
   );
 }

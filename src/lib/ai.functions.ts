@@ -1,6 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
-import type { PromptItem, Research, VisualScene } from "./types";
+import type {
+  PromptItem,
+  RatingReport,
+  Research,
+  Seo,
+  ThumbnailIdea,
+  VisualScene,
+} from "./types";
 
 interface GeneratedTopic {
   topic: string;
@@ -297,4 +304,175 @@ Return a JSON object with this exact shape: ${PROMPT_SHAPE}
 SCENE:
 ${JSON.stringify(data.scene)}`;
     return await callAiJson<PromptItem>(PROMPT_RULES, user);
+  });
+
+// ---------------- Thumbnail Engine ----------------
+
+const THUMB_RULES = `You are a YouTube thumbnail strategist for documentary channels.
+STYLE RULES for every idea:
+- Simple MS Paint documentary style (flat colors, thick black outlines, simple shapes).
+- One clear visual idea, big readable thumbnail text, strong curiosity.
+- No clutter, no tiny details, no realistic style, no cinematic 3D, no random decoration.
+Return ONLY valid JSON.`;
+
+const THUMB_SHAPE = `{
+  "thumbnailTitle": "string",
+  "mainVisualConcept": "string",
+  "mainSubject": "string",
+  "background": "string",
+  "emotion": "string",
+  "textOnThumbnail": "string - short punchy words shown on the thumbnail",
+  "composition": "string",
+  "ctrScore": number (1-10),
+  "whyItWorks": "string",
+  "imagePrompt": "string - MS Paint style prompt for this thumbnail",
+  "negativePrompt": "string"
+}`;
+
+export const generateThumbnails = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; script?: string; angle?: string }) => {
+    if (!data?.topic?.trim()) throw new Error("Topic is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary topic: "${data.topic}"
+${data.angle ? `Main story angle: ${data.angle}` : ""}
+${data.script ? `SCRIPT:\n${data.script.slice(0, 6000)}` : ""}
+
+Generate 10 distinct high-CTR thumbnail ideas.
+
+Return a JSON object:
+{ "ideas": [ ${THUMB_SHAPE} ] }`;
+    const result = await callAiJson<{ ideas: ThumbnailIdea[] }>(THUMB_RULES, user);
+    return (result.ideas ?? []) as ThumbnailIdea[];
+  });
+
+export const regenerateThumbnail = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; idea: ThumbnailIdea }) => {
+    if (!data?.idea) throw new Error("Idea is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary: "${data.topic}"
+
+Generate one improved, distinct thumbnail idea (different from the one below).
+
+Return a JSON object with this exact shape: ${THUMB_SHAPE}
+
+CURRENT IDEA:
+${JSON.stringify(data.idea)}`;
+    return await callAiJson<ThumbnailIdea>(THUMB_RULES, user);
+  });
+
+// ---------------- SEO Engine ----------------
+
+const SEO_RULES = `You generate upload-ready YouTube metadata for documentary videos.
+TITLE RULES: curiosity-driven, simple English, USA-audience friendly, NOT clickbait, not too long, documentary-style.
+Return ONLY valid JSON.`;
+
+const SEO_SHAPE = `{
+  "titleOptions": ["10 title options"],
+  "bestTitle": "string - the single best title",
+  "description": "string - full YouTube video description",
+  "tags": ["youtube tags"],
+  "hashtags": ["#hashtags"],
+  "keywords": ["seo keywords"],
+  "pinnedComment": "string",
+  "shortSummary": "string - 1-2 sentences",
+  "longSummary": "string - a full paragraph"
+}`;
+
+export const generateSeo = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; script?: string }) => {
+    if (!data?.topic?.trim()) throw new Error("Topic is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary topic: "${data.topic}"
+${data.script ? `SCRIPT:\n${data.script.slice(0, 8000)}` : ""}
+
+Generate complete upload-ready YouTube metadata.
+
+Return a JSON object with this exact shape: ${SEO_SHAPE}`;
+    return await callAiJson<Omit<Seo, "topicId" | "generatedAt">>(SEO_RULES, user);
+  });
+
+export const regenerateTitles = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; script?: string }) => {
+    if (!data?.topic?.trim()) throw new Error("Topic is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const user = `Documentary topic: "${data.topic}"
+${data.script ? `SCRIPT:\n${data.script.slice(0, 4000)}` : ""}
+
+Generate 10 fresh title options and pick the best one.
+
+Return a JSON object: { "titleOptions": ["..."], "bestTitle": "string" }`;
+    return await callAiJson<{ titleOptions: string[]; bestTitle: string }>(
+      SEO_RULES,
+      user,
+    );
+  });
+
+// ---------------- Rating Engine ----------------
+
+const RATING_RULES = `You are a ruthless but fair YouTube documentary reviewer. You rate a video BEFORE production so it can be fixed. Be specific and honest. Return ONLY valid JSON.`;
+
+const RATING_SHAPE = `{
+  "hookScore": number (1-10),
+  "storyScore": number (1-10),
+  "retentionScore": number (1-10),
+  "visualClarityScore": number (1-10),
+  "thumbnailCtrScore": number (1-10),
+  "originalityScore": number (1-10),
+  "evergreenScore": number (1-10),
+  "overallScore": number (1-10),
+  "weakPoints": ["..."],
+  "strongPoints": ["..."],
+  "whatToImprove": ["..."],
+  "recommendation": "Ready | Needs Rewrite | Weak Topic"
+}`;
+
+export const rateVideo = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      topic: string;
+      hook?: string;
+      script?: string;
+      visualMap?: string;
+      thumbnails?: string;
+    }) => {
+      if (!data?.topic?.trim()) throw new Error("Topic is required");
+      return data;
+    },
+  )
+  .handler(async ({ data }) => {
+    const user = `Rate this documentary video plan.
+
+Topic: "${data.topic}"
+${data.hook ? `HOOK:\n${data.hook}` : ""}
+${data.script ? `SCRIPT:\n${data.script.slice(0, 7000)}` : ""}
+${data.visualMap ? `VISUAL MAP:\n${data.visualMap.slice(0, 3000)}` : ""}
+${data.thumbnails ? `THUMBNAIL IDEAS:\n${data.thumbnails.slice(0, 2000)}` : ""}
+
+Return a JSON object with this exact shape: ${RATING_SHAPE}`;
+    return await callAiJson<Omit<RatingReport, "topicId" | "generatedAt">>(
+      RATING_RULES,
+      user,
+    );
+  });
+
+export const improveWeakPoints = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; weakPoints: string[] }) => {
+    if (!data?.weakPoints?.length) throw new Error("Weak points are required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const system = `You are a documentary production coach. Give concrete, actionable fixes.`;
+    const user = `For the documentary "${data.topic}", provide clear, specific instructions to fix each weak point below. Return plain text with one numbered fix per weak point.
+
+WEAK POINTS:
+${data.weakPoints.map((w, i) => `${i + 1}. ${w}`).join("\n")}`;
+    return { text: await callAiText(system, user) };
   });

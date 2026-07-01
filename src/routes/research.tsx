@@ -13,6 +13,7 @@ import {
   saveResearch,
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { Steps } from "@/components/Steps";
 import type { Research } from "@/lib/types";
 
 export const Route = createFileRoute("/research")({
@@ -46,6 +47,7 @@ function ResearchPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
+      <Steps current="research" />
       <h1 className="text-xl font-semibold">Research Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Deep documentary research for the selected topic.
