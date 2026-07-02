@@ -763,3 +763,88 @@ SCENES:
 ${JSON.stringify(data.scenes.map((s) => ({ n: s.sceneNumber, subject: s.mainSubject, bg: s.background, type: s.sceneType, desc: s.visualDescription })))}`;
     return await callAiJson<ConsistencyReport>(EXPERTS.visual, user);
   });
+
+// ---------------- Script Analyzer ----------------
+
+export type ScriptPattern = {
+  hookStructure: string;
+  pacing: string;
+  sectionFlow: string;
+  curiosityLoops: string;
+  transitionStyle: string;
+  evidencePlacement: string;
+  endingStyle: string;
+  avgSentenceLength: string;
+  tone: string;
+  storyRhythm: string;
+  summary: string;
+};
+
+export const analyzeScript = createServerFn({ method: "POST" })
+  .inputValidator((data: { script: string }) => {
+    if (!data?.script || data.script.trim().length < 40)
+      throw new Error("Paste a longer reference script to analyze.");
+    return { script: data.script.slice(0, 24000) };
+  })
+  .handler(async ({ data }) => {
+    const user = `Analyze this reference documentary narration script and extract its storytelling PATTERN only. Do NOT copy any wording. Describe HOW it is written so the structure can be reused for a different topic.
+
+Return a JSON object:
+{
+  "hookStructure": "how the opening hook grabs attention",
+  "pacing": "fast/slow/varied and how it builds",
+  "sectionFlow": "how sections are ordered and connected",
+  "curiosityLoops": "how open questions are opened and closed",
+  "transitionStyle": "how it moves between beats",
+  "evidencePlacement": "when and how facts/evidence appear",
+  "endingStyle": "how it concludes and lands the payoff",
+  "avgSentenceLength": "short/medium/long with rough word range",
+  "tone": "voice and emotional register",
+  "storyRhythm": "overall rhythm pattern of tension and release",
+  "summary": "2-3 sentence overview of the reusable structure"
+}
+
+REFERENCE SCRIPT:
+${data.script}`;
+    return await callAiJson<ScriptPattern>(EXPERTS.story, user);
+  });
+
+export const generateScriptFromPattern = createServerFn({ method: "POST" })
+  .inputValidator((data: { topic: string; pattern: ScriptPattern }) => {
+    if (!data?.topic || data.topic.trim().length < 2)
+      throw new Error("Enter a topic for the new script.");
+    if (!data?.pattern) throw new Error("Analyze a reference script first.");
+    return { topic: data.topic.trim().slice(0, 400), pattern: data.pattern };
+  })
+  .handler(async ({ data }) => {
+    const p = data.pattern;
+    const user = `Write an ORIGINAL documentary narration script about this topic, following the analyzed STRUCTURE below. Reuse the structural pattern only. NEVER copy any phrasing, sentences, or unique wording from the reference. All wording must be your own and original.
+
+TOPIC: ${data.topic}
+
+STRUCTURE TO FOLLOW:
+- Hook structure: ${p.hookStructure}
+- Pacing: ${p.pacing}
+- Section flow: ${p.sectionFlow}
+- Curiosity loops: ${p.curiosityLoops}
+- Transition style: ${p.transitionStyle}
+- Evidence placement: ${p.evidencePlacement}
+- Ending style: ${p.endingStyle}
+- Average sentence length: ${p.avgSentenceLength}
+- Tone: ${p.tone}
+- Story rhythm: ${p.storyRhythm}
+
+Return a JSON object:
+{
+  "script": "the full original narration script as plain text",
+  "originality": {
+    "score": number (1-10, higher = more original / less like the reference),
+    "verdict": "one-line originality verdict",
+    "notes": ["how you kept it structurally similar but original in wording"]
+  }
+}`;
+    return await callAiJson<{
+      script: string;
+      originality: { score: number; verdict: string; notes: string[] };
+    }>(EXPERTS.story, user);
+  });
