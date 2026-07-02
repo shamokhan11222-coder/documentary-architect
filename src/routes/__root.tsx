@@ -79,6 +79,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async ({ location }) => {
+    // Private-access gate: only redirects when SITE_PASSWORD is configured on
+    // the deployment. Open by default so the app works as a normal website.
+    if (location.pathname === "/unlock") return;
+    const status = await getGateStatus();
+    if (status.enabled && !status.unlocked) {
+      throw redirect({ to: "/unlock" });
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
