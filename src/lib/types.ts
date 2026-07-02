@@ -9,6 +9,15 @@ export interface Topic {
   researchDifficulty: string;
   visualDifficulty: string;
   estimatedLength: string;
+  // Senior-strategist enrichment (optional for older saved topics).
+  altTitle?: string;
+  coreMystery?: string;
+  whyClick?: string;
+  storyConflict?: string;
+  hookAngle?: string;
+  visualPotential?: string;
+  productionDifficulty?: string;
+  recommendation?: string;
   favorite: boolean;
   savedAt: number;
   completed?: boolean;
@@ -31,6 +40,14 @@ export interface GeneratedIdea {
   researchDifficulty: string;
   visualDifficulty: string;
   estimatedLength: string;
+  altTitle?: string;
+  coreMystery?: string;
+  whyClick?: string;
+  storyConflict?: string;
+  hookAngle?: string;
+  visualPotential?: string;
+  productionDifficulty?: string;
+  recommendation?: string;
 }
 
 export interface IdeaCategory {

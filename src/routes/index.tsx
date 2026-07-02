@@ -88,7 +88,8 @@ function HomePage() {
             )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Curated by your Topic Expert. Rejecting ideas trains your taste.
+            The Hidden Origins of Everyday Life — engineered by a senior documentary
+            strategist. Weak ideas are auto-rejected; rejecting trains your taste.
           </p>
         </div>
         <Button onClick={load} disabled={loading} variant="outline">
@@ -123,8 +124,30 @@ function HomePage() {
                     className="flex flex-col rounded-lg border border-border p-4"
                   >
                     <div className="font-medium">{idea.topic}</div>
+                    {idea.altTitle && (
+                      <div className="mt-0.5 text-xs text-primary">
+                        Alt: {idea.altTitle}
+                      </div>
+                    )}
                     <div className="mt-1 text-sm text-muted-foreground">
                       {idea.explanation}
+                    </div>
+                    <div className="mt-3 space-y-1.5 text-xs">
+                      {idea.coreMystery && (
+                        <Detail label="Core mystery" value={idea.coreMystery} />
+                      )}
+                      {idea.whyClick && (
+                        <Detail label="Why they click" value={idea.whyClick} />
+                      )}
+                      {idea.storyConflict && (
+                        <Detail label="Conflict" value={idea.storyConflict} />
+                      )}
+                      {idea.hookAngle && (
+                        <Detail label="Hook" value={idea.hookAngle} />
+                      )}
+                      {idea.visualPotential && (
+                        <Detail label="Visual" value={idea.visualPotential} />
+                      )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       <Score label="CTR" value={idea.ctrScore} />
@@ -132,8 +155,17 @@ function HomePage() {
                       <Score label="Original" value={idea.originalityScore} />
                       <Meta label="Research" value={idea.researchDifficulty} />
                       <Meta label="Visual" value={idea.visualDifficulty} />
+                      {idea.productionDifficulty && (
+                        <Meta label="Production" value={idea.productionDifficulty} />
+                      )}
                       <Meta label="Runtime" value={idea.estimatedLength} />
                     </div>
+                    {idea.recommendation && (
+                      <div className="mt-2 rounded-md bg-muted px-2 py-1 text-xs">
+                        <span className="font-medium">Verdict:</span>{" "}
+                        <span className="text-muted-foreground">{idea.recommendation}</span>
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => handleGenerateProject(idea)}>
                         <FolderPlus className="mr-1 h-4 w-4" /> Generate Project
@@ -160,6 +192,15 @@ function HomePage() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-1.5">
+      <span className="shrink-0 font-medium text-foreground/80">{label}:</span>
+      <span className="text-muted-foreground">{value}</span>
     </div>
   );
 }

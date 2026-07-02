@@ -59,10 +59,22 @@ REJECTED topics — NEVER propose anything similar in subject, angle, or vibe: $
     const per = data.perCategory ?? 4;
     const user = `${taste}
 
+UNIVERSE / THEME: "The Hidden Origins of Everyday Life"
+Every idea must live inside this universe: the surprising, hidden, or forgotten
+origins and mechanisms behind ordinary things people never question — objects,
+habits, words, rituals, foods, systems, and daily experiences.
+
 Generate a fresh feed of documentary ideas grouped into these EXACT categories:
 ${CATEGORIES.map((c) => `- ${c}`).join("\n")}
 
-Give ${per} distinct ideas per category. Lean toward the liked/completed style; avoid anything resembling the rejected list. Vary universes/themes widely.
+Give ${per} distinct ideas per category. Lean toward the liked/completed style; avoid anything resembling the rejected list.
+
+HARD QUALITY BAR — enforce ruthlessly:
+- Each idea must trigger "Wait... I never thought about that."
+- Evergreen, curiosity-driven, original, documentary-friendly, capable of a focused 8-12 minute video, with strong thumbnail potential.
+- REJECT and replace anything generic, boring, random, overdone, or listicle-shaped. Never output a rejected idea.
+- Only include ideas where ctrScore >= 7 AND evergreenScore >= 7 AND originalityScore >= 7. Drop everything weaker.
+- "estimatedLength" should reflect an 8-12 minute capable video (e.g. "8-12 min").
 
 Return a JSON object:
 {
@@ -71,14 +83,22 @@ Return a JSON object:
       "category": "exact category name from the list above",
       "ideas": [
         {
-          "topic": "punchy documentary title",
+          "topic": "the Main Title — punchy, curiosity-driven documentary title",
+          "altTitle": "an alternate, more viral title variant",
           "explanation": "1-2 sentence angle",
-          "ctrScore": number (1-10),
-          "evergreenScore": number (1-10),
-          "originalityScore": number (1-10),
+          "coreMystery": "the single hidden question / mystery at the heart of it",
+          "whyClick": "why a curious viewer cannot resist clicking",
+          "storyConflict": "the central tension or conflict that carries the story",
+          "hookAngle": "the strongest opening hook angle for the first 10 seconds",
+          "visualPotential": "what makes this visually rich and thumbnail-worthy",
+          "ctrScore": number (7-10),
+          "evergreenScore": number (7-10),
+          "originalityScore": number (7-10),
           "researchDifficulty": "Low | Medium | High",
           "visualDifficulty": "Low | Medium | High",
-          "estimatedLength": "e.g. '12-18 min'"
+          "productionDifficulty": "Low | Medium | High",
+          "estimatedLength": "e.g. '8-12 min'",
+          "recommendation": "one-line final verdict: make it now / strong / niche-but-worthy"
         }
       ]
     }
