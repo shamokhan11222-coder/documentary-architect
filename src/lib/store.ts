@@ -115,6 +115,12 @@ export function deleteTopic(id: string) {
   const rating = read<Record<string, RatingReport>>(KEYS.rating, {});
   delete rating[id];
   write(KEYS.rating, rating);
+  const voice = read<Record<string, unknown>>("docos.voice", {});
+  delete voice[id];
+  write("docos.voice", voice);
+  const pipeline = read<Record<string, unknown>>("docos.pipeline", {});
+  delete pipeline[id];
+  write("docos.pipeline", pipeline);
 }
 
 export function toggleFavorite(id: string) {
