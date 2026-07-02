@@ -55,6 +55,8 @@ function SettingsPage() {
       "docos.rating",
       "docos.taste",
       "docos.selectedTopic",
+      "docos.pipeline",
+      "docos.voice",
     ].forEach((k) => localStorage.removeItem(k));
     window.dispatchEvent(new Event("storage"));
     toast.success("All data cleared");
