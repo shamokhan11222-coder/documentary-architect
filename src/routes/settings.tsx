@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useTopics, useSelectedTopicId, exportProject, useTaste, clearTaste } from "@/lib/store";
 import { Steps } from "@/components/Steps";
 import { downloadJson, slugify } from "@/lib/io";
+import { toggleTheme, useTheme } from "@/lib/theme";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Documentary Studio" }] }),
@@ -15,6 +16,7 @@ function SettingsPage() {
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const taste = useTaste();
+  const theme = useTheme();
 
   function exportData() {
     const data = {
@@ -67,6 +69,42 @@ function SettingsPage() {
       </p>
 
       <div className="mt-6 space-y-4">
+        <div className="rounded-lg border border-border p-4">
+          <div className="text-sm font-medium">Theme</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Currently {theme === "dark" ? "dark" : "light"} mode.
+          </p>
+          <div className="mt-3">
+            <Button size="sm" variant="outline" onClick={toggleTheme}>
+              Switch to {theme === "dark" ? "light" : "dark"} mode
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border p-4">
+          <div className="text-sm font-medium">Configuration</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage the settings that shape every generation.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/api-keys">AI Providers</Link>
+            </Button>
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/visual-dna">Visual DNA</Link>
+            </Button>
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/voice">Voice Settings</Link>
+            </Button>
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/instructions">AI Instructions</Link>
+            </Button>
+            <Button size="sm" variant="secondary" asChild>
+              <Link to="/export">Export</Link>
+            </Button>
+          </div>
+        </div>
+
         <div className="rounded-lg border border-border p-4">
           <div className="text-sm font-medium">Storage</div>
           <p className="mt-1 text-sm text-muted-foreground">
