@@ -176,7 +176,7 @@ function RootComponent() {
             >
               {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <span className="text-sm font-semibold tracking-tight">Stickmax Studio</span>
+            <Logo />
           </header>
           <main className="min-w-0 flex-1 overflow-x-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
