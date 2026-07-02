@@ -194,3 +194,12 @@ function HomePage() {
     </div>
   );
 }
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-1.5">
+      <span className="shrink-0 font-medium text-foreground/80">{label}:</span>
+      <span className="text-muted-foreground">{value}</span>
+    </div>
+  );
+}
