@@ -313,7 +313,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
   }
 
   function continueWorking() {
-    if (activeId) setSelectedProjectId(activeId);
+    if (activeId) setSelectedTopicId(activeId);
     const dest = next ? STAGE_ROUTE[next] : "/export";
     router.navigate({ to: dest });
   }
@@ -427,7 +427,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
               <Link
                 key={s.key}
                 to={STAGE_ROUTE[s.key]}
-                onClick={() => activeId && setSelectedProjectId(activeId)}
+                onClick={() => activeId && setSelectedTopicId(activeId)}
                 className={`group flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-all duration-200 hover:-translate-y-0.5 ${
                   isCurrent
                     ? "border-brand/50 bg-brand/10"
@@ -473,7 +473,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
             )}
             <Link
               to="/voice"
-              onClick={() => activeId && setSelectedProjectId(activeId)}
+              onClick={() => activeId && setSelectedTopicId(activeId)}
               className="text-xs font-medium text-brand hover:underline"
             >
               Open Voice Studio →
@@ -542,7 +542,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
               <button
                 key={t.id}
                 onClick={() => {
-                  setSelectedProjectId(t.id);
+                  setSelectedTopicId(t.id);
                   toast.success("Active project switched");
                 }}
                 className={`card-lift flex flex-col rounded-2xl border p-4 text-left ${
@@ -647,7 +647,7 @@ function PreviewFrame({
   return (
     <Link
       to={to}
-      onClick={() => activeId && setSelectedProjectId(activeId)}
+      onClick={() => activeId && setSelectedTopicId(activeId)}
       className="mt-3 block overflow-hidden rounded-2xl border border-border"
     >
       {src ? (
