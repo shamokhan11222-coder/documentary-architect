@@ -1,7 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useTopics, useSelectedTopicId, exportProject, useTaste, clearTaste } from "@/lib/store";
+import { getGateStatus, lockSite } from "@/lib/gate.functions";
 import { Steps } from "@/components/Steps";
 import { downloadJson, slugify } from "@/lib/io";
 import { toggleTheme, useTheme } from "@/lib/theme";
