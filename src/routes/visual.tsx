@@ -62,7 +62,7 @@ function VisualPage() {
       const minScenes = Math.max(8, Math.round(words / 12));
       const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
       const scenes = (await gen({
-        data: { topic: selected.topic, script: story.script, minScenes, maxScenes },
+        data: { topic: selected.topic, script: story.script, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
       })) as VisualScene[];
       saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
       toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
