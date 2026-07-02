@@ -190,8 +190,6 @@ function RouteMotion() {
   );
 }
 
-function RootShellPlaceholder({ children }: { children: ReactNode }) {
-function RootComponent() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
