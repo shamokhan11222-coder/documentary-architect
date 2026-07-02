@@ -19,6 +19,14 @@ import { ProjectHeader } from "@/components/ProjectHeader";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import { Feedback } from "@/components/Feedback";
 import type { Story, StorySection, StoryReview } from "@/lib/types";
+import { estimateSeconds } from "@/lib/production";
+import {
+  LENGTH_PRESETS,
+  DEFAULT_LENGTH_ID,
+  getPreset,
+  customPreset,
+  type LengthPreset,
+} from "@/lib/story-length";
 
 export const Route = createFileRoute("/story")({
   head: () => ({ meta: [{ title: "Story — Documentary Studio" }] }),
@@ -38,6 +46,12 @@ function rebuildScript(sections: StorySection[]) {
   return sections.map((s) => `## ${s.title}\n${s.content}`).join("\n\n");
 }
 
+function fmtDur(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
 function StoryPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
@@ -50,6 +64,11 @@ function StoryPage() {
   const deepReview = useServerFn(reviewStory);
   const [busy, setBusy] = useState<string | null>(null);
   const [review, setReview] = useState<StoryReview | null>(null);
+  const [lengthId, setLengthId] = useState<string>(DEFAULT_LENGTH_ID);
+  const [customMinutes, setCustomMinutes] = useState<number>(10);
+
+  const preset: LengthPreset =
+    lengthId === "custom" ? customPreset(customMinutes) : getPreset(lengthId) ?? getPreset(DEFAULT_LENGTH_ID)!;
 
   async function runDeepReview() {
     if (!selected || !story) return;
@@ -71,7 +90,13 @@ function StoryPage() {
     (async () => {
       try {
         const data = (await gen({
-          data: { topic: selected.topic, research: research ?? undefined },
+          data: {
+            topic: selected.topic,
+            research: research ?? undefined,
+            minWords: preset.minWords,
+            maxWords: preset.maxWords,
+            targetLabel: preset.label,
+          },
         })) as Omit<Story, "topicId" | "generatedAt">;
         saveStory({ ...data, topicId: selected.id, generatedAt: Date.now() });
         toast.success("Script generated — reviewed by Story Architect");
