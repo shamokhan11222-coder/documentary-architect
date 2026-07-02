@@ -8,6 +8,7 @@ import { getGateStatus, lockSite } from "@/lib/gate.functions";
 import { Steps } from "@/components/Steps";
 import { downloadJson, slugify } from "@/lib/io";
 import { toggleTheme, useTheme } from "@/lib/theme";
+import { CREDIT_MODES, useCreditConfig, setCreditMode, type CreditMode } from "@/lib/credit-mode";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Documentary Studio" }] }),
@@ -20,6 +21,7 @@ function SettingsPage() {
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const taste = useTaste();
   const theme = useTheme();
+  const credit = useCreditConfig();
 
   function exportData() {
     const data = {
@@ -74,6 +76,36 @@ function SettingsPage() {
       </p>
 
       <div className="mt-6 space-y-4">
+        <div className="rounded-lg border border-border p-4">
+          <div className="text-sm font-medium">Credit Saver Mode</div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Controls how aggressively DOCU OS spends AI credits. Finished work is
+            always reused — this only shapes new generation.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {(Object.keys(CREDIT_MODES) as CreditMode[]).map((id) => {
+              const cfg = CREDIT_MODES[id];
+              const active = credit.id === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setCreditMode(id);
+                    toast.success(`${cfg.label} enabled`);
+                  }}
+                  className={[
+                    "rounded-lg border p-3 text-left transition-colors",
+                    active ? "border-primary bg-primary/5" : "border-border hover:bg-accent",
+                  ].join(" ")}
+                >
+                  <div className="text-sm font-medium">{cfg.label}</div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">{cfg.description}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="rounded-lg border border-border p-4">
           <div className="text-sm font-medium">Theme</div>
           <p className="mt-1 text-sm text-muted-foreground">
