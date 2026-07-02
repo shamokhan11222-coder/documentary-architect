@@ -6,15 +6,17 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Menu, X } from "lucide-react";
 import { AIChat } from "../components/AIChat";
+import { getGateStatus } from "../lib/gate.functions";
 
 function NotFoundComponent() {
   return (
