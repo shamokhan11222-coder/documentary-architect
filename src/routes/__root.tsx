@@ -219,7 +219,7 @@ const NAV = [
   { to: "/settings", label: "Settings" },
 ] as const;
 
-function Sidebar() {
+function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const theme = useTheme();
   return (
     <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-border bg-card">
@@ -241,6 +241,7 @@ function Sidebar() {
               key={item.to}
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
+              onClick={onNavigate}
               className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
             >
               {item.label}
