@@ -6,7 +6,7 @@ const GATEWAY = "https://ai.gateway.lovable.dev/v1/images/generations";
 const MODEL = "google/gemini-3.1-flash-image";
 const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
 
-type Provider = { name?: string; apiKey?: string; imageModel?: string };
+type Provider = { name?: string; apiKey?: string; imageModel?: string; fallback?: boolean };
 type Body = { prompt?: string; references?: string[]; provider?: Provider };
 
 function toInlineData(ref: string) {
@@ -68,7 +68,9 @@ export const Route = createFileRoute("/api/generate-image")({
 
         // Active Gemini provider → use the user's key directly.
         if (provider?.name === "gemini" && provider.apiKey) {
-          return generateWithGemini(body, provider);
+          const r = await generateWithGemini(body, provider);
+          // On failure, fall through to built-in AI only if fallback is enabled.
+          if (r.ok || !provider.fallback) return r;
         }
 
         const key = process.env.LOVABLE_API_KEY;
