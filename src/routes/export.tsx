@@ -26,6 +26,7 @@ import {
 import { loadImage } from "@/lib/images";
 import { voiceBlockId } from "@/lib/generate-voice";
 import { slugify } from "@/lib/io";
+import type { Seo, RatingReport } from "@/lib/types";
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "Export — Documentary Studio" }] }),
@@ -44,6 +45,64 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 function stamp(sec: number): string {
   return fmtTimestamp(sec).slice(0, 8).replace(/:/g, "-");
+}
+
+function seoToText(s: Seo): string {
+  return [
+    "TITLE OPTIONS:",
+    ...s.titleOptions.map((t, i) => `  ${i + 1}. ${t}`),
+    "",
+    `BEST TITLE: ${s.bestTitle}`,
+    "",
+    "DESCRIPTION:",
+    s.description,
+    "",
+    `TAGS: ${s.tags.join(", ")}`,
+    `HASHTAGS: ${s.hashtags.join(" ")}`,
+    `KEYWORDS: ${s.keywords.join(", ")}`,
+    "",
+    "PINNED COMMENT:",
+    s.pinnedComment,
+    "",
+    "SHORT SUMMARY:",
+    s.shortSummary,
+    "",
+    "LONG SUMMARY:",
+    s.longSummary,
+    "",
+    "UPLOAD CHECKLIST:",
+    ...(s.uploadChecklist ?? []).map((c) => `  - ${c}`),
+  ].join("\n");
+}
+
+function ratingToText(r: RatingReport): string {
+  return [
+    `OVERALL SCORE: ${r.overallScore}/10  (${r.recommendation})`,
+    "",
+    "SCORES:",
+    `  Hook: ${r.hookScore}/10`,
+    `  Story: ${r.storyScore}/10`,
+    `  Retention: ${r.retentionScore}/10`,
+    `  Visual clarity: ${r.visualClarityScore}/10`,
+    `  Thumbnail CTR: ${r.thumbnailCtrScore}/10`,
+    `  Originality: ${r.originalityScore}/10`,
+    `  Evergreen: ${r.evergreenScore}/10`,
+    "",
+    `CTR PREDICTION: ${r.ctrPrediction}`,
+    `RETENTION PREDICTION: ${r.retentionPrediction}`,
+    "",
+    `BEST PART: ${r.bestPart}`,
+    `WEAKEST PART: ${r.weakestPart}`,
+    "",
+    "STRONG POINTS:",
+    ...(r.strongPoints ?? []).map((p) => `  + ${p}`),
+    "",
+    "WEAK POINTS:",
+    ...(r.weakPoints ?? []).map((p) => `  - ${p}`),
+    "",
+    "WHAT TO IMPROVE:",
+    ...(r.whatToImprove ?? []).map((p) => `  * ${p}`),
+  ].join("\n");
 }
 
 function ExportPage() {
