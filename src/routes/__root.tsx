@@ -154,6 +154,7 @@ const NAV = [
   { to: "/topics", label: "Projects" },
   { to: "/research", label: "Research" },
   { to: "/story", label: "Story" },
+  { to: "/script-analyzer", label: "Script Analyzer" },
   { to: "/visual", label: "Images" },
   { to: "/thumbnail", label: "Thumbnail" },
   { to: "/seo", label: "SEO" },
