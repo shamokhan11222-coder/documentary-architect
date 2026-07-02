@@ -252,13 +252,14 @@ function ExportPage() {
           </div>
 
           <pre className="mt-5 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">{`${slugify(selected.topic)}/
-├── Script/  (script.md, subtitles.srt)
-├── Research/
-├── Images/  (001_00-00-00.png, 002_00-00-05.png …)
-├── Voice/
-├── Thumbnail/
-├── SEO/
-└── Rating/`}</pre>
+├── script.txt
+├── voiceover.mp3
+├── thumbnail.png
+├── seo.txt
+├── storyboard.json
+├── images/  (001_00-00-00.png, 002_00-00-05.png …)
+├── subtitles.srt
+└── rating.txt`}</pre>
 
           <Button className="mt-5" onClick={exportAll} disabled={busy}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Package className="mr-2 h-4 w-4" />}
