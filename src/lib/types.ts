@@ -200,12 +200,14 @@ export type NarratorProfile =
 
 export interface VoiceSettings {
   profile: NarratorProfile;
+  voiceName?: string;
   speed: number; // 0.7 - 1.2
   stability: number; // 0 - 1
   emotion: number; // 0 - 1
   pauseStrength: number; // 0 - 1
   pitch: number; // 0 - 1 (relative)
   dictionary: { from: string; to: string }[];
+  clonedProfileId?: string; // reference to a saved cloned VoiceProfile
 }
 
 export interface VoiceBlock {
@@ -221,6 +223,17 @@ export interface VoiceProject {
   settings: VoiceSettings;
   blocks: VoiceBlock[];
   generatedAt: number;
+}
+
+// A saved voice profile (uploaded sample or in-app recording). Cloning is only
+// permitted after the user confirms ownership/permission (consent).
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  source: "upload" | "record";
+  sampleAudio: string; // data URL of the sample
+  consent: boolean;
+  createdAt: number;
 }
 
 export interface Subtitle {
