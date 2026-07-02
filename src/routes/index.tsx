@@ -39,7 +39,6 @@ import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
 import { useActiveProvider } from "@/lib/provider";
 import { useSelectedProject } from "@/components/ProjectPicker";
-import { setSelectedProjectId } from "@/components/ProjectPicker";
 import { PIPELINE, completionPercent, nextStage, stageDone, type StageKey } from "@/lib/manager";
 import { usePipeline, etaRemainingMs, fmtDuration } from "@/lib/pipeline";
 import { useCreditConfig } from "@/lib/credit-mode";
