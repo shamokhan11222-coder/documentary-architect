@@ -62,6 +62,7 @@ function useStored<T>(key: string, fallback: T): T {
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   profile: "deep",
+  voiceName: "Narrator",
   speed: 1,
   stability: 0.6,
   emotion: 0.4,
