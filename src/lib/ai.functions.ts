@@ -874,6 +874,13 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
     );
     if (res.ok) return { status: "connected" as const, model: provider.textModel };
     const text = await res.text().catch(() => "");
+    const invalid =
+      res.status === 400 || res.status === 403 || /API_KEY_INVALID|API key not valid/i.test(text);
+    if (invalid)
+      return {
+        status: "invalid" as const,
+        message: "The Gemini API key is invalid. Check the key in API Settings.",
+      };
     return { status: "failed" as const, message: `(${res.status}) ${text.slice(0, 160)}` };
   } catch (e) {
     return { status: "failed" as const, message: e instanceof Error ? e.message : "Request failed" };
