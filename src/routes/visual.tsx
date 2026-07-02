@@ -308,7 +308,9 @@ function VisualPage() {
       {map && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="col-span-full text-xs text-muted-foreground">
-            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)}
+            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)} · {have.size}/
+            {map.scenes.length} images done · {credit.label} mode (recommended batch{" "}
+            {credit.defaultImageBatch})
           </div>
           {[...map.scenes]
             .sort((a, b) => a.sceneNumber - b.sceneNumber)
