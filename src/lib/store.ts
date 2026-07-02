@@ -115,6 +115,12 @@ export function deleteTopic(id: string) {
   const rating = read<Record<string, RatingReport>>(KEYS.rating, {});
   delete rating[id];
   write(KEYS.rating, rating);
+  const voice = read<Record<string, unknown>>("docos.voice", {});
+  delete voice[id];
+  write("docos.voice", voice);
+  const pipeline = read<Record<string, unknown>>("docos.pipeline", {});
+  delete pipeline[id];
+  write("docos.pipeline", pipeline);
 }
 
 export function toggleFavorite(id: string) {
@@ -124,6 +130,51 @@ export function toggleFavorite(id: string) {
       t.id === id ? { ...t, favorite: !t.favorite } : t,
     ),
   );
+}
+
+export function toggleArchived(id: string) {
+  write(
+    KEYS.topics,
+    read<Topic[]>(KEYS.topics, []).map((t) =>
+      t.id === id ? { ...t, archived: !t.archived } : t,
+    ),
+  );
+}
+
+/** Duplicate a project's topic metadata into a fresh project (no generated
+ *  stages copied — a clean slate that keeps the idea). */
+export function duplicateTopic(id: string): Topic | null {
+  const topics = read<Topic[]>(KEYS.topics, []);
+  const src = topics.find((t) => t.id === id);
+  if (!src) return null;
+  const copy: Topic = {
+    ...src,
+    id: crypto.randomUUID(),
+    topic: `${src.topic} (copy)`,
+    favorite: false,
+    completed: false,
+    archived: false,
+    savedAt: Date.now(),
+  };
+  write(KEYS.topics, [copy, ...topics]);
+  return copy;
+}
+
+/** Full-text search across a project's topic + stored research/story/seo. */
+export function searchProject(id: string, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const research = read<Record<string, Research>>(KEYS.research, {})[id];
+  const story = read<Record<string, Story>>(KEYS.story, {})[id];
+  const seo = read<Record<string, Seo>>(KEYS.seo, {})[id];
+  const haystack = [
+    research ? JSON.stringify(research) : "",
+    story?.script ?? "",
+    seo ? JSON.stringify(seo) : "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(q);
 }
 
 export function markCompleted(id: string, completed = true) {

@@ -150,7 +150,7 @@ function RootComponent() {
 const NAV = [
   { section: "Studio" },
   { to: "/", label: "Home" },
-  { to: "/manager", label: "AI Manager" },
+  { to: "/manager", label: "Production Dashboard" },
   { to: "/topics", label: "Projects" },
   { to: "/research", label: "Research" },
   { to: "/story", label: "Story" },

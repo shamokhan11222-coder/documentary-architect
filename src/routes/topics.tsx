@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2 } from "lucide-react";
+import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2, Copy, Archive } from "lucide-react";
 
 import {
   deleteTopic,
@@ -19,6 +19,9 @@ import {
   saveThumbnails,
   saveSeo,
   saveRating,
+  toggleArchived,
+  duplicateTopic,
+  searchProject,
 } from "@/lib/store";
 import {
   researchTopic,
@@ -48,6 +51,7 @@ function ProjectsPage() {
   const selectedId = useSelectedTopicId();
   const [query, setQuery] = useState("");
   const [favOnly, setFavOnly] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [autoId, setAutoId] = useState<string | null>(null);
   const [autoStep, setAutoStep] = useState("");
 
@@ -121,14 +125,14 @@ function ProjectsPage() {
   }
 
   const filtered = topics
+    .filter((t) => (showArchived ? t.archived : !t.archived))
     .filter((t) => (favOnly ? t.favorite : true))
-    .filter((t) =>
-      query.trim()
-        ? (t.topic + " " + t.explanation + " " + t.universe)
-            .toLowerCase()
-            .includes(query.toLowerCase())
-        : true,
-    );
+    .filter((t) => {
+      const q = query.trim();
+      if (!q) return true;
+      const meta = (t.topic + " " + t.explanation + " " + t.universe).toLowerCase();
+      return meta.includes(q.toLowerCase()) || searchProject(t.id, q);
+    });
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
@@ -155,6 +159,13 @@ function ProjectsPage() {
             onClick={() => setFavOnly((v) => !v)}
           >
             <Star className="mr-1 h-4 w-4" /> Saved
+          </Button>
+          <Button
+            size="sm"
+            variant={showArchived ? "default" : "outline"}
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            <Archive className="mr-1 h-4 w-4" /> Archived
           </Button>
         </div>
       </div>
@@ -241,6 +252,26 @@ function ProjectsPage() {
                 onClick={() => markCompleted(t.id, !t.completed)}
               >
                 {t.completed ? "Mark active" : "Mark completed"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  const copy = duplicateTopic(t.id);
+                  if (copy) toast.success("Project duplicated");
+                }}
+              >
+                <Copy className="mr-1 h-4 w-4" /> Duplicate
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  toggleArchived(t.id);
+                  toast.success(t.archived ? "Unarchived" : "Archived");
+                }}
+              >
+                <Archive className="mr-1 h-4 w-4" /> {t.archived ? "Unarchive" : "Archive"}
               </Button>
             </div>
           </div>

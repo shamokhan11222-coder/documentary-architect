@@ -9,6 +9,7 @@ export type StageKey =
   | "images"
   | "thumbnail"
   | "seo"
+  | "voice"
   | "rating";
 
 export interface StageDef {
@@ -24,6 +25,7 @@ export const PIPELINE: StageDef[] = [
   { key: "images", label: "Images", expert: "Visual Director" },
   { key: "thumbnail", label: "Thumbnail", expert: "Thumbnail Designer" },
   { key: "seo", label: "SEO", expert: "SEO Specialist" },
+  { key: "voice", label: "Voice", expert: "Voice Director" },
   { key: "rating", label: "Rating", expert: "Quality Reviewer" },
 ];
 
@@ -33,6 +35,7 @@ const KEYS: Record<Exclude<StageKey, "images">, string> = {
   storyboard: "docos.visual",
   thumbnail: "docos.thumbnails",
   seo: "docos.seo",
+  voice: "docos.voice",
   rating: "docos.rating",
 };
 

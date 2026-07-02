@@ -12,6 +12,7 @@ export interface Topic {
   favorite: boolean;
   savedAt: number;
   completed?: boolean;
+  archived?: boolean;
 }
 
 // A shared self-review verdict attached to a stage's output.
