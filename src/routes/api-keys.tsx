@@ -13,7 +13,13 @@ import {
   deleteApiKey,
   markTested,
 } from "@/lib/apikeys";
-import { useActiveProvider, GEMINI_SUPPORTS } from "@/lib/provider";
+import {
+  useActiveProvider,
+  GEMINI_SUPPORTS,
+  useProviderSettings,
+  saveProviderSettings,
+  type ProviderChoice,
+} from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
 import type { ApiProvider } from "@/lib/types";
 
@@ -25,12 +31,15 @@ export const Route = createFileRoute("/api-keys")({
 function ApiKeysPage() {
   const keys = useApiKeys();
   const active = useActiveProvider();
+  const settings = useProviderSettings();
   const runTest = useServerFn(testProvider);
   const [provider, setProvider] = useState<ApiProvider>("OpenAI");
   const [apiKey, setApiKey] = useState("");
   const [purpose, setPurpose] = useState("");
   const [modelName, setModelName] = useState("");
-  const [status, setStatus] = useState<"idle" | "testing" | "connected" | "failed">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "testing" | "connected" | "failed" | "invalid"
+  >("idle");
   const [statusMsg, setStatusMsg] = useState<string>("");
 
   function save() {
@@ -57,6 +66,7 @@ function ApiKeysPage() {
       const r = (await runTest()) as
         | { status: "connected"; model?: string }
         | { status: "failed"; message?: string }
+        | { status: "invalid"; message?: string }
         | { status: "lovable" };
       if (r.status === "connected") {
         setStatus("connected");
@@ -64,6 +74,12 @@ function ApiKeysPage() {
         const g = keys.find((k) => k.provider === "Google Gemini");
         if (g) markTested(g.id, "Connected");
         toast.success("Gemini connection successful");
+      } else if (r.status === "invalid") {
+        setStatus("invalid");
+        setStatusMsg(r.message ?? "Invalid API key.");
+        const g = keys.find((k) => k.provider === "Google Gemini");
+        if (g) markTested(g.id, "Invalid Key");
+        toast.error("Invalid Gemini API key");
       } else if (r.status === "lovable") {
         setStatus("idle");
         setStatusMsg("No Gemini key configured — using built-in AI.");
@@ -80,13 +96,20 @@ function ApiKeysPage() {
     }
   }
 
-  const providerState: "connected" | "failed" | "configured" | "not_configured" = !active
-    ? "not_configured"
+  const providerState:
+    | "connected"
+    | "failed"
+    | "invalid"
+    | "not_activated"
+    | "activated" = !active
+    ? "not_activated"
     : status === "connected"
       ? "connected"
       : status === "failed"
         ? "failed"
-        : "configured";
+        : status === "invalid"
+          ? "invalid"
+          : "activated";
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -133,13 +156,43 @@ function ApiKeysPage() {
       </div>
 
       {active && (
-        <div className="mt-4 rounded-lg border border-border bg-card p-4 text-xs">
-          <div className="text-sm font-medium">Gemini task routing</div>
-          <ul className="mt-2 space-y-1 text-muted-foreground">
-            <li>Text (topics, research, story, storyboard, SEO, rating) → {active.textModel} {GEMINI_SUPPORTS.text ? "✓" : "✕"}</li>
-            <li>Images &amp; thumbnails → {active.imageModel} {GEMINI_SUPPORTS.image ? "✓" : "✕"}</li>
-            <li>Voiceover → {active.ttsModel} {GEMINI_SUPPORTS.tts ? "✓" : "✕"}</li>
-          </ul>
+        <div className="mt-4 rounded-lg border border-border bg-card p-4">
+          <div className="text-sm font-medium">Provider routing</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Choose which provider handles each task. Unsupported tasks stay on built-in AI.
+          </p>
+          <div className="mt-3 space-y-3">
+            <RouteRow
+              label="Text Provider"
+              hint="Topics, research, story, storyboard, SEO, rating"
+              supported={GEMINI_SUPPORTS.text}
+              value={settings.text}
+              onChange={(v) => saveProviderSettings({ text: v })}
+            />
+            <RouteRow
+              label="Image Provider"
+              hint={`Images & thumbnails · ${active.imageModel}`}
+              supported={GEMINI_SUPPORTS.image}
+              value={settings.image}
+              onChange={(v) => saveProviderSettings({ image: v })}
+            />
+            <RouteRow
+              label="Voice Provider"
+              hint={`Voiceover · ${active.ttsModel}`}
+              supported={GEMINI_SUPPORTS.tts}
+              value={settings.voice}
+              onChange={(v) => saveProviderSettings({ voice: v })}
+            />
+          </div>
+          <label className="mt-4 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={settings.fallback}
+              onChange={(e) => saveProviderSettings({ fallback: e.target.checked })}
+            />
+            Use built-in AI if the external provider fails
+          </label>
         </div>
       )}
 
@@ -182,7 +235,7 @@ function ProviderStatus({
   onTest,
   testing,
 }: {
-  state: "connected" | "failed" | "configured" | "not_configured";
+  state: "connected" | "failed" | "invalid" | "not_activated" | "activated";
   message: string;
   active: boolean;
   onTest: () => void;
@@ -191,8 +244,9 @@ function ProviderStatus({
   const map = {
     connected: { label: "Connected", cls: "text-green-600", icon: CheckCircle2 },
     failed: { label: "Failed", cls: "text-red-600", icon: XCircle },
-    configured: { label: "Configured — Gemini active", cls: "text-amber-600", icon: CircleDashed },
-    not_configured: { label: "Not Configured — using built-in AI", cls: "text-muted-foreground", icon: CircleDashed },
+    invalid: { label: "Invalid Key", cls: "text-red-600", icon: XCircle },
+    activated: { label: "Gemini Active", cls: "text-green-600", icon: CheckCircle2 },
+    not_activated: { label: "Not Activated — using built-in AI", cls: "text-muted-foreground", icon: CircleDashed },
   } as const;
   const s = map[state];
   const Icon = s.icon;
@@ -209,6 +263,43 @@ function ProviderStatus({
         {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
         Test Connection
       </Button>
+    </div>
+  );
+}
+
+function RouteRow({
+  label,
+  hint,
+  supported,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  supported: boolean;
+  value: ProviderChoice;
+  onChange: (v: ProviderChoice) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">{hint}</div>
+      </div>
+      {supported ? (
+        <select
+          className="h-8 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+          value={value}
+          onChange={(e) => onChange(e.target.value as ProviderChoice)}
+        >
+          <option value="gemini">Gemini</option>
+          <option value="builtin">Built-in AI</option>
+        </select>
+      ) : (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          Provider not available for this task.
+        </span>
+      )}
     </div>
   );
 }

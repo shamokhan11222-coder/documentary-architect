@@ -1,7 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { getActiveProvider } from "./lib/provider";
+import { getActiveProvider, getProviderSettings } from "./lib/provider";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -24,11 +24,13 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
   async ({ next }) => {
     const p = getActiveProvider();
+    const s = getProviderSettings();
     const headers: Record<string, string> = {};
-    if (p) {
+    if (p && s.text === "gemini") {
       headers["x-ai-provider"] = p.name;
       headers["x-ai-key"] = p.apiKey;
       headers["x-ai-text-model"] = p.textModel;
+      headers["x-ai-fallback"] = s.fallback ? "1" : "0";
     }
     return next({ headers });
   },

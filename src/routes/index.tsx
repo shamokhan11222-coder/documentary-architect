@@ -13,6 +13,7 @@ import {
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
+import { useActiveProvider } from "@/lib/provider";
 import type { GeneratedIdea, IdeaCategory } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   const router = useRouter();
   const taste = useTaste();
+  const activeProvider = useActiveProvider();
   const gen = useServerFn(generateHomeIdeas);
   const [categories, setCategories] = useState<IdeaCategory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +78,15 @@ function HomePage() {
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Documentary Ideas</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold">Documentary Ideas</h1>
+            {activeProvider && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-green-600/30 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
+                Gemini Active
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Curated by your Topic Expert. Rejecting ideas trains your taste.
           </p>

@@ -2,10 +2,11 @@
 // API Settings (localStorage) and, when a Google Gemini key is present,
 // makes Gemini the active provider for every supported task. When no Gemini
 // key is saved the app falls back to the built-in Lovable AI.
-import { readLocal, useLocal } from "./local";
+import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
 
 const KEY = "docos.apikeys";
+const SETTINGS_KEY = "docos.provider.settings";
 
 export type AiTask = "text" | "image" | "tts";
 
@@ -27,6 +28,42 @@ export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
   image: true,
   tts: true,
 };
+
+// ---- Provider routing settings (which provider handles each task) ----
+export type ProviderChoice = "gemini" | "builtin";
+
+export interface ProviderSettings {
+  text: ProviderChoice;
+  image: ProviderChoice;
+  voice: ProviderChoice;
+  /** Fall back to built-in Lovable AI if the external provider fails. */
+  fallback: boolean;
+}
+
+export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
+  text: "gemini",
+  image: "gemini",
+  voice: "gemini",
+  fallback: true,
+};
+
+function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
+  return { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
+}
+
+/** Non-reactive read of routing settings. */
+export function getProviderSettings(): ProviderSettings {
+  return normalizeSettings(readLocal<Partial<ProviderSettings>>(SETTINGS_KEY, {}));
+}
+
+/** Reactive hook for routing settings. */
+export function useProviderSettings(): ProviderSettings {
+  return normalizeSettings(useLocal<Partial<ProviderSettings>>(SETTINGS_KEY, {}));
+}
+
+export function saveProviderSettings(next: Partial<ProviderSettings>) {
+  writeLocal(SETTINGS_KEY, { ...getProviderSettings(), ...next });
+}
 
 function findGemini(list: ApiKeyEntry[]): ApiKeyEntry | null {
   return list.find((e) => e.provider === "Google Gemini" && e.apiKey.trim()) ?? null;
@@ -55,8 +92,16 @@ export function useActiveProvider(): ActiveProvider | null {
 }
 
 /** Body payload passed to the image / tts API routes so the server can route. */
-export function providerPayload() {
+export function imageProviderPayload() {
   const p = getActiveProvider();
-  if (!p) return undefined;
-  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, ttsModel: p.ttsModel };
+  const s = getProviderSettings();
+  if (!p || s.image !== "gemini") return undefined;
+  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: s.fallback };
+}
+
+export function ttsProviderPayload() {
+  const p = getActiveProvider();
+  const s = getProviderSettings();
+  if (!p || s.voice !== "gemini") return undefined;
+  return { name: p.name, apiKey: p.apiKey, ttsModel: p.ttsModel, fallback: s.fallback };
 }

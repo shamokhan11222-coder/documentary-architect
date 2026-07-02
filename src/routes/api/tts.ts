@@ -31,7 +31,7 @@ type Body = {
   emotion?: number;
   pauseStrength?: number;
   pitch?: number;
-  provider?: { name?: string; apiKey?: string; ttsModel?: string };
+  provider?: { name?: string; apiKey?: string; ttsModel?: string; fallback?: boolean };
 };
 
 function buildInstructions(b: Body): string {
@@ -141,7 +141,9 @@ export const Route = createFileRoute("/api/tts")({
 
         // Active Gemini provider → use the user's key directly.
         if (body.provider?.name === "gemini" && body.provider.apiKey) {
-          return ttsWithGemini(body);
+          const r = await ttsWithGemini(body);
+          // On failure, fall through to built-in AI only if fallback is enabled.
+          if (r.ok || !body.provider.fallback) return r;
         }
 
         const key = process.env.LOVABLE_API_KEY;
