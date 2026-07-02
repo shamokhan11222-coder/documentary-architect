@@ -12,7 +12,7 @@ export function ProjectPicker() {
   const { topics, selectedId } = useSelectedProject();
   return (
     <select
-      className="h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 text-sm"
+      className="h-10 w-full max-w-sm rounded-xl border border-border bg-background/60 px-3.5 text-sm shadow-soft transition-all duration-200 focus-ring hover:border-brand/30"
       value={selectedId ?? ""}
       onChange={(e) => setSelectedTopicId(e.target.value || null)}
     >
