@@ -1,6 +1,6 @@
-# Deploying DOCU OS
+# Deploying Stickmax Studio
 
-DOCU OS is a standalone TanStack Start web app. Once deployed, open the URL and
+Stickmax Studio is a standalone TanStack Start web app. Once deployed, open the URL and
 use it normally — the Lovable editor is **not** required at runtime.
 
 ## Environment variables
