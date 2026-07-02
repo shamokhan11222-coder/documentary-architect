@@ -26,6 +26,7 @@ import {
 import { loadImage } from "@/lib/images";
 import { voiceBlockId } from "@/lib/generate-voice";
 import { slugify } from "@/lib/io";
+import type { Seo, RatingReport } from "@/lib/types";
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "Export — Documentary Studio" }] }),
@@ -44,6 +45,64 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 function stamp(sec: number): string {
   return fmtTimestamp(sec).slice(0, 8).replace(/:/g, "-");
+}
+
+function seoToText(s: Seo): string {
+  return [
+    "TITLE OPTIONS:",
+    ...s.titleOptions.map((t, i) => `  ${i + 1}. ${t}`),
+    "",
+    `BEST TITLE: ${s.bestTitle}`,
+    "",
+    "DESCRIPTION:",
+    s.description,
+    "",
+    `TAGS: ${s.tags.join(", ")}`,
+    `HASHTAGS: ${s.hashtags.join(" ")}`,
+    `KEYWORDS: ${s.keywords.join(", ")}`,
+    "",
+    "PINNED COMMENT:",
+    s.pinnedComment,
+    "",
+    "SHORT SUMMARY:",
+    s.shortSummary,
+    "",
+    "LONG SUMMARY:",
+    s.longSummary,
+    "",
+    "UPLOAD CHECKLIST:",
+    ...(s.uploadChecklist ?? []).map((c) => `  - ${c}`),
+  ].join("\n");
+}
+
+function ratingToText(r: RatingReport): string {
+  return [
+    `OVERALL SCORE: ${r.overallScore}/10  (${r.recommendation})`,
+    "",
+    "SCORES:",
+    `  Hook: ${r.hookScore}/10`,
+    `  Story: ${r.storyScore}/10`,
+    `  Retention: ${r.retentionScore}/10`,
+    `  Visual clarity: ${r.visualClarityScore}/10`,
+    `  Thumbnail CTR: ${r.thumbnailCtrScore}/10`,
+    `  Originality: ${r.originalityScore}/10`,
+    `  Evergreen: ${r.evergreenScore}/10`,
+    "",
+    `CTR PREDICTION: ${r.ctrPrediction}`,
+    `RETENTION PREDICTION: ${r.retentionPrediction}`,
+    "",
+    `BEST PART: ${r.bestPart}`,
+    `WEAKEST PART: ${r.weakestPart}`,
+    "",
+    "STRONG POINTS:",
+    ...(r.strongPoints ?? []).map((p) => `  + ${p}`),
+    "",
+    "WEAK POINTS:",
+    ...(r.weakPoints ?? []).map((p) => `  - ${p}`),
+    "",
+    "WHAT TO IMPROVE:",
+    ...(r.whatToImprove ?? []).map((p) => `  * ${p}`),
+  ].join("\n");
 }
 
 function ExportPage() {
@@ -67,52 +126,82 @@ function ExportPage() {
       const zip = new JSZip();
       const root = zip.folder(slugify(selected.topic))!;
 
-      // Script
-      if (story) root.folder("Script")!.file("script.md", story.script);
-      // Research
-      if (research) root.folder("Research")!.file("research.json", JSON.stringify(research, null, 2));
-      // Storyboard + Images
+      // script.txt
+      if (story) root.file("script.txt", story.script);
+      // research.txt (kept as an extra reference file)
+      if (research) root.file("research.txt", JSON.stringify(research, null, 2));
+
+      // Total voiceover duration drives the timeline. Prefer real generated
+      // durations; fall back to per-block estimates when voice isn't generated.
+      const totalVoice = voice?.blocks.length
+        ? voice.blocks.reduce((sum, b) => sum + (b.realSeconds ?? b.estSeconds ?? 0), 0)
+        : 0;
+
+      // storyboard.json + images/ with scene-number + timestamp filenames
       if (map) {
-        const sb = root.folder("Images")!;
-        sb.file("storyboard.json", JSON.stringify(map.scenes, null, 2));
+        root.file("storyboard.json", JSON.stringify(map.scenes, null, 2));
+        const imagesDir = root.folder("images")!;
         const scenes = [...map.scenes].sort((a, b) => a.sceneNumber - b.sceneNumber);
+
+        // Per-scene estimated seconds, then scale to real voiceover duration
+        // when a voiceover exists so timestamps match the narration.
+        const estPerScene = scenes.map((s) => estimateSeconds(s.voiceoverLine));
+        const estTotal = estPerScene.reduce((a, b) => a + b, 0) || 1;
+        const scale = totalVoice > 0 ? totalVoice / estTotal : 1;
+
         let clock = 0;
-        let n = 1;
-        for (const s of scenes) {
-          setProgress(`Image ${n}/${scenes.length}`);
+        for (let i = 0; i < scenes.length; i++) {
+          const s = scenes[i];
+          setProgress(`Image ${i + 1}/${scenes.length}`);
           const img = await loadImage(sceneImageId(selected.id, s.sceneNumber));
           if (img) {
-            const name = `${String(n).padStart(3, "0")}_${stamp(clock)}.png`;
-            sb.file(name, dataUrlToBytes(img));
+            const name = `${String(s.sceneNumber).padStart(3, "0")}_${stamp(clock)}.png`;
+            imagesDir.file(name, dataUrlToBytes(img));
           }
-          clock += estimateSeconds(s.voiceoverLine);
-          n++;
+          clock += estPerScene[i] * scale;
         }
       }
-      // Voice
+
+      // voiceover.mp3 — all generated blocks concatenated into one file
       if (voice?.blocks.length) {
-        const vf = root.folder("Voice")!;
-        for (const b of voice.blocks) {
+        const chunks: Uint8Array[] = [];
+        for (const b of [...voice.blocks].sort((a, b) => a.index - b.index)) {
           const a = await loadImage(voiceBlockId(selected.id, b.index));
-          if (a) vf.file(`${String(b.index + 1).padStart(3, "0")}_voice.mp3`, dataUrlToBytes(a));
+          if (a) chunks.push(dataUrlToBytes(a));
+        }
+        if (chunks.length) {
+          const total = chunks.reduce((n, c) => n + c.length, 0);
+          const merged = new Uint8Array(total);
+          let off = 0;
+          for (const c of chunks) {
+            merged.set(c, off);
+            off += c.length;
+          }
+          root.file("voiceover.mp3", merged);
         }
       }
-      // Subtitles
+
+      // subtitles.srt
       const cues = subs?.cues ?? (story ? buildSubtitles(scriptToParagraphs(story.script)) : []);
-      if (cues.length) root.folder("Script")!.file("subtitles.srt", toSRT(cues));
-      // Thumbnail
-      if (thumbs) {
-        const tf = root.folder("Thumbnail")!;
-        tf.file("ideas.json", JSON.stringify(thumbs.ideas, null, 2));
-        for (let i = 0; i < thumbs.ideas.length; i++) {
-          const img = await loadImage(thumbImageId(selected.id, i));
-          if (img) tf.file(`thumbnail_${i + 1}.png`, dataUrlToBytes(img));
+      if (cues.length) root.file("subtitles.srt", toSRT(cues));
+
+      // thumbnail.png — the chosen thumbnail (or the first available)
+      if (thumbs?.ideas.length) {
+        const chosenIdx = Math.max(0, thumbs.ideas.findIndex((t) => t.chosen));
+        let thumbImg = await loadImage(thumbImageId(selected.id, chosenIdx));
+        if (!thumbImg) {
+          for (let i = 0; i < thumbs.ideas.length; i++) {
+            thumbImg = await loadImage(thumbImageId(selected.id, i));
+            if (thumbImg) break;
+          }
         }
+        if (thumbImg) root.file("thumbnail.png", dataUrlToBytes(thumbImg));
       }
-      // SEO
-      if (seo) root.folder("SEO")!.file("seo.json", JSON.stringify(seo, null, 2));
-      // Rating
-      if (rating) root.folder("Rating")!.file("rating.json", JSON.stringify(rating, null, 2));
+
+      // seo.txt
+      if (seo) root.file("seo.txt", seoToText(seo));
+      // rating.txt
+      if (rating) root.file("rating.txt", ratingToText(rating));
 
       setProgress("Zipping…");
       const blob = await zip.generateAsync({ type: "blob" });
@@ -163,13 +252,14 @@ function ExportPage() {
           </div>
 
           <pre className="mt-5 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">{`${slugify(selected.topic)}/
-├── Script/  (script.md, subtitles.srt)
-├── Research/
-├── Images/  (001_00-00-00.png, 002_00-00-05.png …)
-├── Voice/
-├── Thumbnail/
-├── SEO/
-└── Rating/`}</pre>
+├── script.txt
+├── voiceover.mp3
+├── thumbnail.png
+├── seo.txt
+├── storyboard.json
+├── images/  (001_00-00-00.png, 002_00-00-05.png …)
+├── subtitles.srt
+└── rating.txt`}</pre>
 
           <Button className="mt-5" onClick={exportAll} disabled={busy}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Package className="mr-2 h-4 w-4" />}
