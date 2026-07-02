@@ -54,14 +54,19 @@ export async function callAiJson<T = unknown>(
   // When a Gemini provider is active, route there and never touch Lovable AI.
   const provider = readProviderFromHeaders();
   if (provider) {
-    const content = await geminiGenerateText(provider.apiKey, provider.textModel, fullSystem, user, true);
     try {
-      return extractJson<T>(content);
-    } catch {
-      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
-      err.code = "JSON_PARSE_FAILED";
-      err.raw = content.slice(0, 20000);
-      throw err;
+      const content = await geminiGenerateText(provider.apiKey, provider.textModel, fullSystem, user, true);
+      try {
+        return extractJson<T>(content);
+      } catch {
+        const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+        err.code = "JSON_PARSE_FAILED";
+        err.raw = content.slice(0, 20000);
+        throw err;
+      }
+    } catch (e) {
+      // Fall back to built-in Lovable AI only when the user enabled it.
+      if (!provider.fallback) throw e;
     }
   }
 
@@ -115,7 +120,11 @@ export async function callAiJson<T = unknown>(
 export async function callAiText(system: string, user: string): Promise<string> {
   const provider = readProviderFromHeaders();
   if (provider) {
-    return geminiGenerateText(provider.apiKey, provider.textModel, system, user, false);
+    try {
+      return await geminiGenerateText(provider.apiKey, provider.textModel, system, user, false);
+    } catch (e) {
+      if (!provider.fallback) throw e;
+    }
   }
 
   const key = process.env.LOVABLE_API_KEY;
