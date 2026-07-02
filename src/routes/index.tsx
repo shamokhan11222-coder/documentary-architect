@@ -103,9 +103,12 @@ function HomePage() {
       </div>
 
       {loading && categories.length === 0 && (
-        <p className="mt-10 text-center text-sm text-muted-foreground">
-          Your Topic Expert is curating fresh ideas…
-        </p>
+        <div className="mt-16 flex flex-col items-center gap-4">
+          <LogoLoading />
+          <p className="text-sm text-muted-foreground">
+            Your Topic Expert is curating fresh ideas…
+          </p>
+        </div>
       )}
 
       <div className="mt-6 space-y-8">
