@@ -209,11 +209,11 @@ function RootComponent() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Mobile top bar */}
-          <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-card px-4 py-3 md:hidden">
+          <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border/70 glass px-4 py-3 md:hidden">
             <button
               onClick={() => setMobileNavOpen((v) => !v)}
               aria-label="Toggle navigation"
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
