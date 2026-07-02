@@ -188,7 +188,7 @@ function VisualPage() {
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <Steps current="visual" />
-      <h1 className="text-xl font-semibold">Images</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Images</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         The AI turns your script into ordered storyboard images and generates them automatically,
         using your Visual DNA for consistency. You never touch prompts.

@@ -53,7 +53,7 @@ function ChecklistPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Production Checklist</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Production Checklist</h1>
       <p className="mt-1 text-sm text-muted-foreground">Track everything needed before export.</p>
 
       <div className="mt-4"><ProjectPicker /></div>

@@ -37,7 +37,7 @@ function AssetsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Assets Library</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Assets Library</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Permanent, reusable assets shared across every project — stickman, expressions, objects, maps, arrows, backgrounds, icons, props, music and SFX.
       </p>

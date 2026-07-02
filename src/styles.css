@@ -61,10 +61,30 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+
+  /* Premium typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Soft, layered shadows (Linear / Vercel feel) */
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04),
+    0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04),
+    0 6px 16px -6px rgba(16, 24, 40, 0.1);
+  --shadow-lift: 0 2px 6px -2px rgba(16, 24, 40, 0.08),
+    0 12px 32px -8px rgba(16, 24, 40, 0.16);
+  --shadow-glow: 0 8px 30px -8px color-mix(in oklab, var(--brand) 45%, transparent);
+
+  /* Animation utilities */
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-spring-in: spring-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.85rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --brand: #2f6bff;
@@ -146,5 +166,79 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Premium native dropdowns everywhere */
+  select {
+    border-radius: 0.75rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 30%, transparent);
+    border-color: color-mix(in oklab, var(--brand) 60%, var(--border));
+  }
+}
+
+/* ---- Keyframes ---- */
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  0% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes spring-in {
+  0% { opacity: 0; transform: translateY(16px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ---- Premium utilities ---- */
+@utility glass {
+  background: color-mix(in oklab, var(--card) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+}
+
+@utility card-lift {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease;
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lift);
+    border-color: color-mix(in oklab, var(--brand) 35%, var(--border));
+  }
+}
+
+@utility shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--muted) 100%, transparent) 25%,
+    color-mix(in oklab, var(--muted-foreground) 12%, var(--muted)) 37%,
+    color-mix(in oklab, var(--muted) 100%, transparent) 63%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@utility focus-ring {
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 30%, transparent);
+    border-color: color-mix(in oklab, var(--brand) 60%, var(--border));
   }
 }

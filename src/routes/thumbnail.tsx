@@ -136,7 +136,7 @@ function ThumbnailPage() {
     <div className="mx-auto max-w-5xl px-6 py-8">
       <Steps current="thumbnail" />
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Thumbnail Engine</h1>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Thumbnail Engine</h1>
         <Button size="sm" variant="ghost" onClick={() => setDev((v) => !v)}>
           <Code className="mr-1 h-4 w-4" /> {dev ? "Hide" : "Developer"} Mode
         </Button>

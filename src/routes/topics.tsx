@@ -138,7 +138,7 @@ function ProjectsPage() {
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Projects</h1>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Projects</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Every documentary is a project. Add new ideas from the Home feed.
           </p>

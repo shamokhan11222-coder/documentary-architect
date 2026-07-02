@@ -28,10 +28,10 @@ export function ProjectHeader({
   const current = STAGES.find((st) => !s[st.key])?.label ?? "Complete";
 
   return (
-    <div className="mb-5 rounded-lg border border-border bg-card p-4">
+    <div className="mb-6 rounded-2xl border border-border bg-card p-5 shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <select
-          className="h-9 max-w-full rounded-md border border-input bg-background px-3 text-sm font-medium"
+          className="h-10 max-w-full rounded-xl border border-border bg-background/60 px-3.5 text-sm font-medium shadow-soft transition-all duration-200 focus-ring hover:border-brand/30"
           value={selectedId ?? ""}
           onChange={(e) => setSelectedTopicId(e.target.value || null)}
         >

@@ -33,7 +33,7 @@ function TimelinePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Timeline</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Timeline</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Voice, storyboard, images and duration for every scene. Click any scene to inspect it.
       </p>

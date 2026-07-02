@@ -115,7 +115,7 @@ function ApiKeysPage() {
     <div className="mx-auto max-w-2xl px-6 py-8">
       <div className="flex items-center gap-2">
         <KeyRound className="h-5 w-5" />
-        <h1 className="text-xl font-semibold">API Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">API Settings</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Add a Google Gemini API key to route every supported task to Gemini using

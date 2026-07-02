@@ -113,7 +113,7 @@ function QueuePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Image Queue</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Image Queue</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Generate storyboard images in resilient batches. Progress is saved — close and continue exactly where you stopped, never from scene 1.
       </p>

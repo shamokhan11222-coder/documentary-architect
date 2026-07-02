@@ -70,7 +70,7 @@ function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <Steps current="export" />
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Settings</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Private tool. Data is stored locally in this browser.
       </p>

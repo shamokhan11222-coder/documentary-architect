@@ -41,7 +41,7 @@ function VisualInstructionsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Visual Instructions</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Visual Instructions</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Permanent art direction applied to every storyboard and image across all
         projects. The default is the simple MS Paint documentary style — edit it
