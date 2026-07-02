@@ -38,7 +38,7 @@ function SubtitlesPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Subtitle Generator</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Subtitle Generator</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Auto-generate timestamped subtitles from your script. Export as SRT, VTT or TXT.
       </p>

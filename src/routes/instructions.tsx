@@ -34,7 +34,7 @@ function InstructionsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-xl font-semibold">AI Instructions</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">AI Instructions</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Tell the AI how you want your documentaries made. These are remembered across every project
         and applied silently to every image and script generation.

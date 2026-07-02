@@ -233,7 +233,7 @@ function ExportPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Export Manager</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Export Manager</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Export the entire project into one organized folder — script, research, images (timestamped), voice, thumbnail, SEO and rating.
       </p>

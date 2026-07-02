@@ -88,7 +88,7 @@ function ResearchPage() {
       <ProjectHeader topics={topics} selectedId={selectedId} />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Research Engine</h1>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Research Engine</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Research Expert dossier, organized into editable cards.
           </p>

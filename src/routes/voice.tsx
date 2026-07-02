@@ -120,7 +120,7 @@ function VoicePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Voice Studio</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Voice Studio</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Generate natural documentary narration. Each paragraph is its own voice block you can preview and regenerate.
       </p>

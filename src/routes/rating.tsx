@@ -119,7 +119,7 @@ function RatingPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <Steps current="rating" />
-      <h1 className="text-xl font-semibold">Rating Engine</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Rating Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Score the video before production and get a recommendation.
       </p>

@@ -27,7 +27,7 @@ function VisualDnaPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-xl font-semibold">Visual DNA</h1>
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Visual DNA</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Upload permanent global references. Every project automatically uses these for perfect,
         consistent visuals — no need to re-upload per project.
