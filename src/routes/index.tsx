@@ -114,24 +114,27 @@ function HomePage() {
         </div>
       )}
 
-      <div className="mt-6 space-y-8">
+      <div className="mt-10 space-y-10">
         {categories.map((cat) => {
           const ideas = cat.ideas.filter((i) => !rejected.has(i.topic));
           if (ideas.length === 0) return null;
           return (
             <section key={cat.category}>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 {cat.category}
               </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {ideas.map((idea, i) => (
                   <div
                     key={idea.topic + i}
-                    className="flex flex-col rounded-lg border border-border p-4"
+                    className="card-lift flex flex-col rounded-2xl border border-border bg-card p-5 shadow-card animate-spring-in"
+                    style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
                   >
-                    <div className="font-medium">{idea.topic}</div>
+                    <div className="text-base font-semibold tracking-tight">
+                      {idea.topic}
+                    </div>
                     {idea.altTitle && (
-                      <div className="mt-0.5 text-xs text-primary">
+                      <div className="mt-1 text-xs font-medium text-brand">
                         Alt: {idea.altTitle}
                       </div>
                     )}
