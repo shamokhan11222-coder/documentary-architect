@@ -212,10 +212,26 @@ function VisualPage() {
           {map ? "Rebuild Storyboard" : "Build Storyboard"}
         </Button>
         {map && (
-          <Button variant="secondary" onClick={handleGenerateAll} disabled={!!busy}>
-            {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <ImagePlus className="mr-2 h-4 w-4" /> Generate All Images
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
+              {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <ImagePlus className="mr-2 h-4 w-4" /> Next 5
+            </Button>
+            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy}>
+              {busy === "next-10" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Next 10
+            </Button>
+            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy}>
+              {busy === "next-20" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Next 20
+            </Button>
+            {failed.size > 0 && (
+              <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
+                {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
+              </Button>
+            )}
+          </>
         )}
         {map && (
           <Button variant="outline" onClick={handleConsistency} disabled={!!busy}>
