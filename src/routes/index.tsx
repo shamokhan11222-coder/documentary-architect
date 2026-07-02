@@ -88,7 +88,8 @@ function HomePage() {
             )}
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Curated by your Topic Expert. Rejecting ideas trains your taste.
+            The Hidden Origins of Everyday Life — engineered by a senior documentary
+            strategist. Weak ideas are auto-rejected; rejecting trains your taste.
           </p>
         </div>
         <Button onClick={load} disabled={loading} variant="outline">
