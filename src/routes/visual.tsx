@@ -313,6 +313,9 @@ function SceneCard({
           </span>
         </div>
         <p className="mt-1 text-sm italic">“{scene.voiceoverLine}”</p>
+        {scene.visualDescription && (
+          <p className="mt-1 text-xs text-muted-foreground">{scene.visualDescription}</p>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Button size="sm" variant="secondary" onClick={onRegen} disabled={!!busy}>
