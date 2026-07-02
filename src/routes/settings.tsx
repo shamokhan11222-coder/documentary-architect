@@ -164,7 +164,45 @@ function SettingsPage() {
             Clear all data
           </Button>
         </div>
+
+        <PrivateAccess />
       </div>
+    </div>
+  );
+}
+
+function PrivateAccess() {
+  const getStatus = useServerFn(getGateStatus);
+  const lock = useServerFn(lockSite);
+  const [status, setStatus] = useState<{ enabled: boolean; unlocked: boolean } | null>(null);
+
+  useEffect(() => {
+    getStatus().then(setStatus).catch(() => setStatus(null));
+  }, [getStatus]);
+
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="text-sm font-medium">Private access</div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {status?.enabled
+          ? "A password gate is active on this deployment. Visitors must unlock before using DOCU OS."
+          : "The site is open. To make the deployed app private, set a SITE_PASSWORD environment variable — the login gate then turns on automatically."}
+      </p>
+      {status?.enabled && (
+        <div className="mt-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              await lock({ data: undefined });
+              toast.success("Locked. You'll need the password next time.");
+              window.location.href = "/unlock";
+            }}
+          >
+            Lock this browser
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
