@@ -53,6 +53,54 @@ function fmtDur(sec: number) {
 }
 
 function StoryPage() {
+  return <StoryPageInner />;
+}
+
+function StatBox({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <div className={`text-base font-semibold ${tone ?? "text-foreground"}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function ScriptStats({ story }: { story: Story }) {
+  const bodyWords = story.sections
+    .map((s) => (s.content.match(/\S+/g) ?? []).length)
+    .reduce((a, b) => a + b, 0);
+  const duration = estimateSeconds(story.sections.map((s) => s.content).join(" "));
+  const min = story.minWords ?? 0;
+  const tooShort = min > 0 && bodyWords < min;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">Script stats</div>
+        {story.targetLabel && (
+          <div className="text-xs text-muted-foreground">
+            Target {story.targetLabel} · {min}–{story.maxWords} words
+          </div>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+        <StatBox label="Word count" value={bodyWords} tone={tooShort ? "text-red-600" : "text-foreground"} />
+        <StatBox label="Est. voice duration" value={fmtDur(duration)} />
+        <StatBox label="Sections" value={story.sections.length} />
+        <StatBox label="Curiosity" value={`${story.curiosityScore ?? "—"}/10`} />
+        <StatBox label="Retention" value={`${story.retentionScore ?? "—"}/10`} />
+        <StatBox label="Story" value={`${story.storyScore}/10`} />
+      </div>
+      {tooShort && (
+        <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/5 p-2 text-xs text-red-600">
+          ⚠ Script is too short for the selected length ({bodyWords} words, target {min}+). Regenerate
+          or expand sections to reach the target range.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StoryPageInner() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
