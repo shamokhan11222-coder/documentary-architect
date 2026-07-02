@@ -394,12 +394,15 @@ ${data.script}`;
   });
 
 export const regenerateScene = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; scene: VisualScene }) => {
+  .inputValidator((data: { topic: string; scene: VisualScene; visualInstructions?: string }) => {
     if (!data?.scene) throw new Error("Scene is required");
     return data;
   })
   .handler(async ({ data }) => {
-    const user = `Documentary: "${data.topic}"
+    const styleBlock = data.visualInstructions?.trim()
+      ? `\nPERMANENT VISUAL INSTRUCTIONS (always obey):\n${data.visualInstructions.trim()}\n`
+      : "";
+    const user = `Documentary: "${data.topic}"${styleBlock}
 
 Regenerate a single, better visual beat for the SAME voiceover line. Keep the same sceneNumber. Keep it one clear idea.
 
