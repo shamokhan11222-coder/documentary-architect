@@ -49,7 +49,7 @@ function UnlockPage() {
         className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm"
       >
         <div className="flex items-center gap-2">
-          <Lock className="h-5 w-5" />
+          <LogoMark className="h-6 w-6" />
           <h1 className="text-lg font-semibold">Stickmax Studio</h1>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
