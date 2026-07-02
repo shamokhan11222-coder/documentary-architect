@@ -35,12 +35,12 @@ async function generate(prompt: string, references: string[]): Promise<string> {
 
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter, images } = await collectDnaReferences();
-  const prompt = buildScenePrompt(scene, getInstructionText(), hasCharacter);
+  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
   return generate(prompt, images);
 }
 
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
   const { images } = await collectDnaReferences();
-  const prompt = buildThumbnailPrompt(idea, getInstructionText());
+  const prompt = buildThumbnailPrompt(idea, combinedArtDirection());
   return generate(prompt, images);
 }
