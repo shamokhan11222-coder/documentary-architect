@@ -15,6 +15,7 @@ import {
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage } from "@/lib/generate-image";
+import { getVisualInstructions } from "@/lib/visual-instructions";
 import { Button } from "@/components/ui/button";
 import { Steps } from "@/components/Steps";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
