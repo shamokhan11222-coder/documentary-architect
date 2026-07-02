@@ -25,6 +25,7 @@ export const Route = createFileRoute("/visual")({
 });
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
+const pad3 = (n: number) => String(n).padStart(3, "0");
 
 function VisualPage() {
   const topics = useTopics();
@@ -53,11 +54,17 @@ function VisualPage() {
   function handleBuildBoard() {
     if (!selected || !story) return;
     return withBusy("gen", async () => {
+      // Derive a scene-count target from the actual script length so long
+      // videos get many scenes (≈1 scene per sentence). A 9–11 min / ~1500
+      // word script yields roughly 120–180 scenes.
+      const words = (story.script.match(/\S+/g) ?? []).length;
+      const minScenes = Math.max(8, Math.round(words / 12));
+      const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
       const scenes = (await gen({
-        data: { topic: selected.topic, script: story.script },
+        data: { topic: selected.topic, script: story.script, minScenes, maxScenes },
       })) as VisualScene[];
       saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
-      toast.success("Storyboard built — now generate images");
+      toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
     });
   }
 
@@ -231,6 +238,9 @@ function VisualPage() {
 
       {map && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="col-span-full text-xs text-muted-foreground">
+            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)}
+          </div>
           {[...map.scenes]
             .sort((a, b) => a.sceneNumber - b.sceneNumber)
             .map((s) => (
@@ -283,7 +293,7 @@ function SceneCard({
           </div>
         )}
         <span className="absolute left-2 top-2 rounded-md bg-background/80 px-2 py-0.5 text-xs font-medium">
-          Scene {scene.sceneNumber}
+          Scene {pad3(scene.sceneNumber)}
         </span>
       </div>
       <div className="p-3">
@@ -303,6 +313,9 @@ function SceneCard({
           </span>
         </div>
         <p className="mt-1 text-sm italic">“{scene.voiceoverLine}”</p>
+        {scene.visualDescription && (
+          <p className="mt-1 text-xs text-muted-foreground">{scene.visualDescription}</p>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Button size="sm" variant="secondary" onClick={onRegen} disabled={!!busy}>

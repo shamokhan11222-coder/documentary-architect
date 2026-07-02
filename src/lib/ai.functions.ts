@@ -335,15 +335,18 @@ ${data.content}`;
 // ---------------- Visual Engine ----------------
 
 const VISUAL_RULES = `${EXPERTS.visual}
-RULES:
-- One visual beat = one image. Never combine multiple ideas into one image.
-- Every voiceover line must have a matching visual.
-- If one sentence contains multiple objects/actions, split it into multiple scenes.
+PERMANENT VISUAL RULES (never break these):
+- ONE SENTENCE = ONE IMAGE. Every sentence of narration becomes at least one scene.
+- If a sentence contains multiple visual ideas, SPLIT it into 2 images.
+- If a sentence has three distinct visual ideas, split into 3 images.
+- NEVER combine too many ideas into one image. One clear idea per scene.
+- Every voiceover line must have a matching visual that fits it EXACTLY.
 - A character should appear only when needed.
 - If the line is about an object, show only that object.
 - If the line is about a concept, create a simple visual metaphor.
 - Avoid repeated boring backgrounds — vary them.
 - Each scene must be understandable in 1 second.
+- Do NOT summarize or compress the script. Cover the whole script sentence by sentence.
 Return ONLY valid JSON.`;
 
 const SCENE_SHAPE = `{
@@ -361,14 +364,19 @@ const SCENE_SHAPE = `{
 }`;
 
 export const generateVisualMap = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script: string }) => {
+  .inputValidator((data: { topic: string; script: string; minScenes?: number; maxScenes?: number }) => {
     if (!data?.script?.trim()) throw new Error("Script is required");
     return data;
   })
   .handler(async ({ data }) => {
+    const minScenes = data.minScenes ?? 120;
+    const maxScenes = data.maxScenes ?? 180;
     const user = `Documentary: "${data.topic}"
 
-Break the following script into a sequential visual beat map. Number scenes starting at 1.
+Break the following script into a sequential visual beat map, going SENTENCE BY SENTENCE.
+
+SCENE COUNT REQUIREMENT: produce between ${minScenes} and ${maxScenes} scenes. This is a hard requirement — a long script must NOT be compressed into a few dozen images. Apply the one-sentence-one-image rule (splitting multi-idea sentences into 2–3 images) until you reach this range.
+Number scenes sequentially starting at 1 with no gaps, jumps, or duplicates.
 
 Return a JSON object:
 { "scenes": [ ${SCENE_SHAPE} ] }
@@ -376,7 +384,10 @@ Return a JSON object:
 SCRIPT:
 ${data.script}`;
     const result = await callAiJson<{ scenes: VisualScene[] }>(VISUAL_RULES, user);
-    return (result.scenes ?? []) as VisualScene[];
+    const scenes = (result.scenes ?? []) as VisualScene[];
+    // Guarantee clean sequential numbering (001, 002, 003 …) — no gaps,
+    // no jumps, no duplicates — regardless of what the model returned.
+    return scenes.map((s, i) => ({ ...s, sceneNumber: i + 1 }));
   });
 
 export const regenerateScene = createServerFn({ method: "POST" })
