@@ -25,6 +25,7 @@ export const Route = createFileRoute("/visual")({
 });
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
+const pad3 = (n: number) => String(n).padStart(3, "0");
 
 function VisualPage() {
   const topics = useTopics();
@@ -53,11 +54,17 @@ function VisualPage() {
   function handleBuildBoard() {
     if (!selected || !story) return;
     return withBusy("gen", async () => {
+      // Derive a scene-count target from the actual script length so long
+      // videos get many scenes (≈1 scene per sentence). A 9–11 min / ~1500
+      // word script yields roughly 120–180 scenes.
+      const words = (story.script.match(/\S+/g) ?? []).length;
+      const minScenes = Math.max(8, Math.round(words / 12));
+      const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
       const scenes = (await gen({
-        data: { topic: selected.topic, script: story.script },
+        data: { topic: selected.topic, script: story.script, minScenes, maxScenes },
       })) as VisualScene[];
       saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
-      toast.success("Storyboard built — now generate images");
+      toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
     });
   }
 
