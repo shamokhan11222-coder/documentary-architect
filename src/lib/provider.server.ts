@@ -7,6 +7,7 @@ export interface ServerProvider {
   name: "gemini";
   apiKey: string;
   textModel: string;
+  fallback: boolean;
 }
 
 export function readProviderFromHeaders(): ServerProvider | null {
@@ -18,6 +19,7 @@ export function readProviderFromHeaders(): ServerProvider | null {
         name: "gemini",
         apiKey,
         textModel: getRequestHeader("x-ai-text-model") || "gemini-2.5-flash",
+        fallback: getRequestHeader("x-ai-fallback") === "1",
       };
     }
   } catch {
