@@ -1,14 +1,13 @@
 import { createFileRoute, useRouter, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Lock } from "lucide-react";
-
 import { getGateStatus, unlockSite } from "@/lib/gate.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LogoMark } from "@/components/Logo";
 
 export const Route = createFileRoute("/unlock")({
-  head: () => ({ meta: [{ title: "Private Access — DOCU OS" }] }),
+  head: () => ({ meta: [{ title: "Private Access — Stickmax Studio" }] }),
   loader: async () => {
     const status = await getGateStatus();
     // If the gate is off or already unlocked, no reason to show this page.
@@ -49,8 +48,8 @@ function UnlockPage() {
         className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm"
       >
         <div className="flex items-center gap-2">
-          <Lock className="h-5 w-5" />
-          <h1 className="text-lg font-semibold">DOCU OS</h1>
+          <LogoMark className="h-6 w-6" />
+          <h1 className="text-lg font-semibold">Stickmax Studio</h1>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           This is a private workspace. Enter the access password to continue.

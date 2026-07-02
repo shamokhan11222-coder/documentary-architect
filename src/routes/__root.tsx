@@ -17,6 +17,7 @@ import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
 import { Moon, Sun, Menu, X } from "lucide-react";
 import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
+import { Logo } from "../components/Logo";
 
 function NotFoundComponent() {
   return (
@@ -92,14 +93,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Documentary Studio — AI Production Assistant" },
+      { title: "Stickmax Studio — AI Production Assistant" },
       {
         name: "description",
         content:
           "Private AI workflow for YouTube documentaries: topic engine, research engine, and story engine.",
       },
-      { name: "author", content: "Documentary Studio" },
-      { property: "og:title", content: "Documentary Studio" },
+      { name: "author", content: "Stickmax Studio" },
+      { property: "og:title", content: "Stickmax Studio" },
       {
         property: "og:description",
         content: "Private AI documentary production assistant.",
@@ -113,7 +114,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/app-icon.svg" },
     ],
   }),
   shellComponent: RootShell,
@@ -175,7 +177,7 @@ function RootComponent() {
             >
               {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <span className="text-sm font-semibold tracking-tight">DOCU OS</span>
+            <Logo />
           </header>
           <main className="min-w-0 flex-1 overflow-x-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -224,8 +226,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-border bg-card">
       <div className="px-4 py-5">
-        <div className="text-sm font-semibold tracking-tight">Documentary Studio</div>
-        <div className="text-xs text-muted-foreground">AI production assistant</div>
+        <Logo />
+        <div className="mt-1 pl-9 text-xs text-muted-foreground">stickmax.io</div>
       </div>
       <nav className="flex flex-col gap-1 overflow-y-auto px-2">
         {NAV.map((item, i) =>

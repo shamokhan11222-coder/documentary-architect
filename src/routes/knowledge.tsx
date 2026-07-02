@@ -14,7 +14,7 @@ import {
 import type { KnowledgeKind } from "@/lib/types";
 
 export const Route = createFileRoute("/knowledge")({
-  head: () => ({ meta: [{ title: "Knowledge Base — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Knowledge Base — Stickmax Studio" }] }),
   component: KnowledgePage,
 });
 

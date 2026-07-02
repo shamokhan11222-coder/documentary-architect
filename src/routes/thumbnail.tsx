@@ -24,7 +24,7 @@ import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 
 export const Route = createFileRoute("/thumbnail")({
-  head: () => ({ meta: [{ title: "Thumbnail — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Thumbnail — Stickmax Studio" }] }),
   component: ThumbnailPage,
 });
 

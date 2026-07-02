@@ -18,7 +18,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import type { Research } from "@/lib/types";
 
 export const Route = createFileRoute("/research")({
-  head: () => ({ meta: [{ title: "Research — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Research — Stickmax Studio" }] }),
   component: ResearchPage,
 });
 

@@ -5,7 +5,7 @@ import { useProjectStatus, useStory, useVisualMap, useThumbnails, useRating } fr
 import { useVoice, useQueue, estimateSeconds, fmtClock } from "@/lib/production";
 
 export const Route = createFileRoute("/checklist")({
-  head: () => ({ meta: [{ title: "Checklist — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Checklist — Stickmax Studio" }] }),
   component: ChecklistPage,
 });
 

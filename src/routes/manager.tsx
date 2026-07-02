@@ -66,7 +66,7 @@ import type {
 } from "@/lib/types";
 
 export const Route = createFileRoute("/manager")({
-  head: () => ({ meta: [{ title: "Production Dashboard — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Production Dashboard — Stickmax Studio" }] }),
   component: ManagerPage,
 });
 

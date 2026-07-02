@@ -9,7 +9,7 @@ import { useImage, fileToDataUrl } from "@/lib/images";
 import type { AssetCategory, AssetMeta } from "@/lib/types";
 
 export const Route = createFileRoute("/assets")({
-  head: () => ({ meta: [{ title: "Assets Library — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Assets Library — Stickmax Studio" }] }),
   component: AssetsPage,
 });
 

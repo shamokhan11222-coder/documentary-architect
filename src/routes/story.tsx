@@ -29,7 +29,7 @@ import {
 } from "@/lib/story-length";
 
 export const Route = createFileRoute("/story")({
-  head: () => ({ meta: [{ title: "Story — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Story — Stickmax Studio" }] }),
   component: StoryPage,
 });
 

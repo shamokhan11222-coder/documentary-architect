@@ -29,7 +29,7 @@ import { slugify } from "@/lib/io";
 import type { Seo, RatingReport } from "@/lib/types";
 
 export const Route = createFileRoute("/export")({
-  head: () => ({ meta: [{ title: "Export — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Export — Stickmax Studio" }] }),
   component: ExportPage,
 });
 

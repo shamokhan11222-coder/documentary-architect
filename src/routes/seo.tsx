@@ -19,7 +19,7 @@ import { copyText, downloadTxt, slugify } from "@/lib/io";
 import type { Seo } from "@/lib/types";
 
 export const Route = createFileRoute("/seo")({
-  head: () => ({ meta: [{ title: "SEO — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "SEO — Stickmax Studio" }] }),
   component: SeoPage,
 });
 

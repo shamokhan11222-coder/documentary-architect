@@ -11,7 +11,7 @@ import { toggleTheme, useTheme } from "@/lib/theme";
 import { CREDIT_MODES, useCreditConfig, setCreditMode, type CreditMode } from "@/lib/credit-mode";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Settings — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Settings — Stickmax Studio" }] }),
   component: SettingsPage,
 });
 
@@ -79,7 +79,7 @@ function SettingsPage() {
         <div className="rounded-lg border border-border p-4">
           <div className="text-sm font-medium">Credit Saver Mode</div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Controls how aggressively DOCU OS spends AI credits. Finished work is
+            Controls how aggressively Stickmax Studio spends AI credits. Finished work is
             always reused — this only shapes new generation.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -217,7 +217,7 @@ function PrivateAccess() {
       <div className="text-sm font-medium">Private access</div>
       <p className="mt-1 text-sm text-muted-foreground">
         {status?.enabled
-          ? "A password gate is active on this deployment. Visitors must unlock before using DOCU OS."
+          ? "A password gate is active on this deployment. Visitors must unlock before using Stickmax Studio."
           : "The site is open. To make the deployed app private, set a SITE_PASSWORD environment variable — the login gate then turns on automatically."}
       </p>
       {status?.enabled && (

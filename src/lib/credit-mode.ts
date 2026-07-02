@@ -1,4 +1,4 @@
-// Credit Saver Mode — a global setting that tunes how aggressively DOCU OS
+// Credit Saver Mode — a global setting that tunes how aggressively Stickmax Studio
 // spends AI credits. It never rebuilds finished work; it only shapes how much
 // new generation happens per action (batch sizes, reference count, how many
 // thumbnails are made up-front). Stored locally so it follows the browser.

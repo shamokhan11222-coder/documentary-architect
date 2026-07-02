@@ -22,7 +22,7 @@ import { Steps } from "@/components/Steps";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
 
 export const Route = createFileRoute("/visual")({
-  head: () => ({ meta: [{ title: "Images — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Images — Stickmax Studio" }] }),
   component: VisualPage,
 });
 

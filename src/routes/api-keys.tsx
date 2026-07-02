@@ -24,7 +24,7 @@ import { testProvider } from "@/lib/ai.functions";
 import type { ApiProvider } from "@/lib/types";
 
 export const Route = createFileRoute("/api-keys")({
-  head: () => ({ meta: [{ title: "API Settings — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
   component: ApiKeysPage,
 });
 

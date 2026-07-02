@@ -18,7 +18,7 @@ import {
 import { downloadTxt, download, slugify } from "@/lib/io";
 
 export const Route = createFileRoute("/subtitles")({
-  head: () => ({ meta: [{ title: "Subtitles — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Subtitles — Stickmax Studio" }] }),
   component: SubtitlesPage,
 });
 

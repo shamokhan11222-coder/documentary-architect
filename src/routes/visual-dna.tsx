@@ -7,7 +7,7 @@ import { useImage, fileToDataUrl } from "@/lib/images";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/visual-dna")({
-  head: () => ({ meta: [{ title: "Visual DNA — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Visual DNA — Stickmax Studio" }] }),
   component: VisualDnaPage,
 });
 

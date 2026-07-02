@@ -8,7 +8,7 @@ import { useImage } from "@/lib/images";
 import type { VisualScene } from "@/lib/types";
 
 export const Route = createFileRoute("/timeline")({
-  head: () => ({ meta: [{ title: "Timeline — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Timeline — Stickmax Studio" }] }),
   component: TimelinePage,
 });
 

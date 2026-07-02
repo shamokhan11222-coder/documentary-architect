@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCw, X, Check, FolderPlus } from "lucide-react";
 
 import { generateHomeIdeas } from "@/lib/ai.functions";
+import { LogoLoading } from "@/components/Logo";
 import {
   saveTopic,
   setSelectedTopicId,
@@ -17,7 +18,7 @@ import { useActiveProvider } from "@/lib/provider";
 import type { GeneratedIdea, IdeaCategory } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Home — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Home — Stickmax Studio" }] }),
   component: HomePage,
 });
 
@@ -103,9 +104,12 @@ function HomePage() {
       </div>
 
       {loading && categories.length === 0 && (
-        <p className="mt-10 text-center text-sm text-muted-foreground">
-          Your Topic Expert is curating fresh ideas…
-        </p>
+        <div className="mt-16 flex flex-col items-center gap-4">
+          <LogoLoading />
+          <p className="text-sm text-muted-foreground">
+            Your Topic Expert is curating fresh ideas…
+          </p>
+        </div>
       )}
 
       <div className="mt-6 space-y-8">
