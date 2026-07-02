@@ -8,6 +8,7 @@ import type {
   Subtitle,
   SubtitlePack,
   VoiceProject,
+  VoiceProfile,
   VoiceSettings,
 } from "./types";
 
@@ -16,6 +17,7 @@ const KEYS = {
   subtitles: "docos.subtitles",
   queue: "docos.queue",
   audio: "docos.audio",
+  voiceProfiles: "docos.voiceProfiles",
 } as const;
 
 const listeners = new Set<() => void>();
@@ -78,6 +80,22 @@ export function saveVoice(v: VoiceProject) {
   const all = read<Record<string, VoiceProject>>(KEYS.voice, {});
   all[v.topicId] = v;
   write(KEYS.voice, all);
+}
+
+// ---------------- Cloned Voice Profiles (global) ----------------
+
+export function useVoiceProfiles(): VoiceProfile[] {
+  return useStored<VoiceProfile[]>(KEYS.voiceProfiles, []);
+}
+export function saveVoiceProfile(p: VoiceProfile) {
+  const all = read<VoiceProfile[]>(KEYS.voiceProfiles, []);
+  write(KEYS.voiceProfiles, [p, ...all.filter((x) => x.id !== p.id)]);
+}
+export function deleteVoiceProfile(id: string) {
+  write(
+    KEYS.voiceProfiles,
+    read<VoiceProfile[]>(KEYS.voiceProfiles, []).filter((x) => x.id !== id),
+  );
 }
 
 // ---------------- Subtitles ----------------
