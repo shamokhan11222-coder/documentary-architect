@@ -225,8 +225,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-border bg-card">
       <div className="px-4 py-5">
-        <div className="text-sm font-semibold tracking-tight">Stickmax Studio</div>
-        <div className="text-xs text-muted-foreground">AI production assistant</div>
+        <Logo />
+        <div className="mt-1 pl-9 text-xs text-muted-foreground">stickmax.io</div>
       </div>
       <nav className="flex flex-col gap-1 overflow-y-auto px-2">
         {NAV.map((item, i) =>
