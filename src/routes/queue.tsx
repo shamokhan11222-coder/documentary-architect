@@ -12,7 +12,7 @@ import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 
 export const Route = createFileRoute("/queue")({
-  head: () => ({ meta: [{ title: "Image Queue — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Image Queue — Stickmax Studio" }] }),
   component: QueuePage,
 });
 

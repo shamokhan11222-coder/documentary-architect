@@ -1,6 +1,6 @@
 // Optional private-access gate. Active ONLY when SITE_PASSWORD is set as an
 // environment variable on the deployment. When it is not set, the site is open
-// (behaves exactly as before). This lets DOCU OS be deployed as a normal
+// (behaves exactly as before). This lets Stickmax Studio be deployed as a normal
 // private website without requiring the Lovable editor.
 import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";

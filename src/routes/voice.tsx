@@ -21,7 +21,7 @@ import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
 import { CustomVoice } from "@/components/CustomVoice";
 
 export const Route = createFileRoute("/voice")({
-  head: () => ({ meta: [{ title: "Voice Studio — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Voice Studio — Stickmax Studio" }] }),
   component: VoicePage,
 });
 

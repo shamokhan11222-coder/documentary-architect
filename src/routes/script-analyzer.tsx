@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/io";
 
 export const Route = createFileRoute("/script-analyzer")({
-  head: () => ({ meta: [{ title: "Script Analyzer — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Script Analyzer — Stickmax Studio" }] }),
   component: ScriptAnalyzerPage,
 });
 

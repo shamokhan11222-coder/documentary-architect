@@ -41,7 +41,7 @@ import { downloadJson, slugify } from "@/lib/io";
 import type { Research, Story, ThumbnailIdea, VisualScene, Topic } from "@/lib/types";
 
 export const Route = createFileRoute("/topics")({
-  head: () => ({ meta: [{ title: "Projects — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Projects — Stickmax Studio" }] }),
   component: ProjectsPage,
 });
 

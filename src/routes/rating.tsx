@@ -23,7 +23,7 @@ import { copyText, downloadTxt, slugify } from "@/lib/io";
 import type { RatingReport } from "@/lib/types";
 
 export const Route = createFileRoute("/rating")({
-  head: () => ({ meta: [{ title: "Rating — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Rating — Stickmax Studio" }] }),
   component: RatingPage,
 });
 

@@ -11,7 +11,7 @@ import { useAudioPack, saveAudioPack } from "@/lib/production";
 import { suggestAudio } from "@/lib/ai.functions";
 
 export const Route = createFileRoute("/audio")({
-  head: () => ({ meta: [{ title: "Music & SFX — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Music & SFX — Stickmax Studio" }] }),
   component: AudioPage,
 });
 

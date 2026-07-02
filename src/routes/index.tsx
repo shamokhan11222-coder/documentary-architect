@@ -17,7 +17,7 @@ import { useActiveProvider } from "@/lib/provider";
 import type { GeneratedIdea, IdeaCategory } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Home — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Home — Stickmax Studio" }] }),
   component: HomePage,
 });
 

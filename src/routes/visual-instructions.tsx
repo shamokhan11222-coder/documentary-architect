@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/visual-instructions")({
-  head: () => ({ meta: [{ title: "Visual Instructions — Documentary Studio" }] }),
+  head: () => ({ meta: [{ title: "Visual Instructions — Stickmax Studio" }] }),
   component: VisualInstructionsPage,
 });
 
