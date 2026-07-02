@@ -1,6 +1,44 @@
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
 
+/** Raised when the AI gateway reports credits are exhausted (HTTP 402). */
+export class CreditsExhaustedError extends Error {
+  constructor() {
+    super("CREDITS_EXHAUSTED");
+    this.name = "CreditsExhaustedError";
+  }
+}
+
+/**
+ * Robustly extract a JSON value from a raw model response. Strips markdown
+ * fences, trims surrounding prose, and repairs common issues (trailing commas,
+ * stray control characters) before parsing. Throws if nothing parseable.
+ */
+export function extractJson<T = unknown>(raw: string): T {
+  let cleaned = raw
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  const start = cleaned.search(/[[{]/);
+  if (start !== -1) {
+    const open = cleaned[start];
+    const close = open === "[" ? "]" : "}";
+    const end = cleaned.lastIndexOf(close);
+    if (end > start) cleaned = cleaned.slice(start, end + 1);
+  }
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const repaired = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\u0000-\u001F\u007F]/g, " ");
+    return JSON.parse(repaired) as T;
+  }
+}
+
 /**
  * Calls the Lovable AI Gateway and returns parsed JSON.
  * `schemaHint` is appended so the model knows the exact shape to return.
@@ -22,7 +60,10 @@ export async function callAiJson<T = unknown>(
       model: MODEL,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: system },
+        {
+          role: "system",
+          content: `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`,
+        },
         { role: "user", content: user },
       ],
     }),
@@ -33,19 +74,23 @@ export async function callAiJson<T = unknown>(
     if (res.status === 429)
       throw new Error("Rate limited by AI gateway. Please wait and try again.");
     if (res.status === 402)
-      throw new Error("AI credits exhausted. Add credits in your workspace settings.");
+      throw new CreditsExhaustedError();
     throw new Error(`AI request failed (${res.status}): ${text.slice(0, 300)}`);
   }
 
   const data = await res.json();
   const content: string = data?.choices?.[0]?.message?.content ?? "";
   try {
-    return JSON.parse(content) as T;
+    return extractJson<T>(content);
   } catch {
-    // Attempt to extract the first JSON object/array from the response.
-    const match = content.match(/[[{][\s\S]*[\]}]/);
-    if (match) return JSON.parse(match[0]) as T;
-    throw new Error("AI returned unparseable output.");
+    // Preserve the raw response so the UI can offer a recovery action.
+    const err = new Error("AI returned unparseable output.") as Error & {
+      code?: string;
+      raw?: string;
+    };
+    err.code = "JSON_PARSE_FAILED";
+    err.raw = content.slice(0, 20000);
+    throw err;
   }
 }
 
@@ -73,7 +118,7 @@ export async function callAiText(system: string, user: string): Promise<string> 
     if (res.status === 429)
       throw new Error("Rate limited by AI gateway. Please wait and try again.");
     if (res.status === 402)
-      throw new Error("AI credits exhausted. Add credits in your workspace settings.");
+      throw new CreditsExhaustedError();
     throw new Error(`AI request failed (${res.status}): ${text.slice(0, 300)}`);
   }
 
