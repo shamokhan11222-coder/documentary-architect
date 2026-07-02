@@ -19,6 +19,7 @@ import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
+import { Route as ScriptAnalyzerRouteImport } from './routes/script-analyzer'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
@@ -83,6 +84,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SeoRoute = SeoRouteImport.update({
   id: '/seo',
   path: '/seo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScriptAnalyzerRoute = ScriptAnalyzerRouteImport.update({
+  id: '/script-analyzer',
+  path: '/script-analyzer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResearchRoute = ResearchRouteImport.update({
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
@@ -201,6 +208,7 @@ export interface FileRoutesByTo {
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
@@ -229,6 +237,7 @@ export interface FileRoutesById {
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
   '/story': typeof StoryRoute
@@ -258,6 +267,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/rating'
     | '/research'
+    | '/script-analyzer'
     | '/seo'
     | '/settings'
     | '/story'
@@ -285,6 +295,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/rating'
     | '/research'
+    | '/script-analyzer'
     | '/seo'
     | '/settings'
     | '/story'
@@ -312,6 +323,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/rating'
     | '/research'
+    | '/script-analyzer'
     | '/seo'
     | '/settings'
     | '/story'
@@ -340,6 +352,7 @@ export interface RootRouteChildren {
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
+  ScriptAnalyzerRoute: typeof ScriptAnalyzerRoute
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
   StoryRoute: typeof StoryRoute
@@ -425,6 +438,13 @@ declare module '@tanstack/react-router' {
       path: '/seo'
       fullPath: '/seo'
       preLoaderRoute: typeof SeoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/script-analyzer': {
+      id: '/script-analyzer'
+      path: '/script-analyzer'
+      fullPath: '/script-analyzer'
+      preLoaderRoute: typeof ScriptAnalyzerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/research': {
@@ -548,6 +568,7 @@ const rootRouteChildren: RootRouteChildren = {
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
+  ScriptAnalyzerRoute: ScriptAnalyzerRoute,
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
   StoryRoute: StoryRoute,
