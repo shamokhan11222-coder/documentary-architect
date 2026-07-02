@@ -2,8 +2,16 @@
 // scenes and returns a data URL — the user never sees a prompt.
 import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
+import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
 import type { VisualScene, ThumbnailIdea } from "./types";
+
+function combinedArtDirection(): string {
+  return [getVisualInstructions(), getInstructionText()]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" ");
+}
 
 async function generate(prompt: string, references: string[]): Promise<string> {
   const res = await fetch("/api/generate-image", {
@@ -27,12 +35,12 @@ async function generate(prompt: string, references: string[]): Promise<string> {
 
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter, images } = await collectDnaReferences();
-  const prompt = buildScenePrompt(scene, getInstructionText(), hasCharacter);
+  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
   return generate(prompt, images);
 }
 
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
   const { images } = await collectDnaReferences();
-  const prompt = buildThumbnailPrompt(idea, getInstructionText());
+  const prompt = buildThumbnailPrompt(idea, combinedArtDirection());
   return generate(prompt, images);
 }

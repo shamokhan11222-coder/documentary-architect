@@ -15,6 +15,7 @@ import {
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage } from "@/lib/generate-image";
+import { getVisualInstructions } from "@/lib/visual-instructions";
 import { Button } from "@/components/ui/button";
 import { Steps } from "@/components/Steps";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
@@ -61,7 +62,7 @@ function VisualPage() {
       const minScenes = Math.max(8, Math.round(words / 12));
       const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
       const scenes = (await gen({
-        data: { topic: selected.topic, script: story.script, minScenes, maxScenes },
+        data: { topic: selected.topic, script: story.script, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
       })) as VisualScene[];
       saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
       toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
