@@ -6,6 +6,7 @@ import { Lock } from "lucide-react";
 import { getGateStatus, unlockSite } from "@/lib/gate.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LogoMark } from "@/components/Logo";
 
 export const Route = createFileRoute("/unlock")({
   head: () => ({ meta: [{ title: "Private Access — Stickmax Studio" }] }),
