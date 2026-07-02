@@ -69,12 +69,12 @@ function ThumbnailPage() {
 
   // Generate images for thumbnail ideas from `start` up to `count` total ideas,
   // skipping any that already have an image. Never redoes finished thumbnails.
-  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number) {
+  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false) {
     if (!selected) return;
     setProgress({ done: start, total: end });
     for (let i = start; i < end; i++) {
       // Smart cache: skip thumbnails that already have an image.
-      if (await loadImage(thumbImageId(selected.id, i))) {
+      if (!force && (await loadImage(thumbImageId(selected.id, i)))) {
         setProgress({ done: i + 1, total: end });
         continue;
       }
@@ -100,7 +100,7 @@ function ThumbnailPage() {
         data: { topic: selected.topic, script: story?.script, angle: research?.storyAngles?.[0] },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
-      await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length));
+      await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
       toast.success("First thumbnail ready. Not happy? Generate alternatives.");
     });
   }
