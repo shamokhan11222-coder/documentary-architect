@@ -1,7 +1,7 @@
 // Client helper for narration generation. Calls the TTS route, stores the mp3
 // in IndexedDB, and measures the real audio duration.
 import { putImage } from "./images";
-import { providerPayload } from "./provider";
+import { ttsProviderPayload } from "./provider";
 import type { VoiceSettings } from "./types";
 
 export const voiceBlockId = (topicId: string, index: number) => `voice:${topicId}:${index}`;
@@ -47,7 +47,7 @@ export async function generateVoiceBlock(
       emotion: settings.emotion,
       pauseStrength: settings.pauseStrength,
       pitch: settings.pitch,
-      provider: providerPayload(),
+      provider: ttsProviderPayload(),
     }),
   });
   if (!res.ok) {
