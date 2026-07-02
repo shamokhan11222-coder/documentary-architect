@@ -186,7 +186,7 @@ function VoicePage() {
             {voice?.blocks.length ? (
               <Button variant="secondary" onClick={genAll} disabled={!!busy}>
                 {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Generate All
+                Generate Remaining
               </Button>
             ) : null}
           </div>
