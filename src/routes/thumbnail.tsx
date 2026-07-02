@@ -160,8 +160,14 @@ function ThumbnailPage() {
         </select>
         <Button onClick={handleGenerate} disabled={!selected || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {pack ? "Regenerate Thumbnails" : "Generate Thumbnails"}
+          {pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
+        {pack && (
+          <Button variant="secondary" onClick={handleAlternatives} disabled={!!busy}>
+            {busy === "alt" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Sparkles className="mr-2 h-4 w-4" /> Generate Alternatives
+          </Button>
+        )}
         {pack && (
           <Button variant="outline" onClick={handleReview} disabled={!!busy}>
             {busy === "review" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
