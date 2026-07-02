@@ -301,7 +301,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
               onClick={onNavigate}
-              className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand"
+              style={{ animation: "var(--animate-slide-in-left)", animationDelay: `${i * 22}ms` }}
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand"
             >
               <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
               <span className="truncate">{item.label}</span>
