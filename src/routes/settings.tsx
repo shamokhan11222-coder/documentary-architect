@@ -194,7 +194,7 @@ function PrivateAccess() {
             size="sm"
             variant="outline"
             onClick={async () => {
-              await lock({ data: undefined });
+              await lock();
               toast.success("Locked. You'll need the password next time.");
               window.location.href = "/unlock";
             }}
