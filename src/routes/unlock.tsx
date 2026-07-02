@@ -1,8 +1,6 @@
 import { createFileRoute, useRouter, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Lock } from "lucide-react";
-
 import { getGateStatus, unlockSite } from "@/lib/gate.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
