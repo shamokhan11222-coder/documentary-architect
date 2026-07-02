@@ -14,7 +14,7 @@ import {
   useThumbnails,
   saveThumbnails,
 } from "@/lib/store";
-import { useImage, putImage } from "@/lib/images";
+import { useImage, putImage, loadImage } from "@/lib/images";
 import { generateThumbnailImage } from "@/lib/generate-image";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,11 @@ function ThumbnailPage() {
     if (!selected) return;
     setProgress({ done: start, total: end });
     for (let i = start; i < end; i++) {
+      // Smart cache: skip thumbnails that already have an image.
+      if (await loadImage(thumbImageId(selected.id, i))) {
+        setProgress({ done: i + 1, total: end });
+        continue;
+      }
       try {
         const url = await generateThumbnailImage(ideas[i]);
         await putImage(thumbImageId(selected.id, i), url);
