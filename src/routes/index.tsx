@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCw, X, Check, FolderPlus } from "lucide-react";
 
 import { generateHomeIdeas } from "@/lib/ai.functions";
+import { LogoLoading } from "@/components/Logo";
 import {
   saveTopic,
   setSelectedTopicId,
