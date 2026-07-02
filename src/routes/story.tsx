@@ -19,6 +19,14 @@ import { ProjectHeader } from "@/components/ProjectHeader";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import { Feedback } from "@/components/Feedback";
 import type { Story, StorySection, StoryReview } from "@/lib/types";
+import { estimateSeconds } from "@/lib/production";
+import {
+  LENGTH_PRESETS,
+  DEFAULT_LENGTH_ID,
+  getPreset,
+  customPreset,
+  type LengthPreset,
+} from "@/lib/story-length";
 
 export const Route = createFileRoute("/story")({
   head: () => ({ meta: [{ title: "Story — Documentary Studio" }] }),
@@ -38,7 +46,61 @@ function rebuildScript(sections: StorySection[]) {
   return sections.map((s) => `## ${s.title}\n${s.content}`).join("\n\n");
 }
 
+function fmtDur(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
 function StoryPage() {
+  return <StoryPageInner />;
+}
+
+function StatBox({ label, value, tone }: { label: string; value: string | number; tone?: string }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <div className={`text-base font-semibold ${tone ?? "text-foreground"}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function ScriptStats({ story }: { story: Story }) {
+  const bodyWords = story.sections
+    .map((s) => (s.content.match(/\S+/g) ?? []).length)
+    .reduce((a, b) => a + b, 0);
+  const duration = estimateSeconds(story.sections.map((s) => s.content).join(" "));
+  const min = story.minWords ?? 0;
+  const tooShort = min > 0 && bodyWords < min;
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">Script stats</div>
+        {story.targetLabel && (
+          <div className="text-xs text-muted-foreground">
+            Target {story.targetLabel} · {min}–{story.maxWords} words
+          </div>
+        )}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+        <StatBox label="Word count" value={bodyWords} tone={tooShort ? "text-red-600" : "text-foreground"} />
+        <StatBox label="Est. voice duration" value={fmtDur(duration)} />
+        <StatBox label="Sections" value={story.sections.length} />
+        <StatBox label="Curiosity" value={`${story.curiosityScore ?? "—"}/10`} />
+        <StatBox label="Retention" value={`${story.retentionScore ?? "—"}/10`} />
+        <StatBox label="Story" value={`${story.storyScore}/10`} />
+      </div>
+      {tooShort && (
+        <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/5 p-2 text-xs text-red-600">
+          ⚠ Script is too short for the selected length ({bodyWords} words, target {min}+). Regenerate
+          or expand sections to reach the target range.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StoryPageInner() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
@@ -50,6 +112,11 @@ function StoryPage() {
   const deepReview = useServerFn(reviewStory);
   const [busy, setBusy] = useState<string | null>(null);
   const [review, setReview] = useState<StoryReview | null>(null);
+  const [lengthId, setLengthId] = useState<string>(DEFAULT_LENGTH_ID);
+  const [customMinutes, setCustomMinutes] = useState<number>(10);
+
+  const preset: LengthPreset =
+    lengthId === "custom" ? customPreset(customMinutes) : getPreset(lengthId) ?? getPreset(DEFAULT_LENGTH_ID)!;
 
   async function runDeepReview() {
     if (!selected || !story) return;
@@ -71,7 +138,13 @@ function StoryPage() {
     (async () => {
       try {
         const data = (await gen({
-          data: { topic: selected.topic, research: research ?? undefined },
+          data: {
+            topic: selected.topic,
+            research: research ?? undefined,
+            minWords: preset.minWords,
+            maxWords: preset.maxWords,
+            targetLabel: preset.label,
+          },
         })) as Omit<Story, "topicId" | "generatedAt">;
         saveStory({ ...data, topicId: selected.id, generatedAt: Date.now() });
         toast.success("Script generated — reviewed by Story Architect");
@@ -137,6 +210,49 @@ function StoryPage() {
         </div>
       </div>
 
+      {selected && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-3">
+          <div className="text-xs font-medium text-muted-foreground">Video length</div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {LENGTH_PRESETS.map((p) => (
+              <Button
+                key={p.id}
+                size="sm"
+                variant={lengthId === p.id ? "default" : "outline"}
+                className="h-7 text-xs"
+                onClick={() => setLengthId(p.id)}
+              >
+                {p.label}
+              </Button>
+            ))}
+            <Button
+              size="sm"
+              variant={lengthId === "custom" ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setLengthId("custom")}
+            >
+              Custom
+            </Button>
+            {lengthId === "custom" && (
+              <span className="flex items-center gap-1 text-xs">
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={customMinutes}
+                  onChange={(e) => setCustomMinutes(Number(e.target.value) || 1)}
+                  className="h-7 w-16 rounded-md border border-input bg-background px-2 text-sm"
+                />
+                minutes
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Target: {preset.label} · {preset.minWords}–{preset.maxWords} words
+          </p>
+        </div>
+      )}
+
       {selected && !research && (
         <p className="mt-3 text-xs text-amber-600">
           No research found — run the Research Engine first for a grounded script.
@@ -150,6 +266,7 @@ function StoryPage() {
 
       {story && selected && (
         <div className="mt-6 space-y-4">
+          <ScriptStats story={story} />
           <div className="flex flex-wrap items-center gap-1.5">
             <Score label="Hook" value={story.hookScore} />
             <Score label="Story" value={story.storyScore} />
