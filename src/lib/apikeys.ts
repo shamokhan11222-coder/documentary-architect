@@ -1,5 +1,5 @@
-// API Settings — prepared for future integrations. Keys are stored locally
-// only; providers are NOT activated yet. This just readies the system.
+// API Settings — active provider vault. Keys are stored locally in the browser
+// and used to activate Google Gemini as the live provider for supported tasks.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry, ApiProvider } from "./types";
 
