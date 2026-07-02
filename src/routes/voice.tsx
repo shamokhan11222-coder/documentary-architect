@@ -80,7 +80,14 @@ function VoicePage() {
     setBusy("all");
     let blocks = [...voice.blocks];
     let creditsOut = false;
-    for (const block of voice.blocks) {
+    // Smart cache: only narrate blocks that haven't been generated yet.
+    const pending = voice.blocks.filter((b) => b.realSeconds == null);
+    if (!pending.length) {
+      setBusy(null);
+      toast.info("Every paragraph is already narrated.");
+      return;
+    }
+    for (const block of pending) {
       try {
         const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
         blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
@@ -179,7 +186,7 @@ function VoicePage() {
             {voice?.blocks.length ? (
               <Button variant="secondary" onClick={genAll} disabled={!!busy}>
                 {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Generate All
+                Generate Remaining
               </Button>
             ) : null}
           </div>

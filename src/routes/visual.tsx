@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Trash2, ImagePlus } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw } from "lucide-react";
 
 import { generateVisualMap, checkImageConsistency } from "@/lib/ai.functions";
 import {
@@ -16,6 +16,7 @@ import {
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage } from "@/lib/generate-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
+import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { Steps } from "@/components/Steps";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
@@ -37,9 +38,30 @@ function VisualPage() {
 
   const gen = useServerFn(generateVisualMap);
   const doCheck = useServerFn(checkImageConsistency);
+  const credit = useCreditConfig();
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
+  // Which scenes already have a generated image (smart cache — never redo these)
+  // and which failed on the last run (for "Retry Failed Only").
+  const [have, setHave] = useState<Set<number>>(new Set());
+  const [failed, setFailed] = useState<Set<number>>(new Set());
+
+  const refreshHave = useCallback(async () => {
+    if (!selected || !map) {
+      setHave(new Set());
+      return;
+    }
+    const s = new Set<number>();
+    for (const sc of map.scenes) {
+      if (await loadImage(sceneImageId(selected.id, sc.sceneNumber))) s.add(sc.sceneNumber);
+    }
+    setHave(s);
+  }, [selected, map]);
+
+  useEffect(() => {
+    void refreshHave();
+  }, [refreshHave]);
 
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -73,24 +95,54 @@ function VisualPage() {
     if (!selected) return;
     const dataUrl = await generateSceneImage(scene);
     await putImage(sceneImageId(selected.id, scene.sceneNumber), dataUrl);
+    setHave((prev) => new Set(prev).add(scene.sceneNumber));
+    setFailed((prev) => {
+      const n = new Set(prev);
+      n.delete(scene.sceneNumber);
+      return n;
+    });
   }
 
-  function handleGenerateAll() {
-    if (!selected || !map) return;
-    return withBusy("all", async () => {
-      const scenes = map.scenes;
+  // Generate a batch of images, running only over the scenes passed in. Stops
+  // early and saves progress if credits run out.
+  async function runBatch(key: string, scenes: VisualScene[]) {
+    if (!scenes.length) {
+      toast.info("Nothing to generate — every image in range is already done.");
+      return;
+    }
+    return withBusy(key, async () => {
       setProgress({ done: 0, total: scenes.length });
       for (let i = 0; i < scenes.length; i++) {
         try {
           await genImage(scenes[i]);
         } catch (e) {
-          toast.error(`Scene ${scenes[i].sceneNumber}: ${e instanceof Error ? e.message : "failed"}`);
+          const msg = e instanceof Error ? e.message : "failed";
+          setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
+          if (/credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
+            toast.error("Credits exhausted. Completed images are saved — resume later.");
+            break;
+          }
+          toast.error(`Scene ${scenes[i].sceneNumber}: ${msg}`);
         }
         setProgress({ done: i + 1, total: scenes.length });
       }
       setProgress(null);
-      toast.success("All images generated");
+      void refreshHave();
     });
+  }
+
+  const pendingScenes = () =>
+    [...(map?.scenes ?? [])]
+      .sort((a, b) => a.sceneNumber - b.sceneNumber)
+      .filter((s) => !have.has(s.sceneNumber));
+
+  function generateNext(n: number) {
+    return runBatch(`next-${n}`, pendingScenes().slice(0, n));
+  }
+
+  function retryFailed() {
+    const scenes = (map?.scenes ?? []).filter((s) => failed.has(s.sceneNumber));
+    return runBatch("retry", scenes);
   }
 
   function handleRegenImage(scene: VisualScene) {
@@ -160,10 +212,26 @@ function VisualPage() {
           {map ? "Rebuild Storyboard" : "Build Storyboard"}
         </Button>
         {map && (
-          <Button variant="secondary" onClick={handleGenerateAll} disabled={!!busy}>
-            {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <ImagePlus className="mr-2 h-4 w-4" /> Generate All Images
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
+              {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <ImagePlus className="mr-2 h-4 w-4" /> Next 5
+            </Button>
+            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy}>
+              {busy === "next-10" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Next 10
+            </Button>
+            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy}>
+              {busy === "next-20" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Next 20
+            </Button>
+            {failed.size > 0 && (
+              <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
+                {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
+              </Button>
+            )}
+          </>
         )}
         {map && (
           <Button variant="outline" onClick={handleConsistency} disabled={!!busy}>
@@ -240,7 +308,9 @@ function VisualPage() {
       {map && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="col-span-full text-xs text-muted-foreground">
-            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)}
+            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)} · {have.size}/
+            {map.scenes.length} images done · {credit.label} mode (recommended batch{" "}
+            {credit.defaultImageBatch})
           </div>
           {[...map.scenes]
             .sort((a, b) => a.sceneNumber - b.sceneNumber)
