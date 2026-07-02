@@ -293,7 +293,7 @@ function SceneCard({
           </div>
         )}
         <span className="absolute left-2 top-2 rounded-md bg-background/80 px-2 py-0.5 text-xs font-medium">
-          Scene {scene.sceneNumber}
+          Scene {pad3(scene.sceneNumber)}
         </span>
       </div>
       <div className="p-3">
