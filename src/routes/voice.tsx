@@ -18,6 +18,7 @@ import {
 import { useImage } from "@/lib/images";
 import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
+import { CustomVoice } from "@/components/CustomVoice";
 
 export const Route = createFileRoute("/voice")({
   head: () => ({ meta: [{ title: "Voice Studio — Documentary Studio" }] }),
@@ -78,18 +79,25 @@ function VoicePage() {
     if (!selected || !voice) return;
     setBusy("all");
     let blocks = [...voice.blocks];
+    let creditsOut = false;
     for (const block of voice.blocks) {
       try {
         const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
         blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
         saveVoice({ ...voice, blocks });
       } catch (e) {
-        toast.error(`Block ${block.index + 1}: ${e instanceof Error ? e.message : "failed"}`);
+        const msg = e instanceof Error ? e.message : "failed";
+        if (/credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
+          creditsOut = true;
+          toast.error("Credits exhausted. Your generated voice blocks are saved. Continue later.");
+        } else {
+          toast.error(`Block ${block.index + 1}: ${msg}`);
+        }
         break;
       }
     }
     setBusy(null);
-    toast.success("Narration complete");
+    if (!creditsOut) toast.success("Narration complete");
   }
 
   function editText(index: number, text: string) {
@@ -101,6 +109,7 @@ function VoicePage() {
   }
 
   const totalEst = (voice?.blocks ?? []).reduce((s, b) => s + (b.realSeconds ?? b.estSeconds), 0);
+  const generatedCount = (voice?.blocks ?? []).filter((b) => b.realSeconds != null).length;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -120,6 +129,15 @@ function VoicePage() {
         <>
           <div className="mt-6 rounded-xl border border-border p-4">
             <div className="text-sm font-medium">Narrator profile</div>
+            <div className="mt-3">
+              <label className="text-xs font-medium">Voice name</label>
+              <input
+                className="mt-1 h-8 w-56 rounded-md border border-input bg-background px-2 text-sm"
+                placeholder="Voice name"
+                value={settings.voiceName ?? ""}
+                onChange={(e) => update({ voiceName: e.target.value })}
+              />
+            </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {PROFILES.map((p) => (
                 <button
@@ -142,11 +160,16 @@ function VoicePage() {
               <Ctrl label="Speed" value={settings.speed} min={0.7} max={1.2} step={0.05} onChange={(v) => update({ speed: v })} />
               <Ctrl label="Stability" value={settings.stability} onChange={(v) => update({ stability: v })} />
               <Ctrl label="Emotion" value={settings.emotion} onChange={(v) => update({ emotion: v })} />
-              <Ctrl label="Pause Strength" value={settings.pauseStrength} onChange={(v) => update({ pauseStrength: v })} />
+              <Ctrl label="Pause Length" value={settings.pauseStrength} onChange={(v) => update({ pauseStrength: v })} />
               <Ctrl label="Pitch" value={settings.pitch} onChange={(v) => update({ pitch: v })} />
             </div>
 
             <Dictionary settings={settings} onChange={(dictionary) => update({ dictionary })} />
+
+            <CustomVoice
+              activeProfileId={settings.clonedProfileId}
+              onUse={(id) => update({ clonedProfileId: id })}
+            />
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -159,12 +182,16 @@ function VoicePage() {
                 Generate All
               </Button>
             ) : null}
-            {voice?.blocks.length ? (
-              <span className="text-xs text-muted-foreground">
-                Estimated total: <span className="font-medium text-foreground">{fmtClock(totalEst)}</span> · {voice.blocks.length} blocks
-              </span>
-            ) : null}
           </div>
+
+          {voice?.blocks.length ? (
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <SummaryStat label="Total duration" value={fmtClock(totalEst)} />
+              <SummaryStat label="Estimated video length" value={fmtClock(totalEst)} />
+              <SummaryStat label="Paragraphs" value={String(voice.blocks.length)} />
+              <SummaryStat label="Narrated" value={`${generatedCount}/${voice.blocks.length}`} />
+            </div>
+          ) : null}
 
           <div className="mt-5 space-y-3">
             {(voice?.blocks ?? []).map((b) => (
@@ -184,6 +211,14 @@ function VoicePage() {
   );
 }
 
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <div className="text-base font-semibold text-foreground">{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
 function Ctrl({
   label,
   value,
