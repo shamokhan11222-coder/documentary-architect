@@ -218,6 +218,7 @@ function StoryPage() {
 
       {story && selected && (
         <div className="mt-6 space-y-4">
+          <ScriptStats story={story} />
           <div className="flex flex-wrap items-center gap-1.5">
             <Score label="Hook" value={story.hookScore} />
             <Score label="Story" value={story.storyScore} />
