@@ -235,7 +235,7 @@ function ProviderStatus({
   onTest,
   testing,
 }: {
-  state: "connected" | "failed" | "configured" | "not_configured";
+  state: "connected" | "failed" | "invalid" | "not_activated" | "activated";
   message: string;
   active: boolean;
   onTest: () => void;
@@ -244,8 +244,9 @@ function ProviderStatus({
   const map = {
     connected: { label: "Connected", cls: "text-green-600", icon: CheckCircle2 },
     failed: { label: "Failed", cls: "text-red-600", icon: XCircle },
-    configured: { label: "Configured — Gemini active", cls: "text-amber-600", icon: CircleDashed },
-    not_configured: { label: "Not Configured — using built-in AI", cls: "text-muted-foreground", icon: CircleDashed },
+    invalid: { label: "Invalid Key", cls: "text-red-600", icon: XCircle },
+    activated: { label: "Gemini Active", cls: "text-green-600", icon: CheckCircle2 },
+    not_activated: { label: "Not Activated — using built-in AI", cls: "text-muted-foreground", icon: CircleDashed },
   } as const;
   const s = map[state];
   const Icon = s.icon;
@@ -262,6 +263,43 @@ function ProviderStatus({
         {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
         Test Connection
       </Button>
+    </div>
+  );
+}
+
+function RouteRow({
+  label,
+  hint,
+  supported,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  supported: boolean;
+  value: ProviderChoice;
+  onChange: (v: ProviderChoice) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">{hint}</div>
+      </div>
+      {supported ? (
+        <select
+          className="h-8 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+          value={value}
+          onChange={(e) => onChange(e.target.value as ProviderChoice)}
+        >
+          <option value="gemini">Gemini</option>
+          <option value="builtin">Built-in AI</option>
+        </select>
+      ) : (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          Provider not available for this task.
+        </span>
+      )}
     </div>
   );
 }
