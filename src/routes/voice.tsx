@@ -18,6 +18,7 @@ import {
 import { useImage } from "@/lib/images";
 import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
+import { CustomVoice } from "@/components/CustomVoice";
 
 export const Route = createFileRoute("/voice")({
   head: () => ({ meta: [{ title: "Voice Studio — Documentary Studio" }] }),
@@ -78,18 +79,25 @@ function VoicePage() {
     if (!selected || !voice) return;
     setBusy("all");
     let blocks = [...voice.blocks];
+    let creditsOut = false;
     for (const block of voice.blocks) {
       try {
         const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
         blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
         saveVoice({ ...voice, blocks });
       } catch (e) {
-        toast.error(`Block ${block.index + 1}: ${e instanceof Error ? e.message : "failed"}`);
+        const msg = e instanceof Error ? e.message : "failed";
+        if (/credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
+          creditsOut = true;
+          toast.error("Credits exhausted. Your generated voice blocks are saved. Continue later.");
+        } else {
+          toast.error(`Block ${block.index + 1}: ${msg}`);
+        }
         break;
       }
     }
     setBusy(null);
-    toast.success("Narration complete");
+    if (!creditsOut) toast.success("Narration complete");
   }
 
   function editText(index: number, text: string) {
@@ -101,6 +109,7 @@ function VoicePage() {
   }
 
   const totalEst = (voice?.blocks ?? []).reduce((s, b) => s + (b.realSeconds ?? b.estSeconds), 0);
+  const generatedCount = (voice?.blocks ?? []).filter((b) => b.realSeconds != null).length;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
