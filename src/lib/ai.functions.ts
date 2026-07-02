@@ -364,14 +364,17 @@ const SCENE_SHAPE = `{
 }`;
 
 export const generateVisualMap = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script: string; minScenes?: number; maxScenes?: number }) => {
+  .inputValidator((data: { topic: string; script: string; minScenes?: number; maxScenes?: number; visualInstructions?: string }) => {
     if (!data?.script?.trim()) throw new Error("Script is required");
     return data;
   })
   .handler(async ({ data }) => {
     const minScenes = data.minScenes ?? 120;
     const maxScenes = data.maxScenes ?? 180;
-    const user = `Documentary: "${data.topic}"
+    const styleBlock = data.visualInstructions?.trim()
+      ? `\nPERMANENT VISUAL INSTRUCTIONS (always obey, applied to every scene):\n${data.visualInstructions.trim()}\n`
+      : "";
+    const user = `Documentary: "${data.topic}"${styleBlock}
 
 Break the following script into a sequential visual beat map, going SENTENCE BY SENTENCE.
 
