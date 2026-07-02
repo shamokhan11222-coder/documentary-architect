@@ -175,6 +175,17 @@
     font-family: var(--font-display);
     letter-spacing: -0.02em;
   }
+
+  /* Premium native dropdowns everywhere */
+  select {
+    border-radius: 0.75rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 30%, transparent);
+    border-color: color-mix(in oklab, var(--brand) 60%, var(--border));
+  }
 }
 
 /* ---- Keyframes ---- */
