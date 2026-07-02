@@ -185,10 +185,19 @@ function ManagerPage() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
+      const isCredits = /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
       patchStage(id, stage, { status: "failed", error: msg, finishedAt: Date.now() });
       const label = PIPELINE.find((p) => p.key === stage)?.label ?? stage;
-      logActivity(id, `${label} failed: ${msg}`, "error");
-      if (msg !== "Stopped") toast.error(`${label} failed: ${msg}`);
+      if (isCredits) {
+        cancelled.current = true;
+        const note = "Credits exhausted. Your completed work is saved. Continue later.";
+        patchStage(id, stage, { status: "failed", error: note, finishedAt: Date.now() });
+        logActivity(id, note, "error");
+        toast.error(note);
+      } else {
+        logActivity(id, `${label} failed: ${msg}`, "error");
+        if (msg !== "Stopped") toast.error(`${label} failed: ${msg}`);
+      }
       return false;
     }
   }
