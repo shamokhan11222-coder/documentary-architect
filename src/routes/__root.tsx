@@ -171,6 +171,7 @@ const NAV = [
   { to: "/assets", label: "Assets Library" },
   { to: "/visual-dna", label: "Visual DNA" },
   { to: "/instructions", label: "AI Instructions" },
+  { to: "/visual-instructions", label: "Visual Instructions" },
   { to: "/knowledge", label: "Knowledge Base" },
   { to: "/api-keys", label: "API Settings" },
   { to: "/settings", label: "Settings" },

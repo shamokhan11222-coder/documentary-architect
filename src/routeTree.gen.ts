@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VoiceRouteImport } from './routes/voice'
+import { Route as VisualInstructionsRouteImport } from './routes/visual-instructions'
 import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
 import { Route as TopicsRouteImport } from './routes/topics'
@@ -39,6 +40,11 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 const VoiceRoute = VoiceRouteImport.update({
   id: '/voice',
   path: '/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VisualInstructionsRoute = VisualInstructionsRouteImport.update({
+  id: '/visual-instructions',
+  path: '/visual-instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VisualDnaRoute = VisualDnaRouteImport.update({
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/visual-instructions': typeof VisualInstructionsRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/visual-instructions': typeof VisualInstructionsRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
@@ -247,6 +255,7 @@ export interface FileRoutesById {
   '/topics': typeof TopicsRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
+  '/visual-instructions': typeof VisualInstructionsRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
@@ -277,6 +286,7 @@ export interface FileRouteTypes {
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/visual-instructions'
     | '/voice'
     | '/api/chat'
     | '/api/generate-image'
@@ -305,6 +315,7 @@ export interface FileRouteTypes {
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/visual-instructions'
     | '/voice'
     | '/api/chat'
     | '/api/generate-image'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/topics'
     | '/visual'
     | '/visual-dna'
+    | '/visual-instructions'
     | '/voice'
     | '/api/chat'
     | '/api/generate-image'
@@ -362,6 +374,7 @@ export interface RootRouteChildren {
   TopicsRoute: typeof TopicsRoute
   VisualRoute: typeof VisualRoute
   VisualDnaRoute: typeof VisualDnaRoute
+  VisualInstructionsRoute: typeof VisualInstructionsRoute
   VoiceRoute: typeof VoiceRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiGenerateImageRoute: typeof ApiGenerateImageRoute
@@ -375,6 +388,13 @@ declare module '@tanstack/react-router' {
       path: '/voice'
       fullPath: '/voice'
       preLoaderRoute: typeof VoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/visual-instructions': {
+      id: '/visual-instructions'
+      path: '/visual-instructions'
+      fullPath: '/visual-instructions'
+      preLoaderRoute: typeof VisualInstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/visual-dna': {
@@ -578,6 +598,7 @@ const rootRouteChildren: RootRouteChildren = {
   TopicsRoute: TopicsRoute,
   VisualRoute: VisualRoute,
   VisualDnaRoute: VisualDnaRoute,
+  VisualInstructionsRoute: VisualInstructionsRoute,
   VoiceRoute: VoiceRoute,
   ApiChatRoute: ApiChatRoute,
   ApiGenerateImageRoute: ApiGenerateImageRoute,
