@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
   redirect,
+  useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -49,6 +50,7 @@ import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { CursorGlow } from "../components/CursorGlow";
+import { PageTransition } from "../components/motion";
 
 function NotFoundComponent() {
   return (
@@ -222,7 +224,7 @@ function RootComponent() {
           </header>
           <main className="min-w-0 flex-1 overflow-x-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
+            <RouteMotion />
           </main>
         </div>
       </div>
