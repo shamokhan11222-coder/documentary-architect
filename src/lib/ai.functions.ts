@@ -243,18 +243,25 @@ Key Takeaways: ${j(r.keyTakeaways)}`;
 }
 
 export const generateStory = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; research?: Research }) => {
+  .inputValidator((data: { topic: string; research?: Research; minWords?: number; maxWords?: number; targetLabel?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
   .handler(async ({ data }) => {
+    const minWords = data.minWords ?? 1300;
+    const maxWords = data.maxWords ?? 1700;
+    const targetLabel = data.targetLabel ?? "9–11 minutes";
     const system = `${EXPERTS.story} ${STORY_RULES}
 Return ONLY valid JSON.`;
     const user = `Write a full documentary narration script for: "${data.topic}"
 
+TARGET LENGTH: ${targetLabel} of finished video.
+REQUIRED WORD COUNT: between ${minWords} and ${maxWords} words of spoken narration (excluding section titles). This is a hard requirement — do NOT produce a shorter script. Expand each section with real substance (never filler) until the total lands inside this range. A ${targetLabel} video must NOT be a 3–4 minute script.
+
 ${buildResearchContext(data.research)}
 
 Write the narration as SEPARATE sections. Never merge them into one giant block.
+Use enough sections (and enough depth per section) to naturally reach ${minWords}–${maxWords} words.
 
 Return a JSON object:
 {
@@ -269,20 +276,24 @@ Return a JSON object:
   ],
   "hookScore": number (1-10),
   "storyScore": number (1-10),
-  "engagementScore": number (1-10)
+  "engagementScore": number (1-10),
+  "curiosityScore": number (1-10),
+  "retentionScore": number (1-10)
 }`;
     type StoryGen = {
       sections: { key: string; title: string; content: string }[];
       hookScore: number;
       storyScore: number;
       engagementScore: number;
+      curiosityScore: number;
+      retentionScore: number;
     };
     const gen = await callAiJson<StoryGen>(system, user);
     const script = (gen.sections ?? [])
       .map((s) => `## ${s.title}\n${s.content}`)
       .join("\n\n");
     const review = await reviewStage("documentary script", script);
-    return { ...gen, script, review };
+    return { ...gen, script, review, targetLabel, minWords, maxWords };
   });
 
 // Section-level rewriting with a chosen creative direction.
