@@ -2,7 +2,7 @@
 // API Settings (localStorage) and, when a Google Gemini key is present,
 // makes Gemini the active provider for every supported task. When no Gemini
 // key is saved the app falls back to the built-in Lovable AI.
-import { readLocal, useLocal } from "./local";
+import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
 
 const KEY = "docos.apikeys";
@@ -62,7 +62,6 @@ export function useProviderSettings(): ProviderSettings {
 }
 
 export function saveProviderSettings(next: Partial<ProviderSettings>) {
-  const { writeLocal } = require("./local") as typeof import("./local");
   writeLocal(SETTINGS_KEY, { ...getProviderSettings(), ...next });
 }
 
