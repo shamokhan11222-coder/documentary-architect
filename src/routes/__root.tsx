@@ -268,17 +268,17 @@ const NAV: NavItem[] = [
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const theme = useTheme();
   return (
-    <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-border bg-card">
-      <div className="px-4 py-5">
+    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border/70 glass">
+      <div className="px-5 py-6">
         <Logo />
-        <div className="mt-1 pl-9 text-xs text-muted-foreground">stickmax.io</div>
+        <div className="mt-1.5 pl-9 text-xs text-muted-foreground">stickmax.io</div>
       </div>
-      <nav className="flex flex-col gap-1 overflow-y-auto px-2">
+      <nav className="flex flex-col gap-0.5 overflow-y-auto px-3 pb-4">
         {NAV.map((item, i) =>
           "section" in item ? (
             <div
               key={`s-${i}`}
-              className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
+              className="px-3 pb-1.5 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60"
             >
               {item.section}
             </div>
@@ -288,17 +288,18 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
               onClick={onNavigate}
-              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand"
             >
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+              <span className="truncate">{item.label}</span>
             </Link>
           ),
         )}
       </nav>
-      <div className="mt-auto p-2">
+      <div className="mt-auto border-t border-border/60 p-3">
         <button
           onClick={toggleTheme}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground"
         >
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {theme === "dark" ? "Light mode" : "Dark mode"}
