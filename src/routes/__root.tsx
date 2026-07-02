@@ -231,35 +231,39 @@ function RootComponent() {
   );
 }
 
-const NAV = [
+type NavItem =
+  | { section: string }
+  | { to: string; label: string; icon: LucideIcon };
+
+const NAV: NavItem[] = [
   { section: "Studio" },
-  { to: "/", label: "Home" },
-  { to: "/manager", label: "Production Dashboard" },
-  { to: "/topics", label: "Projects" },
-  { to: "/research", label: "Research" },
-  { to: "/story", label: "Story" },
-  { to: "/script-analyzer", label: "Script Analyzer" },
-  { to: "/visual", label: "Images" },
-  { to: "/thumbnail", label: "Thumbnail" },
-  { to: "/seo", label: "SEO" },
-  { to: "/rating", label: "Rating" },
+  { to: "/", label: "Home", icon: Home },
+  { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
+  { to: "/topics", label: "Projects", icon: FolderKanban },
+  { to: "/research", label: "Research", icon: Search },
+  { to: "/story", label: "Story", icon: BookText },
+  { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
+  { to: "/visual", label: "Images", icon: ImageIcon },
+  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
+  { to: "/seo", label: "SEO", icon: BarChart3 },
+  { to: "/rating", label: "Rating", icon: Star },
   { section: "Production" },
-  { to: "/voice", label: "Voice Studio" },
-  { to: "/subtitles", label: "Subtitles" },
-  { to: "/queue", label: "Image Queue" },
-  { to: "/timeline", label: "Timeline" },
-  { to: "/audio", label: "Music & SFX" },
-  { to: "/checklist", label: "Checklist" },
-  { to: "/export", label: "Export" },
+  { to: "/voice", label: "Voice Studio", icon: Mic },
+  { to: "/subtitles", label: "Subtitles", icon: Captions },
+  { to: "/queue", label: "Image Queue", icon: ListVideo },
+  { to: "/timeline", label: "Timeline", icon: GanttChartSquare },
+  { to: "/audio", label: "Music & SFX", icon: Music },
+  { to: "/checklist", label: "Checklist", icon: ListChecks },
+  { to: "/export", label: "Export", icon: Download },
   { section: "Library" },
-  { to: "/assets", label: "Assets Library" },
-  { to: "/visual-dna", label: "Visual DNA" },
-  { to: "/instructions", label: "AI Instructions" },
-  { to: "/visual-instructions", label: "Visual Instructions" },
-  { to: "/knowledge", label: "Knowledge Base" },
-  { to: "/api-keys", label: "API Settings" },
-  { to: "/settings", label: "Settings" },
-] as const;
+  { to: "/assets", label: "Assets Library", icon: Library },
+  { to: "/visual-dna", label: "Visual DNA", icon: Dna },
+  { to: "/instructions", label: "AI Instructions", icon: Sparkles },
+  { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
+  { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
+  { to: "/api-keys", label: "API Settings", icon: KeyRound },
+  { to: "/settings", label: "Settings", icon: Settings },
+];
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const theme = useTheme();
