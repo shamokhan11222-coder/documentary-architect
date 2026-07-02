@@ -14,7 +14,37 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
-import { Moon, Sun, Menu, X } from "lucide-react";
+import {
+  Moon,
+  Sun,
+  Menu,
+  X,
+  Home,
+  LayoutDashboard,
+  FolderKanban,
+  Search,
+  BookText,
+  FileSearch,
+  Image as ImageIcon,
+  ImagePlus,
+  BarChart3,
+  Star,
+  Mic,
+  Captions,
+  ListVideo,
+  GanttChartSquare,
+  Music,
+  ListChecks,
+  Download,
+  Library,
+  Dna,
+  Sparkles,
+  PenLine,
+  BookOpen,
+  KeyRound,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
