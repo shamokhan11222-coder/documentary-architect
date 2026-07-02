@@ -162,6 +162,49 @@ function StoryPage() {
         </div>
       </div>
 
+      {selected && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-3">
+          <div className="text-xs font-medium text-muted-foreground">Video length</div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {LENGTH_PRESETS.map((p) => (
+              <Button
+                key={p.id}
+                size="sm"
+                variant={lengthId === p.id ? "default" : "outline"}
+                className="h-7 text-xs"
+                onClick={() => setLengthId(p.id)}
+              >
+                {p.label}
+              </Button>
+            ))}
+            <Button
+              size="sm"
+              variant={lengthId === "custom" ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setLengthId("custom")}
+            >
+              Custom
+            </Button>
+            {lengthId === "custom" && (
+              <span className="flex items-center gap-1 text-xs">
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={customMinutes}
+                  onChange={(e) => setCustomMinutes(Number(e.target.value) || 1)}
+                  className="h-7 w-16 rounded-md border border-input bg-background px-2 text-sm"
+                />
+                minutes
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Target: {preset.label} · {preset.minWords}–{preset.maxWords} words
+          </p>
+        </div>
+      )}
+
       {selected && !research && (
         <p className="mt-3 text-xs text-amber-600">
           No research found — run the Research Engine first for a grounded script.
