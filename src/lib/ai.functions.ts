@@ -854,3 +854,28 @@ Return a JSON object:
       originality: { score: number; verdict: string; notes: string[] };
     }>(EXPERTS.story, user);
   });
+
+// ---------------- Provider connection test ----------------
+
+// Pings the active AI provider (Gemini, attached via request headers) to
+// report Connected / Failed. Not Configured is decided on the client.
+export const testProvider = createServerFn({ method: "POST" }).handler(async () => {
+  const { readProviderFromHeaders } = await import("./provider.server");
+  const provider = readProviderFromHeaders();
+  if (!provider) return { status: "lovable" as const };
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${provider.textModel}:generateContent?key=${encodeURIComponent(provider.apiKey)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+      },
+    );
+    if (res.ok) return { status: "connected" as const, model: provider.textModel };
+    const text = await res.text().catch(() => "");
+    return { status: "failed" as const, message: `(${res.status}) ${text.slice(0, 160)}` };
+  } catch (e) {
+    return { status: "failed" as const, message: e instanceof Error ? e.message : "Request failed" };
+  }
+});

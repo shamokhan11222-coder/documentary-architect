@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // store each paragraph's narration block in IndexedDB and measure duration.
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/audio/speech";
 const MODEL = "openai/gpt-4o-mini-tts";
+const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const VOICE_MAP: Record<string, string> = {
   deep: "onyx",
@@ -11,6 +12,15 @@ const VOICE_MAP: Record<string, string> = {
   storyteller: "fable",
   educational: "alloy",
   cinematic: "ash",
+};
+
+// Gemini prebuilt voice names mapped to our narrator profiles.
+const GEMINI_VOICE_MAP: Record<string, string> = {
+  deep: "Charon",
+  calm: "Kore",
+  storyteller: "Aoede",
+  educational: "Puck",
+  cinematic: "Fenrir",
 };
 
 type Body = {
@@ -21,6 +31,7 @@ type Body = {
   emotion?: number;
   pauseStrength?: number;
   pitch?: number;
+  provider?: { name?: string; apiKey?: string; ttsModel?: string };
 };
 
 function buildInstructions(b: Body): string {
@@ -51,12 +62,88 @@ function buildInstructions(b: Body): string {
   return parts.join(" ");
 }
 
+// Wrap raw 16-bit PCM (Gemini returns L16 @ 24kHz mono) in a WAV container so
+// browsers can play and measure it.
+function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+// Narrate with the user's own Google Gemini key (no Lovable AI involved).
+async function ttsWithGemini(body: Body): Promise<Response> {
+  const provider = body.provider!;
+  const model = provider.ttsModel || "gemini-2.5-flash-preview-tts";
+  const voice = GEMINI_VOICE_MAP[body.profile ?? "deep"] ?? "Charon";
+  const prompt = `${buildInstructions(body)}\n\nSay: ${body.text!.slice(0, 4000)}`;
+  const upstream = await fetch(
+    `${GOOGLE}/${model}:generateContent?key=${encodeURIComponent(provider.apiKey ?? "")}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+        },
+      }),
+    },
+  );
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => "");
+    const status = upstream.status;
+    const msg =
+      status === 429
+        ? "Gemini rate limit reached. Please wait and try again."
+        : status === 400 || status === 403
+          ? "Gemini rejected the request — check your API key in API Settings."
+          : `Gemini voice generation failed (${status}): ${text.slice(0, 200)}`;
+    return new Response(JSON.stringify({ error: msg }), { status, headers: { "Content-Type": "application/json" } });
+  }
+  const data = await upstream.json();
+  const part = (data?.candidates?.[0]?.content?.parts ?? []).find(
+    (p: { inlineData?: { data?: string } }) => p?.inlineData?.data,
+  );
+  const b64 = part?.inlineData?.data;
+  if (!b64)
+    return new Response(JSON.stringify({ error: "Gemini returned no audio." }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    });
+  const rateMatch = /rate=(\d+)/.exec(part.inlineData.mimeType ?? "");
+  const wav = pcmToWav(Buffer.from(b64, "base64"), rateMatch ? Number(rateMatch[1]) : 24000);
+  return Response.json({ audio: `data:audio/wav;base64,${wav.toString("base64")}` });
+}
+
 export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const body = (await request.json()) as Body;
         if (!body.text?.trim()) return new Response("Missing text", { status: 400 });
+
+        // Active Gemini provider → use the user's key directly.
+        if (body.provider?.name === "gemini" && body.provider.apiKey) {
+          return ttsWithGemini(body);
+        }
+
         const key = process.env.LOVABLE_API_KEY;
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 

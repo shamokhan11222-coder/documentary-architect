@@ -1,3 +1,5 @@
+import { readProviderFromHeaders, geminiGenerateText } from "./provider.server";
+
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
 
@@ -47,6 +49,22 @@ export async function callAiJson<T = unknown>(
   system: string,
   user: string,
 ): Promise<T> {
+  const fullSystem = `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`;
+
+  // When a Gemini provider is active, route there and never touch Lovable AI.
+  const provider = readProviderFromHeaders();
+  if (provider) {
+    const content = await geminiGenerateText(provider.apiKey, provider.textModel, fullSystem, user, true);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
+    }
+  }
+
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
@@ -62,7 +80,7 @@ export async function callAiJson<T = unknown>(
       messages: [
         {
           role: "system",
-          content: `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`,
+          content: fullSystem,
         },
         { role: "user", content: user },
       ],
@@ -95,6 +113,11 @@ export async function callAiJson<T = unknown>(
 }
 
 export async function callAiText(system: string, user: string): Promise<string> {
+  const provider = readProviderFromHeaders();
+  if (provider) {
+    return geminiGenerateText(provider.apiKey, provider.textModel, system, user, false);
+  }
+
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
