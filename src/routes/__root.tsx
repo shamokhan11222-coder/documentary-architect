@@ -48,6 +48,7 @@ import {
 import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
+import { CursorGlow } from "../components/CursorGlow";
 
 function NotFoundComponent() {
   return (
@@ -227,6 +228,7 @@ function RootComponent() {
       </div>
       <AIChat />
       <Toaster />
+      <CursorGlow />
     </QueryClientProvider>
   );
 }
