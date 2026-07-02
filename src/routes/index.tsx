@@ -76,19 +76,21 @@ function HomePage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-6xl px-6 py-10 md:px-10 md:py-14">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">Documentary Ideas</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+              Documentary Ideas
+            </h1>
             {activeProvider && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-green-600/30 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-600">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-green-600/30 bg-green-600/10 px-2.5 py-0.5 text-xs font-medium text-green-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-600" />
                 Gemini Active
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
             The Hidden Origins of Everyday Life — engineered by a senior documentary
             strategist. Weak ideas are auto-rejected; rejecting trains your taste.
           </p>
