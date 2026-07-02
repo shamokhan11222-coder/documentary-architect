@@ -13,6 +13,7 @@ import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as VisualInstructionsRouteImport } from './routes/visual-instructions'
 import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
+import { Route as UnlockRouteImport } from './routes/unlock'
 import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
@@ -55,6 +56,11 @@ const VisualDnaRoute = VisualDnaRouteImport.update({
 const VisualRoute = VisualRouteImport.update({
   id: '/visual',
   path: '/visual',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnlockRoute = UnlockRouteImport.update({
+  id: '/unlock',
+  path: '/unlock',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TopicsRoute = TopicsRouteImport.update({
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
+  '/unlock': typeof UnlockRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
   '/visual-instructions': typeof VisualInstructionsRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
+  '/unlock': typeof UnlockRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
   '/visual-instructions': typeof VisualInstructionsRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
+  '/unlock': typeof UnlockRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
   '/visual-instructions': typeof VisualInstructionsRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/thumbnail'
     | '/timeline'
     | '/topics'
+    | '/unlock'
     | '/visual'
     | '/visual-dna'
     | '/visual-instructions'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/thumbnail'
     | '/timeline'
     | '/topics'
+    | '/unlock'
     | '/visual'
     | '/visual-dna'
     | '/visual-instructions'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/thumbnail'
     | '/timeline'
     | '/topics'
+    | '/unlock'
     | '/visual'
     | '/visual-dna'
     | '/visual-instructions'
@@ -372,6 +384,7 @@ export interface RootRouteChildren {
   ThumbnailRoute: typeof ThumbnailRoute
   TimelineRoute: typeof TimelineRoute
   TopicsRoute: typeof TopicsRoute
+  UnlockRoute: typeof UnlockRoute
   VisualRoute: typeof VisualRoute
   VisualDnaRoute: typeof VisualDnaRoute
   VisualInstructionsRoute: typeof VisualInstructionsRoute
@@ -409,6 +422,13 @@ declare module '@tanstack/react-router' {
       path: '/visual'
       fullPath: '/visual'
       preLoaderRoute: typeof VisualRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unlock': {
+      id: '/unlock'
+      path: '/unlock'
+      fullPath: '/unlock'
+      preLoaderRoute: typeof UnlockRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/topics': {
@@ -596,6 +616,7 @@ const rootRouteChildren: RootRouteChildren = {
   ThumbnailRoute: ThumbnailRoute,
   TimelineRoute: TimelineRoute,
   TopicsRoute: TopicsRoute,
+  UnlockRoute: UnlockRoute,
   VisualRoute: VisualRoute,
   VisualDnaRoute: VisualDnaRoute,
   VisualInstructionsRoute: VisualInstructionsRoute,
@@ -607,3 +628,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

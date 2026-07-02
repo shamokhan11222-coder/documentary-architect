@@ -6,15 +6,17 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Menu, X } from "lucide-react";
 import { AIChat } from "../components/AIChat";
+import { getGateStatus } from "../lib/gate.functions";
 
 function NotFoundComponent() {
   return (
@@ -77,6 +79,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async ({ location }) => {
+    // Private-access gate: only redirects when SITE_PASSWORD is configured on
+    // the deployment. Open by default so the app works as a normal website.
+    if (location.pathname === "/unlock") return;
+    const status = await getGateStatus();
+    if (status.enabled && !status.unlocked) {
+      throw redirect({ to: "/unlock" });
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -127,6 +138,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     applyTheme();
@@ -135,11 +147,41 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen bg-background text-foreground">
-        <Sidebar />
-        <main className="flex-1 overflow-x-hidden">
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </main>
+        {/* Desktop sidebar */}
+        <div className="hidden md:flex">
+          <Sidebar />
+        </div>
+
+        {/* Mobile drawer */}
+        {mobileNavOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setMobileNavOpen(false)}
+            />
+            <div className="absolute left-0 top-0 h-full">
+              <Sidebar onNavigate={() => setMobileNavOpen(false)} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Mobile top bar */}
+          <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-card px-4 py-3 md:hidden">
+            <button
+              onClick={() => setMobileNavOpen((v) => !v)}
+              aria-label="Toggle navigation"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <span className="text-sm font-semibold tracking-tight">DOCU OS</span>
+          </header>
+          <main className="min-w-0 flex-1 overflow-x-hidden">
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </main>
+        </div>
       </div>
       <AIChat />
       <Toaster />
@@ -177,7 +219,7 @@ const NAV = [
   { to: "/settings", label: "Settings" },
 ] as const;
 
-function Sidebar() {
+function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const theme = useTheme();
   return (
     <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r border-border bg-card">
@@ -199,6 +241,7 @@ function Sidebar() {
               key={item.to}
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
+              onClick={onNavigate}
               className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-accent [&.active]:font-medium [&.active]:text-foreground"
             >
               {item.label}
