@@ -181,6 +181,29 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RouteMotion() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <PageTransition routeKey={pathname}>
+      <Outlet />
+    </PageTransition>
+  );
+}
+
+function RootShellPlaceholder({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
