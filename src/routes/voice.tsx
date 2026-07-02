@@ -211,9 +211,6 @@ function VoicePage() {
   );
 }
 
-function Ctrl({
-  ...arguments
-}: never): never;
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border px-3 py-2">
