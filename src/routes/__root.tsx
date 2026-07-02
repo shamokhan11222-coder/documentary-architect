@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
   redirect,
+  useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -49,6 +50,7 @@ import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { CursorGlow } from "../components/CursorGlow";
+import { PageTransition } from "../components/motion";
 
 function NotFoundComponent() {
   return (
@@ -179,6 +181,15 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RouteMotion() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <PageTransition routeKey={pathname}>
+      <Outlet />
+    </PageTransition>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -222,7 +233,7 @@ function RootComponent() {
           </header>
           <main className="min-w-0 flex-1 overflow-x-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
+            <RouteMotion />
           </main>
         </div>
       </div>
@@ -290,7 +301,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               to={item.to}
               activeOptions={{ exact: item.to === "/" }}
               onClick={onNavigate}
-              className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand"
+              style={{ animation: "var(--animate-slide-in-left)", animationDelay: `${i * 22}ms` }}
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand"
             >
               <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
               <span className="truncate">{item.label}</span>
