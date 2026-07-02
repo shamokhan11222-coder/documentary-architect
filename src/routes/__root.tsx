@@ -17,6 +17,7 @@ import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
 import { Moon, Sun, Menu, X } from "lucide-react";
 import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
+import { Logo, LogoMark } from "../components/Logo";
 
 function NotFoundComponent() {
   return (
