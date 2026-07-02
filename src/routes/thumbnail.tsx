@@ -16,6 +16,7 @@ import {
 } from "@/lib/store";
 import { useImage, putImage } from "@/lib/images";
 import { generateThumbnailImage } from "@/lib/generate-image";
+import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
 import { Steps } from "@/components/Steps";
@@ -40,6 +41,7 @@ function ThumbnailPage() {
   const gen = useServerFn(generateThumbnails);
   const regen = useServerFn(regenerateThumbnail);
   const doReview = useServerFn(reviewThumbnails);
+  const credit = useCreditConfig();
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [dev, setDev] = useState(false);
@@ -65,6 +67,27 @@ function ThumbnailPage() {
     }
   }
 
+  // Generate images for thumbnail ideas from `start` up to `count` total ideas,
+  // skipping any that already have an image. Never redoes finished thumbnails.
+  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number) {
+    if (!selected) return;
+    setProgress({ done: start, total: end });
+    for (let i = start; i < end; i++) {
+      try {
+        const url = await generateThumbnailImage(ideas[i]);
+        await putImage(thumbImageId(selected.id, i), url);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "failed";
+        toast.error(`Thumbnail ${i + 1}: ${msg}`);
+        if (/credit|402/i.test(msg)) break;
+      }
+      setProgress({ done: i + 1, total: end });
+    }
+    setProgress(null);
+  }
+
+  // First click: create ideas and render only ONE thumbnail (or a few in Best
+  // Quality mode). Cheapest path — no wall of 10 auto-generated thumbnails.
   function handleGenerate() {
     if (!selected) return;
     return withBusy("gen", async () => {
@@ -72,18 +95,17 @@ function ThumbnailPage() {
         data: { topic: selected.topic, script: story?.script, angle: research?.storyAngles?.[0] },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
-      setProgress({ done: 0, total: ideas.length });
-      for (let i = 0; i < ideas.length; i++) {
-        try {
-          const url = await generateThumbnailImage(ideas[i]);
-          await putImage(thumbImageId(selected.id, i), url);
-        } catch (e) {
-          toast.error(`Thumbnail ${i + 1}: ${e instanceof Error ? e.message : "failed"}`);
-        }
-        setProgress({ done: i + 1, total: ideas.length });
-      }
-      setProgress(null);
-      toast.success("Thumbnails generated");
+      await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length));
+      toast.success("First thumbnail ready. Not happy? Generate alternatives.");
+    });
+  }
+
+  // Only when the user asks: render the remaining idea images as alternatives.
+  function handleAlternatives() {
+    if (!selected || !pack) return;
+    return withBusy("alt", async () => {
+      await renderImages(pack.ideas, 0, pack.ideas.length);
+      toast.success("Alternatives generated");
     });
   }
 
