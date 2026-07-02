@@ -78,6 +78,11 @@ export interface Story {
   hookScore: number;
   storyScore: number;
   engagementScore: number;
+  curiosityScore?: number;
+  retentionScore?: number;
+  targetLabel?: string;
+  minWords?: number;
+  maxWords?: number;
   review?: StageReview;
   generatedAt: number;
 }
