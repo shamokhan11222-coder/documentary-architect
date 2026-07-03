@@ -2,6 +2,7 @@
 // in localStorage so the app stays private but is structured to become a real
 // SaaS later (swap these functions for Supabase calls without touching UI).
 import { readLocal, writeLocal, useLocal } from "./local";
+import { getActiveProvider, useActiveProvider } from "./provider";
 
 /* ---------------- Auth (mock, local) ---------------- */
 
@@ -32,6 +33,21 @@ export function isAdmin(): boolean {
 
 export function useIsAdmin(): boolean {
   return useAccount()?.role === "admin";
+}
+
+/**
+ * True when generation should be unlimited (never gated by internal credits):
+ * either an admin/developer account, or a verified external AI provider
+ * (e.g. the user's own Gemini/OpenAI key) is connected. Internal credits only
+ * apply to normal customers using the built-in AI.
+ */
+export function hasUnlimitedAccess(): boolean {
+  return isAdmin() || getActiveProvider() !== null;
+}
+
+/** Reactive version of {@link hasUnlimitedAccess} for UI. */
+export function useHasUnlimitedAccess(): boolean {
+  return useIsAdmin() || useActiveProvider() !== null;
 }
 
 export function login(email: string, name?: string) {
