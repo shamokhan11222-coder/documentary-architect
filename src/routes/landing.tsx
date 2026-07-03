@@ -147,6 +147,32 @@ const FAQS = [
   },
 ];
 
+const DEMO_STEPS = [
+  { label: "Topic", text: "The forgotten engineer who wired the first city — and why history erased him." },
+  { label: "Research", text: "12 sourced beats · timeline · 3 contrarian angles · retention hooks mapped." },
+  { label: "Script", text: "Cold open → rising tension → payoff. An 11-minute cut built for watch-time." },
+  { label: "Visuals", text: "Consistent storyboard, cinematic thumbnails and narration — export-ready." },
+];
+
+const VIDEOS = [
+  { img: hero1, title: "The Hidden Origins of the Traffic Light", meta: "11:42 · 1.2M views" },
+  { img: hero3, title: "Who Really Invented the Escalator?", meta: "9:18 · 840K views" },
+  { img: hero2, title: "The City That Ran on Steam", meta: "13:05 · 2.1M views" },
+];
+
+const COMMUNITY = [
+  { icon: MessagesSquare, title: "Creator Discord", desc: "8,000+ documentary makers sharing hooks, prompts and workflows.", stat: "8k members" },
+  { icon: Wand2, title: "Prompt Library", desc: "Battle-tested topic and script recipes, added weekly.", stat: "300+ recipes" },
+  { icon: Users, title: "Live Workshops", desc: "Weekly teardown sessions with 7-figure channel owners.", stat: "Every Friday" },
+];
+
+const SOCIALS = [
+  { icon: Twitter, label: "Twitter" },
+  { icon: Youtube, label: "YouTube" },
+  { icon: Github, label: "GitHub" },
+  { icon: MessagesSquare, label: "Discord" },
+];
+
 function LandingPage() {
   return (
     <div className="min-h-screen overflow-x-hidden">
