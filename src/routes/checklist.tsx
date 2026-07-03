@@ -34,8 +34,9 @@ function ChecklistPage() {
   const completedImages = queue?.items.filter((i) => i.status === "completed").length ?? 0;
   const failedImages = queue?.items.filter((i) => i.status === "failed").length ?? 0;
   const sceneCount = map?.scenes.length ?? 0;
-  const words = story ? (story.script.match(/\S+/g) ?? []).length : 0;
-  const estDuration = story ? estimateSeconds(story.script) : 0;
+  const scriptText = typeof story?.script === "string" ? story.script : "";
+  const words = (scriptText.match(/\S+/g) ?? []).length;
+  const estDuration = scriptText ? estimateSeconds(scriptText) : 0;
   const voiceDuration = (voice?.blocks ?? []).reduce((s, b) => s + (b.realSeconds ?? b.estSeconds), 0);
 
   const done: Record<string, boolean> = {
