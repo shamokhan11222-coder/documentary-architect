@@ -104,8 +104,12 @@ function ThumbnailPage() {
     if (!selected) return;
     return withBusy("gen", async () => {
       const ideas = (await gen({
-        data: { topic: selected.topic, script: story?.script, angle: research?.storyAngles?.[0] },
-        // instructions + best-thumbnail knowledge injected below
+        data: {
+          topic: selected.topic,
+          script: story?.script,
+          angle: research?.storyAngles?.[0],
+          ...buildInjection(["thumbnail"]),
+        },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
       await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
