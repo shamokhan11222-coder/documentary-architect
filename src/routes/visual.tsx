@@ -134,7 +134,7 @@ function VisualPage() {
   const doCheck = useServerFn(checkImageConsistency);
   const credit = useCreditConfig();
   const imageProviderStatus = useImageProviderStatus();
-  const activeImageProvider = useActiveImageProvider({ requireTest: false });
+  const activeImageProvider = useActiveImageProvider();
   const telemetry = useTelemetry();
   const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
@@ -294,14 +294,12 @@ function VisualPage() {
 
   function handleTestImageProvider() {
     return withBusy("test-provider", async () => {
-      const provider = imageProviderPayload({ requireTest: false });
-      if (!provider || !activeImageProvider) {
-        toast.error("Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.");
-        return;
-      }
+      const provider = imageProviderPayload();
       await testImageProvider(provider);
-      markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
-      toast.success("Image provider test passed");
+      if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
+      toast.success(
+        activeImageProvider ? "Image provider test passed" : "Built-in AI is working — ready to generate",
+      );
     });
   }
 

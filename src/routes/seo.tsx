@@ -80,7 +80,27 @@ function SeoPage() {
       const data = (await gen({
         data: { topic: selected.topic, script: story?.script },
       })) as Omit<Seo, "topicId" | "generatedAt">;
-      saveSeo({ ...data, topicId: selected.id, generatedAt: Date.now() });
+      // Never blank existing fields: fall back to the previous SEO (or safe
+      // empties) for anything the model left missing.
+      const arr = (next?: string[], prev?: string[]) =>
+        Array.isArray(next) && next.length ? next : (prev ?? []);
+      const str = (next?: string, prev?: string) =>
+        typeof next === "string" && next.trim() ? next : (prev ?? "");
+      const merged: Seo = {
+        topicId: selected.id,
+        generatedAt: Date.now(),
+        titleOptions: arr(data.titleOptions, seo?.titleOptions),
+        bestTitle: str(data.bestTitle, seo?.bestTitle),
+        description: str(data.description, seo?.description),
+        tags: arr(data.tags, seo?.tags),
+        hashtags: arr(data.hashtags, seo?.hashtags),
+        keywords: arr(data.keywords, seo?.keywords),
+        pinnedComment: str(data.pinnedComment, seo?.pinnedComment),
+        shortSummary: str(data.shortSummary, seo?.shortSummary),
+        longSummary: str(data.longSummary, seo?.longSummary),
+        uploadChecklist: arr(data.uploadChecklist, seo?.uploadChecklist),
+      };
+      saveSeo(merged);
       toast.success("SEO generated");
     });
   }

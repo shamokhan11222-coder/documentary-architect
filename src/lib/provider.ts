@@ -17,7 +17,7 @@ export interface ActiveProvider {
   ttsModel: string;
 }
 
-export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate";
+export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "builtin";
 
 export interface ActiveImageProvider {
   id: string;
@@ -168,21 +168,16 @@ export function useActiveProvider(): ActiveProvider | null {
   return toProvider(findGemini(list));
 }
 
-export function getActiveImageProvider(options: { requireTest?: boolean } = {}): ActiveImageProvider | null {
+/** External image provider if the selected image choice has a connected key. */
+export function getActiveImageProvider(): ActiveImageProvider | null {
   const choice = getProviderSettings().image;
-  const provider = toImageProvider(choice, findImageKey(choice, readLocal<ApiKeyEntry[]>(KEY, [])));
-  if (!provider) return null;
-  if (options.requireTest !== false && !provider.testPassed) return null;
-  return provider;
+  return toImageProvider(choice, findImageKey(choice, readLocal<ApiKeyEntry[]>(KEY, [])));
 }
 
-export function useActiveImageProvider(options: { requireTest?: boolean } = {}): ActiveImageProvider | null {
+export function useActiveImageProvider(): ActiveImageProvider | null {
   const settings = useProviderSettings();
   const list = useLocal<ApiKeyEntry[]>(KEY, []);
-  const provider = toImageProvider(settings.image, findImageKey(settings.image, list));
-  if (!provider) return null;
-  if (options.requireTest !== false && !provider.testPassed) return null;
-  return provider;
+  return toImageProvider(settings.image, findImageKey(settings.image, list));
 }
 
 export function getImageProviderStatus(): {
@@ -193,56 +188,55 @@ export function getImageProviderStatus(): {
   ok: boolean;
   message: string;
 } {
-  const choice = getProviderSettings().image;
-  const provider = getActiveImageProvider({ requireTest: false });
-  const connected = !!provider;
-  const testPassed = !!provider?.testPassed;
-  return {
-    choice,
-    label: imageLabel(choice),
-    connected,
-    testPassed,
-    ok: connected && testPassed,
-    message: !connected ? IMAGE_PROVIDER_NOT_CONNECTED : testPassed ? "Ready" : "Test image provider before generating.",
-  };
+  return statusFor(getProviderSettings().image, getActiveImageProvider());
 }
 
 export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
   const settings = useProviderSettings();
   const list = useLocal<ApiKeyEntry[]>(KEY, []);
-  const provider = toImageProvider(settings.image, findImageKey(settings.image, list));
-  const connected = !!provider;
-  const testPassed = !!provider?.testPassed;
+  return statusFor(settings.image, toImageProvider(settings.image, findImageKey(settings.image, list)));
+}
+
+/** Image generation is always available: an external provider when connected,
+ *  otherwise the built-in AI. Generation is therefore never silently disabled. */
+function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null) {
+  if (external) {
+    return {
+      choice,
+      label: external.label,
+      connected: true,
+      testPassed: external.testPassed,
+      ok: true,
+      message: external.testPassed ? "Ready" : "Connected — click Test to verify.",
+    };
+  }
   return {
-    choice: settings.image,
-    label: imageLabel(settings.image),
-    connected,
-    testPassed,
-    ok: connected && testPassed,
-    message: !connected ? IMAGE_PROVIDER_NOT_CONNECTED : testPassed ? "Ready" : "Test image provider before generating.",
+    choice,
+    label: "Built-in AI",
+    connected: true,
+    testPassed: true,
+    ok: true,
+    message: "Built-in AI ready.",
   };
 }
 
-/** Body payload passed to the image API route so the server can route. */
-export function imageProviderPayload(options: { requireTest?: boolean } = {}) {
-  const p = getActiveImageProvider(options);
-  if (!p) return undefined;
-  // Image generation never receives fallback:true. Built-in AI is disabled.
+/** Body payload passed to the image API route so the server can route. Uses the
+ *  connected external provider when available, otherwise routes to built-in AI. */
+export function imageProviderPayload() {
+  const p = getActiveImageProvider();
+  if (!p) return { name: "builtin" as const };
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
 export function thumbnailProviderPayload() {
-  const p = getActiveImageProvider();
-  if (!p) return undefined;
-  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
+  return imageProviderPayload();
 }
 
 /** Whether image generation can start with the currently selected provider.
  *  When the Image Provider is routed to an external provider that is not
  *  connected, generation must NOT silently fall back to built-in AI. */
 export function imageProviderReady(): { ok: boolean; message?: string } {
-  const status = getImageProviderStatus();
-  if (!status.ok) return { ok: false, message: status.message };
+  // Image generation is always possible (built-in AI is the fallback path).
   return { ok: true };
 }
 
