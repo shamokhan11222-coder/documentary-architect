@@ -390,7 +390,7 @@ function LandingPage() {
           <div>
             <div className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
-              <span className="font-display text-lg font-bold">Stickmax <span className="text-brand">Studio</span></span>
+              <span className="font-display text-lg font-bold">Stickmax</span>
             </div>
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
               The AI command center for documentary YouTube channels.
@@ -402,7 +402,7 @@ function LandingPage() {
         </div>
         <div className="border-t border-border/50">
           <div className="mx-auto max-w-6xl px-6 py-6 text-center text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Stickmax Studio. All rights reserved.
+            © {new Date().getFullYear()} Stickmax · stickmax.io — All rights reserved.
           </div>
         </div>
       </footer>
