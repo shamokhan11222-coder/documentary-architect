@@ -48,11 +48,11 @@ import {
 } from "lucide-react";
 import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
-import { Logo, LogoMark } from "../components/Logo";
+import { Logo } from "../components/Logo";
 import { PageTransition } from "../components/motion";
-import { useAccount, login, logout, initials, useCredits } from "../lib/account";
+import { useAccount, logout, initials, useCredits } from "../lib/account";
 import { toast } from "sonner";
-import { Coins, LogIn, LogOut, CreditCard, Tag } from "lucide-react";
+import { Coins, LogIn, LogOut } from "lucide-react";
 
 function NotFoundComponent() {
   return (
