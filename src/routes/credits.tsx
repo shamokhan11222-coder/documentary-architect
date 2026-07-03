@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Coins, TrendingUp, AlertTriangle, Plus, Zap } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Coins, TrendingUp, AlertTriangle, Plus, Zap, Crown, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { CreditsUsageChart } from "@/components/CreditsUsageChart";
 import {
   useCredits,
   addCredits,
@@ -10,6 +11,8 @@ import {
   LOW_CREDIT_THRESHOLD,
   CREDIT_COSTS,
   useIsAdmin,
+  useRenewsAt,
+  MONTHLY_FREE_CREDITS,
 } from "@/lib/account";
 
 export const Route = createFileRoute("/credits")({
@@ -20,18 +23,32 @@ export const Route = createFileRoute("/credits")({
 function CreditsPage() {
   const { balance, history } = useCredits();
   const admin = useIsAdmin();
+  const renewsAt = useRenewsAt();
   const low = !admin && balance <= LOW_CREDIT_THRESHOLD;
   const spent = history
     .filter((h) => h.amount < 0)
     .reduce((s, h) => s + Math.abs(h.amount), 0);
+  const daysToRenewal = Math.max(
+    0,
+    Math.ceil((renewsAt - Date.now()) / (24 * 60 * 60 * 1000)),
+  );
 
   return (
     <div className="brand-gradient min-h-screen">
       <div className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">Credits</h1>
-        <p className="mt-1 text-muted-foreground">
-          Track your balance, usage, and estimated cost before you generate.
-        </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display text-3xl font-bold tracking-tight md:text-4xl">Credits</h1>
+            <p className="mt-1 text-muted-foreground">
+              Track your balance, usage, and estimated cost before you generate.
+            </p>
+          </div>
+          <Button asChild variant="brand" size="lg" className="btn-press">
+            <Link to="/upgrade">
+              <Crown className="h-4 w-4" /> Upgrade
+            </Link>
+          </Button>
+        </div>
 
         {admin && (
           <div className="mt-6 flex items-center gap-3 rounded-2xl border border-brand/40 bg-brand/10 px-4 py-3 text-sm text-brand">
@@ -74,6 +91,39 @@ function CreditsPage() {
             </div>
             <div className="mt-2 text-4xl font-bold tracking-tight">~{FULL_RUN_ESTIMATE}</div>
             <div className="mt-1 text-xs text-muted-foreground">credits per auto-generation</div>
+          </Card>
+        </div>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-3">
+          <Card className="glass-card p-6 md:col-span-2">
+            <h2 className="font-display text-lg font-bold">Usage over time</h2>
+            <div className="mt-2">
+              <CreditsUsageChart history={history} />
+            </div>
+          </Card>
+          <Card className="glass-card flex flex-col p-6">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CalendarClock className="h-4 w-4 text-brand" /> Upcoming renewal
+            </div>
+            {admin ? (
+              <div className="mt-2 text-2xl font-bold tracking-tight">Unlimited</div>
+            ) : (
+              <>
+                <div className="mt-2 text-3xl font-bold tracking-tight">
+                  {daysToRenewal === 0 ? "Today" : `${daysToRenewal} days`}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  +{MONTHLY_FREE_CREDITS} free credits on{" "}
+                  {new Date(renewsAt).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </p>
+                <Button asChild variant="outline" className="mt-auto">
+                  <Link to="/upgrade">Get more, faster</Link>
+                </Button>
+              </>
+            )}
           </Card>
         </div>
 
