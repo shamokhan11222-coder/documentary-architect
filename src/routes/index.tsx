@@ -110,7 +110,13 @@ function Workspace() {
   const activeId = active?.id ?? null;
   const [query, setQuery] = useState("");
 
-  const headline = useMemo(() => HEADLINES[new Date().getDay() % HEADLINES.length], []);
+  // Time/date-dependent values must not run during SSR/first render — they
+  // differ between server and client and cause a hydration crash. Compute
+  // them only after mount, with deterministic fallbacks for the first paint.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const headline = mounted ? HEADLINES[new Date().getDay() % HEADLINES.length] : HEADLINES[0];
+  const greetingText = mounted ? greeting() : "Welcome back";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -145,7 +151,7 @@ function Workspace() {
       {/* HERO — greeting + inspirational headline + search */}
       <Reveal className="pt-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
-          <Sparkles className="h-3.5 w-3.5" /> {greeting()}
+          <Sparkles className="h-3.5 w-3.5" /> {greetingText}
         </div>
         <h1 className="mt-4 max-w-4xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
           {headline}
