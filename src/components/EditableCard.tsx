@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Copy, Pencil, Sparkles, RefreshCw, Maximize2, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/io";
+import { humanizeError } from "@/lib/humanize-error";
 
 type RefineMode = "improve" | "rewrite" | "expand";
 
@@ -31,7 +32,7 @@ export function EditableCard({
       await onRefine(mode);
       toast.success(`${title} — ${mode} done`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
+      toast.error(humanizeError(e, "Failed"));
     } finally {
       setBusy(null);
     }

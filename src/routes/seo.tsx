@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { StageShell } from "@/components/StageShell";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import type { Seo } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/seo")({
   head: () => ({ meta: [{ title: "SEO — Stickmax Studio" }] }),
@@ -67,7 +68,7 @@ function SeoPage() {
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(humanizeError(e, "Something went wrong"));
     } finally {
       setBusy(null);
     }

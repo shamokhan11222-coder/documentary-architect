@@ -9,6 +9,7 @@ import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useStory } from "@/lib/store";
 import { useAudioPack, saveAudioPack } from "@/lib/production";
 import { suggestAudio } from "@/lib/ai.functions";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/audio")({
   head: () => ({ meta: [{ title: "Music & SFX — Stickmax Studio" }] }),
@@ -33,7 +34,7 @@ function AudioPage() {
       saveAudioPack({ topicId: selected.id, music: r.music, sfx: r.sfx, generatedAt: Date.now() });
       toast.success("Audio suggestions ready");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
+      toast.error(humanizeError(e, "Failed"));
     } finally {
       setBusy(false);
     }

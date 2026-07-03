@@ -22,6 +22,7 @@ import { Score, Meta } from "@/components/Score";
 import { StageShell } from "@/components/StageShell";
 import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/thumbnail")({
   head: () => ({ meta: [{ title: "Thumbnail — Stickmax Studio" }] }),
@@ -61,7 +62,7 @@ function ThumbnailPage() {
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(humanizeError(e, "Something went wrong"));
     } finally {
       setBusy(null);
     }
@@ -82,7 +83,7 @@ function ThumbnailPage() {
         const url = await generateThumbnailImage(ideas[i]);
         await putImage(thumbImageId(selected.id, i), url);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "failed";
+        const msg = humanizeError(e, "failed");
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
         if (/credit|402/i.test(msg)) break;
       }

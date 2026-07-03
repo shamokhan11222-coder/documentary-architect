@@ -21,6 +21,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { StageShell } from "@/components/StageShell";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import type { RatingReport } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/rating")({
   head: () => ({ meta: [{ title: "Rating — Stickmax Studio" }] }),
@@ -77,7 +78,7 @@ function RatingPage() {
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(humanizeError(e, "Something went wrong"));
     } finally {
       setBusy(null);
     }

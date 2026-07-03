@@ -27,6 +27,10 @@ import {
   Wand2,
   Rocket,
   CircleDot,
+  Landmark,
+  Compass,
+  FlaskConical,
+  Telescope,
 } from "lucide-react";
 
 import { generateHomeIdeas } from "@/lib/ai.functions";
@@ -48,6 +52,7 @@ import { useCreditConfig } from "@/lib/credit-mode";
 import { AnimatedNumber, Reveal, AIThinking } from "@/components/motion";
 import { LogoLoading } from "@/components/Logo";
 import type { GeneratedIdea, IdeaCategory } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 const STAGE_ROUTE: Record<StageKey, string> = {
   research: "/research",
@@ -365,7 +370,9 @@ function Workspace({ activeProviderName }: { activeProviderName: string | null }
               className="card-lift flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/40 p-4 text-left animate-spring-in"
               style={{ animationDelay: `${i * 40}ms` }}
             >
-              <span className="text-2xl">{tpl.emoji}</span>
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/15">
+                <tpl.icon className="h-5 w-5" />
+              </span>
               <span className="text-sm font-semibold leading-snug">{tpl.name}</span>
               <span className="text-xs text-muted-foreground line-clamp-2">{tpl.desc}</span>
               <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand">
@@ -401,7 +408,7 @@ function RecentGenerations() {
       })) as IdeaCategory[];
       setCategories(data);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to load ideas");
+      toast.error(humanizeError(e, "Failed to load ideas"));
     } finally {
       setLoading(false);
     }
@@ -561,13 +568,13 @@ function ProgressRing({ percent, running }: { percent: number; running: boolean 
 function UsageGraph({ data }: { data: { label: string; value: number }[] }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
-    <div className="mt-4 flex h-28 items-end gap-2">
+    <div className="mt-4 flex h-28 items-stretch gap-2">
       {data.map((d, i) => (
-        <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+        <div key={i} className="group flex h-full flex-1 flex-col items-center gap-1.5">
           <div className="flex w-full flex-1 items-end">
             <div
-              className="w-full rounded-t-md bg-brand/70 transition-all duration-700 ease-out hover:bg-brand"
-              style={{ height: `${Math.max(6, (d.value / max) * 100)}%` }}
+              className="chart-rise w-full rounded-t-md bg-gradient-to-t from-brand/60 to-brand transition-all duration-700 ease-out group-hover:from-brand"
+              style={{ height: `${Math.max(6, (d.value / max) * 100)}%`, animationDelay: `${i * 60}ms` }}
               title={`${d.value}`}
             />
           </div>
@@ -608,10 +615,10 @@ const QUICK_ACTIONS = [
 ] as const;
 
 const TEMPLATES = [
-  { emoji: "🏛️", name: "Origins of Everyday Objects", desc: "Trace the hidden history of things people use daily." },
-  { emoji: "🌊", name: "Vanished in History", desc: "Unsolved disappearances with a documentary arc." },
-  { emoji: "🧪", name: "Accidental Inventions", desc: "Discoveries that changed the world by mistake." },
-  { emoji: "🌌", name: "Secrets of the Universe", desc: "Big-idea science explained cinematically." },
+  { icon: Landmark, name: "Origins of Everyday Objects", desc: "Trace the hidden history of things people use daily." },
+  { icon: Compass, name: "Vanished in History", desc: "Unsolved disappearances with a documentary arc." },
+  { icon: FlaskConical, name: "Accidental Inventions", desc: "Discoveries that changed the world by mistake." },
+  { icon: Telescope, name: "Secrets of the Universe", desc: "Big-idea science explained cinematically." },
 ];
 
 const AI_NEWS = [

@@ -27,6 +27,7 @@ import { loadImage } from "@/lib/images";
 import { voiceBlockId } from "@/lib/generate-voice";
 import { slugify } from "@/lib/io";
 import type { Seo, RatingReport } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "Export — Stickmax Studio" }] }),
@@ -213,7 +214,7 @@ function ExportPage() {
       URL.revokeObjectURL(url);
       toast.success("Project exported");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Export failed");
+      toast.error(humanizeError(e, "Export failed"));
     } finally {
       setBusy(false);
       setProgress("");

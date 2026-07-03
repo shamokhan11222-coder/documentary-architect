@@ -20,6 +20,7 @@ import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { StageShell } from "@/components/StageShell";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/visual")({
   head: () => ({ meta: [{ title: "Images — Stickmax Studio" }] }),
@@ -68,7 +69,7 @@ function VisualPage() {
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(humanizeError(e, "Something went wrong"));
     } finally {
       setBusy(null);
     }
@@ -116,7 +117,7 @@ function VisualPage() {
         try {
           await genImage(scenes[i]);
         } catch (e) {
-          const msg = e instanceof Error ? e.message : "failed";
+          const msg = humanizeError(e, "failed");
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
           if (/credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
             toast.error("Credits exhausted. Completed images are saved — resume later.");

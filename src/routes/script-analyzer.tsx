@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai.functions";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/io";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/script-analyzer")({
   head: () => ({ meta: [{ title: "Script Analyzer — Stickmax Studio" }] }),
@@ -52,7 +53,7 @@ function ScriptAnalyzerPage() {
       setPattern(p);
       toast.success("Pattern extracted");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Analysis failed");
+      toast.error(humanizeError(e, "Analysis failed"));
     } finally {
       setAnalyzing(false);
     }
@@ -66,7 +67,7 @@ function ScriptAnalyzerPage() {
       setResult(r);
       toast.success("Original script generated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Generation failed");
+      toast.error(humanizeError(e, "Generation failed"));
     } finally {
       setGenerating(false);
     }
