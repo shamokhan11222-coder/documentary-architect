@@ -162,7 +162,7 @@ function VisualPage() {
   }
 
   const pendingScenes = () =>
-    [...(map?.scenes ?? [])]
+    [...scenes]
       .sort((a, b) => a.sceneNumber - b.sceneNumber)
       .filter((s) => !have.has(s.sceneNumber));
 
@@ -171,8 +171,7 @@ function VisualPage() {
   }
 
   function retryFailed() {
-    const scenes = (map?.scenes ?? []).filter((s) => failed.has(s.sceneNumber));
-    return runBatch("retry", scenes);
+    return runBatch("retry", scenes.filter((s) => failed.has(s.sceneNumber)));
   }
 
   // Stable, per-scene card callbacks (read latest state via refs). Keeping these
@@ -217,13 +216,13 @@ function VisualPage() {
   const onCardDelete = useCallback((sceneNumber: number) => {
     const m = mapRef.current;
     const sel = selectedRef.current;
-    if (!m || !sel) return;
+    if (!m || !sel || !Array.isArray(m.scenes)) return;
     deleteImage(sceneImageId(sel.id, sceneNumber));
     saveVisualMap({ ...m, scenes: m.scenes.filter((s) => s.sceneNumber !== sceneNumber) });
   }, []);
 
   function handleConsistency() {
-    if (!selected || !map) return;
+    if (!selected || !map || !Array.isArray(map.scenes)) return;
     return withBusy("check", async () => {
       const withImages: number[] = [];
       for (const s of map.scenes) {
