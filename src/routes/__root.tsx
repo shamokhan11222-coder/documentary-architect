@@ -339,9 +339,15 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Coins className={`h-4 w-4 ${low ? "text-destructive" : "text-brand"}`} />
             Credits
           </span>
-          <span className={`font-semibold ${low ? "text-destructive" : "text-foreground"}`}>
-            {balance}
-          </span>
+          {admin ? (
+            <span className="flex items-center gap-1 font-semibold text-brand">
+              <InfinityIcon className="h-4 w-4" /> Unlimited
+            </span>
+          ) : (
+            <span className={`font-semibold ${low ? "text-destructive" : "text-foreground"}`}>
+              {balance}
+            </span>
+          )}
         </Link>
 
         {/* Theme toggle */}
@@ -355,27 +361,43 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
         {/* Account / profile area */}
         {account ? (
-          <div className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-card/50 p-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
-              {initials(account.name)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-foreground">{account.name}</div>
-              <div className="truncate text-[11px] capitalize text-muted-foreground">
-                {account.plan} plan
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-card/50 p-2.5 text-left transition-colors hover:border-brand/40 focus:outline-none">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
+                {initials(account.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-foreground">{account.name}</div>
+                <div className="truncate text-[11px] capitalize text-muted-foreground">
+                  {admin ? "Owner · Admin" : `${account.plan} plan`}
+                </div>
               </div>
-            </div>
-            <button
-              onClick={() => {
-                logout();
-                toast.success("Signed out");
-              }}
-              aria-label="Sign out"
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" className="w-52">
+              <DropdownMenuLabel className="truncate">{account.email}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/credits" onClick={onNavigate}>
+                  <CreditCard className="h-4 w-4" /> Credits
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings" onClick={onNavigate}>
+                  <SettingsIcon className="h-4 w-4" /> Account settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  logout();
+                  toast.success("Signed out");
+                }}
+              >
+                <LogOut className="h-4 w-4" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <Link
             to="/login"
