@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useTopics, useSelectedTopicId, exportProject, useTaste, clearTaste } from "@/lib/store";
 import { getGateStatus, lockSite } from "@/lib/gate.functions";
-import { Steps } from "@/components/Steps";
 import { downloadJson, slugify } from "@/lib/io";
 import { toggleTheme, useTheme } from "@/lib/theme";
 import { CREDIT_MODES, useCreditConfig, setCreditMode, type CreditMode } from "@/lib/credit-mode";
