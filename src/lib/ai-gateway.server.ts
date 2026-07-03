@@ -51,22 +51,28 @@ export async function callAiJson<T = unknown>(
 ): Promise<T> {
   const fullSystem = `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`;
 
-  // When a Gemini provider is active, route there and never touch Lovable AI.
+  // When a Gemini provider is active, route there and NEVER touch the built-in
+  // Lovable AI. Any Gemini error is surfaced as-is (no fallback) so users see
+  // the real cause instead of a built-in "out of credits" message.
   const provider = readProviderFromHeaders();
   if (provider) {
+    console.log("[AI] provider=gemini task=json model=%s request started", provider.textModel);
+    let content: string;
     try {
-      const content = await geminiGenerateText(provider.apiKey, provider.textModel, fullSystem, user, true);
-      try {
-        return extractJson<T>(content);
-      } catch {
-        const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
-        err.code = "JSON_PARSE_FAILED";
-        err.raw = content.slice(0, 20000);
-        throw err;
-      }
+      content = await geminiGenerateText(provider.apiKey, provider.textModel, fullSystem, user, true);
     } catch (e) {
-      // Fall back to built-in Lovable AI only when the user enabled it.
-      if (!provider.fallback) throw e;
+      console.error("[AI] gemini request failed:", e instanceof Error ? e.message : e);
+      throw e; // surface the REAL Gemini error — do not fall back to built-in
+    }
+    console.log("[AI] provider=gemini response received (%d chars)", content.length);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      console.error("[AI] gemini JSON parse failed");
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
     }
   }
 
@@ -120,10 +126,14 @@ export async function callAiJson<T = unknown>(
 export async function callAiText(system: string, user: string): Promise<string> {
   const provider = readProviderFromHeaders();
   if (provider) {
+    console.log("[AI] provider=gemini task=text model=%s request started", provider.textModel);
     try {
-      return await geminiGenerateText(provider.apiKey, provider.textModel, system, user, false);
+      const out = await geminiGenerateText(provider.apiKey, provider.textModel, system, user, false);
+      console.log("[AI] provider=gemini response received (%d chars)", out.length);
+      return out;
     } catch (e) {
-      if (!provider.fallback) throw e;
+      console.error("[AI] gemini request failed:", e instanceof Error ? e.message : e);
+      throw e; // surface the REAL Gemini error — do not fall back to built-in
     }
   }
 
