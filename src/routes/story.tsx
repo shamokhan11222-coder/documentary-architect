@@ -18,6 +18,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { StageShell } from "@/components/StageShell";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import { Feedback } from "@/components/Feedback";
+import { buildInjection, getScriptPattern } from "@/lib/generation-context";
 import type { Story, StorySection, StoryReview } from "@/lib/types";
 import { estimateSeconds } from "@/lib/production";
 import { humanizeError } from "@/lib/humanize-error";
@@ -145,6 +146,8 @@ function StoryPageInner() {
             minWords: preset.minWords,
             maxWords: preset.maxWords,
             targetLabel: preset.label,
+            scriptPattern: getScriptPattern() ?? undefined,
+            ...buildInjection(["hook", "story", "instruction"]),
           },
         })) as Omit<Story, "topicId" | "generatedAt">;
         saveStory({ ...data, topicId: selected.id, generatedAt: Date.now() });
