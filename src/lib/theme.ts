@@ -5,8 +5,8 @@ type Theme = "light" | "dark";
 const listeners = new Set<() => void>();
 
 function current(): Theme {
-  if (typeof window === "undefined") return "light";
-  return (localStorage.getItem(KEY) as Theme) || "light";
+  if (typeof window === "undefined") return "dark";
+  return (localStorage.getItem(KEY) as Theme) || "dark";
 }
 
 export function applyTheme() {
@@ -27,7 +27,7 @@ export function useTheme(): Theme {
       listeners.add(l);
       return () => listeners.delete(l);
     },
-    () => (localStorage.getItem(KEY) as Theme) || "light",
-    () => "light",
+    () => (localStorage.getItem(KEY) as Theme) || "dark",
+    () => "dark",
   );
 }
