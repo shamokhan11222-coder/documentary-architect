@@ -23,6 +23,7 @@ import {
 import { testProvider } from "@/lib/ai.functions";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
+import { useTelemetry } from "@/lib/provider-telemetry";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
@@ -237,24 +238,41 @@ function ApiKeysPage() {
  */
 function DebugStatus() {
   const active = useActiveProvider();
+  const settings = useProviderSettings();
   const admin = useIsAdmin();
   const unlimited = useHasUnlimitedAccess();
   const allowed = useCanGenerate();
+  const tele = useTelemetry();
 
-  const activeProvider = active ? "Gemini" : "Built-in AI";
+  const label = (choice: ProviderChoice) =>
+    active && choice === "gemini" ? "Gemini" : "Built-in AI";
   const creditMode = admin
     ? "Developer Unlimited"
     : unlimited
       ? "Provider Unlimited"
       : "Customer Credits";
+  const lastProvider =
+    tele.lastProvider === "gemini"
+      ? "Gemini"
+      : tele.lastProvider === "builtin"
+        ? "Built-in AI"
+        : "—";
+  const lastStatus =
+    tele.lastStatus === "success" ? "Success" : tele.lastStatus === "error" ? "Error" : "—";
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs">
       <div className="mb-2 font-sans text-sm font-medium">Diagnostics</div>
       <div className="grid gap-1">
-        <div>Active Provider: {activeProvider}</div>
+        <div>Active Text Provider: {label(settings.text)}</div>
+        <div>Active Image Provider: {label(settings.image)}</div>
+        <div>Active Voice Provider: {label(settings.voice)}</div>
+        <div>Fallback to Built-in: {settings.fallback ? "On" : "Off"}</div>
         <div>Credit Mode: {creditMode}</div>
         <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
+        <div>Last Request Provider: {lastProvider}</div>
+        <div>Last Request Status: {lastStatus}</div>
+        <div>Last Error Message: {tele.lastError ?? "—"}</div>
       </div>
     </div>
   );
