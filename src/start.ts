@@ -1,7 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { getActiveProvider, getProviderSettings } from "./lib/provider";
+import { getActiveProvider } from "./lib/provider";
 import { recordTelemetry } from "./lib/provider-telemetry";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
@@ -25,7 +25,6 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
   async ({ next }) => {
     const p = getActiveProvider();
-    const s = getProviderSettings();
     const headers: Record<string, string> = {};
     // Force Gemini for text tasks whenever a Gemini key is connected. Routing is
     // never silently downgraded to the built-in AI while a provider is active.
