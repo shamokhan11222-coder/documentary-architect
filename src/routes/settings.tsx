@@ -228,15 +228,17 @@ function PrivateAccess() {
   }, [getStatus]);
 
   return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="text-sm font-medium">Private access</div>
-      <p className="mt-1 text-sm text-muted-foreground">
+    <section className="glass-panel rounded-2xl p-6 animate-[fade-up_0.5s_var(--ease-out-quint)_both]" style={{ animationDelay: "280ms" }}>
+      <div className="flex items-center gap-2 text-base font-semibold">
+        <ShieldCheck className="h-[18px] w-[18px] text-brand" /> Private access
+      </div>
+      <p className="mt-1.5 text-sm text-muted-foreground">
         {status?.enabled
           ? "A password gate is active on this deployment. Visitors must unlock before using Stickmax Studio."
           : "The site is open. To make the deployed app private, set a SITE_PASSWORD environment variable — the login gate then turns on automatically."}
       </p>
       {status?.enabled && (
-        <div className="mt-3">
+        <div className="mt-4">
           <Button
             size="sm"
             variant="outline"
@@ -250,6 +252,6 @@ function PrivateAccess() {
           </Button>
         </div>
       )}
-    </div>
+    </section>
   );
 }
