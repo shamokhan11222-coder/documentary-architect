@@ -289,7 +289,13 @@ function normalizeRating(value: unknown): RatingReport | null {
 
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    // Never let a storage-quota failure crash a save or corrupt other keys.
+    console.error(`Failed to persist "${key}" — storage may be full.`, err);
+    return;
+  }
   emit();
 }
 
