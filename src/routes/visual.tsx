@@ -428,15 +428,27 @@ function VisualPage() {
 
       {selected && hasValidScript && !hasMap && (
         <p className="mt-6 text-sm text-muted-foreground">
-          No storyboard yet. Click “Build Storyboard” to turn your script into scenes.
+          Build storyboard first.
         </p>
       )}
 
       {hasMap && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="col-span-full flex flex-wrap gap-2 text-xs">
+            {([
+              ["Total scenes", scenes.length, "bg-muted text-muted-foreground"],
+              ["Images generated", have.size, "bg-green-500/15 text-green-600"],
+              ["Images missing", Math.max(0, scenes.length - have.size), "bg-amber-500/15 text-amber-600"],
+              ["Pending", pendingScenes().length, "bg-blue-500/15 text-blue-600"],
+              ["Failed", failed.size, "bg-red-500/15 text-red-600"],
+            ] as [string, number, string][]).map(([label, value, cls]) => (
+              <span key={label} className={`rounded-full px-2.5 py-1 font-medium ${cls}`}>
+                {label}: {value}
+              </span>
+            ))}
+          </div>
           <div className="col-span-full text-xs text-muted-foreground">
-            {scenes.length} scenes · numbered {pad3(1)}–{pad3(scenes.length)} · {have.size}/
-            {scenes.length} images done · {credit.label} mode (recommended batch{" "}
+            Numbered {pad3(1)}–{pad3(scenes.length)} · {credit.label} mode (recommended batch{" "}
             {credit.defaultImageBatch})
           </div>
           {[...scenes]
