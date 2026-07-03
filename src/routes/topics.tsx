@@ -18,7 +18,13 @@ import {
   Cpu,
   Download,
   FolderKanban,
+  Folder,
+  FolderPlus,
   SlidersHorizontal,
+  Sparkles,
+  Activity,
+  ArrowUpRight,
+  FolderInput,
 } from "lucide-react";
 
 import {
@@ -27,7 +33,6 @@ import {
   useTopics,
   setSelectedTopicId,
   markCompleted,
-  useProjectStatus,
   useSelectedTopicId,
   exportProject,
   saveResearch,
@@ -40,6 +45,7 @@ import {
   duplicateTopic,
   searchProject,
   renameTopic,
+  setTopicFolder,
 } from "@/lib/store";
 import {
   researchTopic,
@@ -53,14 +59,18 @@ import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image
 import { putImage, useImage } from "@/lib/images";
 import { spendCredits, canGenerate } from "@/lib/account";
 import { useActiveProvider } from "@/lib/provider";
-import { completionPercent, nextStage, type StageKey } from "@/lib/manager";
+import { completionPercent, nextStage, PIPELINE, type StageKey } from "@/lib/manager";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { ShimmerBlock, Reveal } from "@/components/motion";
 import { downloadJson, slugify } from "@/lib/io";
@@ -77,6 +87,10 @@ const STAGE_ROUTE: Record<StageKey, string> = {
   voice: "/voice",
   rating: "/rating",
 };
+
+const STAGE_LABEL: Record<StageKey, string> = Object.fromEntries(
+  PIPELINE.map((s) => [s.key, s.label]),
+) as Record<StageKey, string>;
 
 type Filter = "all" | "active" | "completed" | "saved" | "archived";
 type Sort = "recent" | "progress" | "name";
@@ -99,6 +113,9 @@ function timeAgo(ts?: number) {
   return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+const UNFILED = "__all__";
+const FAVORITES = "__fav__";
+
 function ProjectsPage() {
   const router = useRouter();
   const topics = useTopics();
@@ -109,6 +126,7 @@ function ProjectsPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("recent");
+  const [folder, setFolder] = useState<string>(UNFILED);
   const [loading, setLoading] = useState(true);
   const [autoId, setAutoId] = useState<string | null>(null);
   const [autoStep, setAutoStep] = useState("");
@@ -125,15 +143,40 @@ function ProjectsPage() {
   const doSeo = useServerFn(generateSeo);
   const doRate = useServerFn(rateVideo);
 
+  const active = useMemo(() => topics.filter((t) => !t.archived), [topics]);
+
+  const folders = useMemo(() => {
+    const set = new Set<string>();
+    active.forEach((t) => t.folder && set.add(t.folder));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [active]);
+
+  const recent = useMemo(
+    () => [...active].sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0)).slice(0, 4),
+    [active],
+  );
+
   function continueProject(t: Topic) {
     setSelectedTopicId(t.id);
     const next = nextStage(t.id);
     router.navigate({ to: next ? STAGE_ROUTE[next] : "/export" });
   }
 
+  function moveToFolder(t: Topic) {
+    const name =
+      typeof window !== "undefined" ? window.prompt("Move to folder", t.folder ?? "") : null;
+    if (name === null) return;
+    setTopicFolder(t.id, name);
+    toast.success(name.trim() ? `Moved to “${name.trim()}”` : "Removed from folder");
+  }
+
+  function newFolder() {
+    const name = typeof window !== "undefined" ? window.prompt("New folder name") : null;
+    if (name && name.trim()) setFolder(name.trim());
+  }
+
   async function autoGenerate(t: Topic) {
     if (!canGenerate()) {
-      // Elegant upgrade popup instead of an abrupt redirect.
       window.dispatchEvent(new Event("open-credit-gate"));
       return;
     }
@@ -193,6 +236,8 @@ function ProjectsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = topics.filter((t) => (filter === "archived" ? t.archived : !t.archived));
+    if (folder === FAVORITES) list = list.filter((t) => t.favorite);
+    else if (folder !== UNFILED) list = list.filter((t) => t.folder === folder);
     if (filter === "saved") list = list.filter((t) => t.favorite);
     if (filter === "completed") list = list.filter((t) => t.completed || completionPercent(t.id) === 100);
     if (filter === "active") list = list.filter((t) => !t.completed && completionPercent(t.id) < 100);
@@ -208,7 +253,7 @@ function ProjectsPage() {
       return (b.savedAt ?? 0) - (a.savedAt ?? 0);
     });
     return list;
-  }, [topics, query, filter, sort]);
+  }, [topics, query, filter, sort, folder]);
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: "all", label: "All" },
@@ -220,97 +265,203 @@ function ProjectsPage() {
 
   return (
     <div className="brand-gradient min-h-screen">
-      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10">
+      <div className="mx-auto max-w-[86rem] px-6 py-8 md:px-10 md:py-10">
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Projects</h1>
+            <h1 className="text-3xl tracking-tight md:text-4xl">Projects</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              {topics.filter((t) => !t.archived).length} documentaries in your studio
+              {active.length} documentaries · {folders.length} folders in your studio
             </p>
           </div>
-          <div className="relative w-full sm:w-72">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative w-full sm:w-80">
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects…"
-              className="w-full rounded-xl border border-border/60 bg-card/50 py-2.5 pl-9 pr-3 text-sm transition-all duration-300 focus:border-brand/50 focus:bg-card focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] focus:outline-none"
+              placeholder="Search projects, scripts, research…"
+              className="w-full rounded-xl border border-border/60 bg-card/50 py-2.5 pl-10 pr-3 text-sm transition-all duration-300 focus:border-brand/50 focus:bg-card focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] focus:outline-none"
             />
           </div>
         </div>
 
-        {/* Filter bar */}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl glass-card p-2 pl-3">
-          <div className="flex flex-wrap items-center gap-1">
-            {FILTERS.map((f) => (
+        {/* Recent activity */}
+        {!loading && recent.length > 0 && (
+          <div className="mt-6 flex items-center gap-3 overflow-x-auto pb-1">
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Activity className="h-3.5 w-3.5 text-brand" /> Recent
+            </span>
+            {recent.map((t) => (
               <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
-                  filter === f.key
-                    ? "bg-brand/12 text-brand shadow-[0_0_16px_-6px_color-mix(in_oklab,var(--brand)_70%,transparent)]"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                }`}
+                key={t.id}
+                onClick={() => continueProject(t)}
+                className="group inline-flex shrink-0 items-center gap-2 rounded-full glass px-3 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 hover:text-brand"
               >
-                {f.label}
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-brand/12 text-brand">
+                  <FolderKanban className="h-3 w-3" />
+                </span>
+                <span className="max-w-[13rem] truncate">{t.topic}</span>
+                <span className="text-muted-foreground">{timeAgo(t.savedAt)}</span>
+                <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 pr-1">
-            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as Sort)}
-              className="cursor-pointer rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-brand/40 focus:outline-none"
-            >
-              <option value="recent">Recently edited</option>
-              <option value="progress">Most progress</option>
-              <option value="name">Name (A–Z)</option>
-            </select>
+        )}
+
+        <div className="mt-6 flex flex-col gap-6 lg:flex-row">
+          {/* Folder rail */}
+          <aside className="lg:w-56 lg:shrink-0">
+            <div className="glass-card rounded-2xl p-2.5 lg:sticky lg:top-6">
+              <FolderRow
+                icon={<FolderKanban className="h-4 w-4" />}
+                label="All Projects"
+                count={active.length}
+                active={folder === UNFILED}
+                onClick={() => setFolder(UNFILED)}
+              />
+              <FolderRow
+                icon={<Star className="h-4 w-4" />}
+                label="Favorites"
+                count={active.filter((t) => t.favorite).length}
+                active={folder === FAVORITES}
+                onClick={() => setFolder(FAVORITES)}
+              />
+              {folders.length > 0 && (
+                <div className="my-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Folders
+                </div>
+              )}
+              {folders.map((f) => (
+                <FolderRow
+                  key={f}
+                  icon={<Folder className="h-4 w-4" />}
+                  label={f}
+                  count={active.filter((t) => t.folder === f).length}
+                  active={folder === f}
+                  onClick={() => setFolder(f)}
+                />
+              ))}
+              <button
+                onClick={newFolder}
+                className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+              >
+                <FolderPlus className="h-4 w-4" /> New folder
+              </button>
+            </div>
+          </aside>
+
+          {/* Main column */}
+          <div className="min-w-0 flex-1">
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl glass-card p-2 pl-3">
+              <div className="flex flex-wrap items-center gap-1">
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setFilter(f.key)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-300 ${
+                      filter === f.key
+                        ? "bg-brand/12 text-brand shadow-[0_0_16px_-6px_color-mix(in_oklab,var(--brand)_70%,transparent)]"
+                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pr-1">
+                <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as Sort)}
+                  className="cursor-pointer rounded-lg border border-border/60 bg-card/50 px-2.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-brand/40 focus:outline-none"
+                >
+                  <option value="recent">Recently edited</option>
+                  <option value="progress">Most progress</option>
+                  <option value="name">Name (A–Z)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Grid */}
+            {loading ? (
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <CardSkeleton key={i} />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="mt-16 flex flex-col items-center gap-3 text-center">
+                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/12 text-brand">
+                  <FolderKanban className="h-7 w-7" />
+                </span>
+                <h3 className="text-lg">No projects here yet</h3>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Generate an idea from the Studio feed to start your first documentary project.
+                </p>
+                <Button onClick={() => router.navigate({ to: "/" })} className="mt-1">
+                  Go to Studio
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((t, i) => (
+                  <ProjectCard
+                    key={t.id}
+                    t={t}
+                    index={i}
+                    folders={folders}
+                    active={t.id === selectedId}
+                    modelName={modelName}
+                    autoBusy={autoId === t.id}
+                    autoStep={autoStep}
+                    anyAuto={!!autoId}
+                    onContinue={() => continueProject(t)}
+                    onAuto={() => autoGenerate(t)}
+                    onMove={() => moveToFolder(t)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Grid */}
-        {loading ? (
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <CardSkeleton key={i} />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center gap-3 text-center">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/12 text-brand">
-              <FolderKanban className="h-7 w-7" />
-            </span>
-            <h3 className="text-lg font-semibold">No projects here yet</h3>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              Generate an idea from the Studio feed to start your first documentary project.
-            </p>
-            <Button onClick={() => router.navigate({ to: "/" })} className="mt-1">
-              Go to Studio
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((t, i) => (
-              <ProjectCard
-                key={t.id}
-                t={t}
-                index={i}
-                active={t.id === selectedId}
-                modelName={modelName}
-                autoBusy={autoId === t.id}
-                autoStep={autoStep}
-                anyAuto={!!autoId}
-                onContinue={() => continueProject(t)}
-                onAuto={() => autoGenerate(t)}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
+  );
+}
+
+function FolderRow({
+  icon,
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-300 ${
+        active
+          ? "bg-brand/12 text-brand shadow-[0_0_18px_-8px_color-mix(in_oklab,var(--brand)_80%,transparent)]"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+      }`}
+    >
+      <span className={active ? "text-brand" : ""}>{icon}</span>
+      <span className="truncate">{label}</span>
+      <span
+        className={`ml-auto rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
+          active ? "bg-brand/15 text-brand" : "bg-muted/60 text-muted-foreground"
+        }`}
+      >
+        {count}
+      </span>
+    </button>
   );
 }
 
@@ -321,9 +472,46 @@ function statusOf(t: Topic): { label: string; cls: string } {
   return { label: "In Progress", cls: "border-brand/30 bg-brand/10 text-brand" };
 }
 
+function ProgressRing({ percent, size = 46 }: { percent: number; size?: number }) {
+  const stroke = 4;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (percent / 100) * c;
+  return (
+    <span
+      className="relative grid place-items-center"
+      style={{ width: size, height: size }}
+      aria-label={`${percent}% complete`}
+    >
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          className="stroke-white/15"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          className="stroke-brand transition-[stroke-dashoffset] duration-700 ease-out"
+          style={{ strokeDasharray: c, strokeDashoffset: offset }}
+        />
+      </svg>
+      <span className="absolute text-[11px] font-semibold tabular-nums">{percent}</span>
+    </span>
+  );
+}
+
 function ProjectCard({
   t,
   index,
+  folders,
   active,
   modelName,
   autoBusy,
@@ -331,9 +519,11 @@ function ProjectCard({
   anyAuto,
   onContinue,
   onAuto,
+  onMove,
 }: {
   t: Topic;
   index: number;
+  folders: string[];
   active: boolean;
   modelName: string;
   autoBusy: boolean;
@@ -341,12 +531,15 @@ function ProjectCard({
   anyAuto: boolean;
   onContinue: () => void;
   onAuto: () => void;
+  onMove: () => void;
 }) {
   const thumb = useImage(`thumb:${t.id}:0`);
   const scene = useImage(`scene:${t.id}:1`);
   const img = thumb ?? scene;
   const percent = completionPercent(t.id);
   const status = statusOf(t);
+  const next = nextStage(t.id);
+  const nextLabel = next ? STAGE_LABEL[next] : "Export";
   const tags = [t.universe, t.researchDifficulty && `${t.researchDifficulty} research`, t.estimatedLength]
     .filter(Boolean)
     .slice(0, 3) as string[];
@@ -372,22 +565,46 @@ function ProjectCard({
           </div>
         )}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
+
         <span className={`absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold backdrop-blur ${status.cls}`}>
           {status.label === "Completed" && <CheckCircle2 className="h-3 w-3" />}
           {status.label}
         </span>
-        <button
-          onClick={() => toggleFavorite(t.id)}
-          aria-label="Favorite"
-          className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-background/70 text-muted-foreground backdrop-blur transition-colors hover:text-amber-500"
-        >
-          <Star className={`h-4 w-4 ${t.favorite ? "fill-amber-500 text-amber-500" : ""}`} />
-        </button>
+
+        {/* Progress ring */}
+        <span className="absolute right-3 top-3 rounded-full bg-background/60 p-0.5 backdrop-blur">
+          <ProgressRing percent={percent} />
+        </span>
+
+        {t.folder && (
+          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur">
+            <Folder className="h-3 w-3" /> {t.folder}
+          </span>
+        )}
+
+        {/* Hover preview overlay */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col justify-end gap-3 bg-gradient-to-t from-background/95 via-background/60 to-transparent p-4 opacity-0 backdrop-blur-[2px] transition-all duration-300 group-hover:pointer-events-auto group-hover:opacity-100">
+          <p className="line-clamp-3 text-xs leading-relaxed text-foreground/90">{t.explanation}</p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="btn-press flex-1" onClick={onContinue}>
+              <Play className="mr-1 h-4 w-4" /> Continue · {nextLabel}
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="bg-background/60"
+              aria-label="Favorite"
+              onClick={() => toggleFavorite(t.id)}
+            >
+              <Star className={`h-4 w-4 ${t.favorite ? "fill-amber-500 text-amber-500" : ""}`} />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Body */}
       <div className="flex flex-1 flex-col p-5">
-        <h3 className="line-clamp-1 text-base font-semibold tracking-tight">{t.topic}</h3>
+        <h3 className="line-clamp-1 text-base tracking-tight">{t.topic}</h3>
         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{t.explanation}</p>
 
         {/* Tags */}
@@ -399,27 +616,16 @@ function ProjectCard({
           ))}
         </div>
 
-        {/* Progress */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-muted-foreground">Progress</span>
-            <span className="font-semibold tabular-nums">{percent}%</span>
-          </div>
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-brand transition-[width] duration-700 ease-out"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Meta: last edited + model */}
-        <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+        {/* Meta: last edited + model + next stage */}
+        <div className="mt-4 flex items-center justify-between text-[11px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3.5 w-3.5" /> {timeAgo(t.savedAt)}
           </span>
           <span className="inline-flex items-center gap-1">
             <Cpu className="h-3.5 w-3.5" /> {modelName}
+          </span>
+          <span className="inline-flex items-center gap-1 text-brand">
+            <Sparkles className="h-3.5 w-3.5" /> {nextLabel}
           </span>
         </div>
 
@@ -443,7 +649,7 @@ function ProjectCard({
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem
                 onClick={() => {
                   const copy = duplicateTopic(t.id);
@@ -463,6 +669,44 @@ function ProjectCard({
               >
                 <Pencil className="h-4 w-4" /> Rename
               </DropdownMenuItem>
+              {folders.length > 0 ? (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <FolderInput className="h-4 w-4" /> Move to folder
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-48">
+                    {folders.map((f) => (
+                      <DropdownMenuItem
+                        key={f}
+                        onClick={() => {
+                          setTopicFolder(t.id, f);
+                          toast.success(`Moved to “${f}”`);
+                        }}
+                      >
+                        <Folder className="h-4 w-4" /> {f}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onMove}>
+                      <FolderPlus className="h-4 w-4" /> New / custom…
+                    </DropdownMenuItem>
+                    {t.folder && (
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setTopicFolder(t.id, null);
+                          toast.success("Removed from folder");
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" /> Remove from folder
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ) : (
+                <DropdownMenuItem onClick={onMove}>
+                  <FolderInput className="h-4 w-4" /> Move to folder
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => markCompleted(t.id, !t.completed)}>
                 <CheckCircle2 className="h-4 w-4" /> {t.completed ? "Mark active" : "Mark completed"}
               </DropdownMenuItem>
@@ -506,7 +750,6 @@ function CardSkeleton() {
           <ShimmerBlock className="h-5 w-16 rounded-full" />
           <ShimmerBlock className="h-5 w-20 rounded-full" />
         </div>
-        <ShimmerBlock className="h-1.5 w-full rounded-full" />
         <div className="mt-2 flex gap-2">
           <ShimmerBlock className="h-9 flex-1 rounded-md" />
           <ShimmerBlock className="h-9 w-9 rounded-md" />
