@@ -171,16 +171,22 @@ function LandingPage() {
           {/* Floating AI images */}
           <div className="relative h-[420px] md:h-[500px]">
             <Floating className="absolute left-0 top-6 w-[46%]">
-              <img src={hero1} alt="AI documentary still" width={768} height={1024}
-                className="glass-card rounded-2xl object-cover shadow-float" />
+              <div className="glass-card overflow-hidden rounded-2xl shadow-float">
+                <img src={hero1} alt="AI documentary still" width={768} height={1024}
+                  className="ken-burns object-cover" />
+              </div>
             </Floating>
             <Floating className="absolute right-0 top-0 w-[50%] [animation-delay:1.2s]">
-              <img src={hero3} alt="AI cinematic aerial" width={768} height={1024}
-                className="glass-card rounded-2xl object-cover shadow-float" />
+              <div className="glass-card overflow-hidden rounded-2xl shadow-float">
+                <img src={hero3} alt="AI cinematic aerial" width={768} height={1024}
+                  className="ken-burns object-cover [animation-delay:3s]" />
+              </div>
             </Floating>
             <Floating className="absolute bottom-0 left-1/2 w-[52%] -translate-x-1/3 [animation-delay:0.6s]">
-              <img src={hero2} alt="AI cinematic lighting" width={768} height={1024}
-                className="glass-card rounded-2xl object-cover shadow-float" />
+              <div className="glass-card overflow-hidden rounded-2xl shadow-float">
+                <img src={hero2} alt="AI cinematic lighting" width={768} height={1024}
+                  className="ken-burns object-cover [animation-delay:6s]" />
+              </div>
             </Floating>
           </div>
         </div>

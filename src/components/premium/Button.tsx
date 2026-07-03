@@ -9,7 +9,7 @@ import { focusRing } from "./tokens";
 const buttonVariants = cva(
   cn(
     "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl font-semibold cursor-pointer",
-    "transition-all duration-200 ease-out active:scale-[0.97]",
+    "transition-all duration-200 ease-out active:scale-[0.97] icon-hover",
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
     focusRing,

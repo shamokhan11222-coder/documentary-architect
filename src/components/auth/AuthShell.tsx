@@ -24,7 +24,7 @@ export function AuthShell({
       {/* Ambient glow blobs */}
       <div className="pointer-events-none absolute inset-0">
         <div className="animate-[float_7s_ease-in-out_infinite] absolute -top-24 -left-16 h-96 w-96 rounded-full bg-brand/20 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-brand/15 blur-[120px]" />
+        <div className="breathe absolute bottom-0 right-0 h-80 w-80 rounded-full bg-brand/15 blur-[120px]" />
       </div>
 
       <div className="relative grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border/50 shadow-[var(--shadow-float)] md:grid-cols-2">

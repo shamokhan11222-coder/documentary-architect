@@ -35,7 +35,7 @@ export const PCard = React.forwardRef<HTMLDivElement, PCardProps>(
         variant !== "glass" && shadow[elevation],
         radius[rounded],
         spacing[padding],
-        interactive && "card-lift cursor-pointer",
+        interactive && "card-lift glass-reflect cursor-pointer",
         className,
       )}
       {...props}
