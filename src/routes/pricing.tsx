@@ -228,6 +228,14 @@ function PricingPage() {
               </span>
             </span>
           </div>
+
+          {/* Money-back guarantee badge */}
+          <div className="mt-8 flex justify-center">
+            <span className="inline-flex items-center gap-2.5 rounded-full border border-brand/30 bg-brand/10 px-5 py-2 text-sm font-semibold text-brand shadow-[var(--shadow-glow)] backdrop-blur animate-[float_6s_ease-in-out_infinite]">
+              <BadgeCheck className="h-4 w-4" />
+              14-day money-back guarantee — no questions asked
+            </span>
+          </div>
         </div>
 
         {/* Cards */}
@@ -238,10 +246,10 @@ function PricingPage() {
               <div
                 key={p.name}
                 style={{ animationDelay: `${i * 80}ms` }}
-                className={`glass-card relative flex flex-col rounded-3xl p-7 animate-[spring-in_0.55s_var(--ease-spring)_both] ${
+                className={`group glass-card relative flex flex-col rounded-3xl p-7 transition-all duration-300 ease-out animate-[spring-in_0.55s_var(--ease-spring)_both] hover:shadow-[var(--shadow-glow)] ${
                   p.highlight
-                    ? "ring-2 ring-brand shadow-[var(--shadow-glow)] lg:-translate-y-4"
-                    : ""
+                    ? "ring-2 ring-brand shadow-[var(--shadow-glow)] lg:-translate-y-4 hover:lg:-translate-y-6"
+                    : "hover:-translate-y-2"
                 }`}
               >
                 {p.highlight && (
@@ -299,6 +307,80 @@ function PricingPage() {
             <ShieldCheck className="h-4 w-4 text-brand" />
             Cancel anytime
           </span>
+        </div>
+
+        {/* Comparison table */}
+        <div className="mt-24">
+          <h2 className="text-center font-display text-3xl font-bold tracking-tight md:text-4xl">
+            Compare every plan
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-muted-foreground">
+            A full side-by-side breakdown of what's included in each tier.
+          </p>
+
+          <div className="glass-card mt-10 overflow-hidden rounded-3xl">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border/60">
+                    <th className="p-5 text-left font-display text-base font-semibold">
+                      Features
+                    </th>
+                    {PLANS.map((p) => (
+                      <th
+                        key={p.name}
+                        className={`p-5 text-center font-display text-base font-semibold ${
+                          p.highlight ? "text-brand" : ""
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          {p.name}
+                          {p.highlight && (
+                            <span className="rounded-full bg-brand/12 px-2 py-0.5 text-[10px] font-semibold text-brand">
+                              Popular
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {PLANS[0].features.map((row, ri) => (
+                    <tr
+                      key={row.label}
+                      className={`border-b border-border/40 last:border-0 transition-colors hover:bg-brand/5 ${
+                        ri % 2 ? "bg-muted/20" : ""
+                      }`}
+                    >
+                      <td className="p-4 pl-5 text-left font-medium text-muted-foreground">
+                        {row.label}
+                      </td>
+                      {PLANS.map((p) => {
+                        const val = p.features[ri]?.value;
+                        return (
+                          <td
+                            key={p.name}
+                            className={`p-4 text-center ${
+                              p.highlight ? "bg-brand/5" : ""
+                            }`}
+                          >
+                            {val === true ? (
+                              <Check className="mx-auto h-4 w-4 text-brand" />
+                            ) : val === false ? (
+                              <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" />
+                            ) : (
+                              <span className="font-semibold">{val}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         {/* Enterprise / Contact sales */}
