@@ -151,7 +151,7 @@ function Workspace() {
       {/* HERO — greeting + inspirational headline + search */}
       <Reveal className="pt-2">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
-          <Sparkles className="h-3.5 w-3.5" /> {greeting()}
+          <Sparkles className="h-3.5 w-3.5" /> {greetingText}
         </div>
         <h1 className="mt-4 max-w-4xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
           {headline}
