@@ -453,3 +453,86 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   Premium micro-interactions — alive, never distracting
+   ============================================================ */
+
+@keyframes icon-nudge {
+  0% { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(-8deg) scale(1.08); }
+}
+@keyframes ken-burns {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.08) translate(-1.5%, -1%); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+@keyframes chart-rise {
+  0% { transform: scaleY(0); opacity: 0; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+@keyframes spring-pop {
+  0% { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  60% { opacity: 1; transform: translateY(0) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Buttons lift + gentle press. Pair with .lift-press on any clickable. */
+@utility lift-press {
+  transition: transform 0.2s var(--ease-spring), box-shadow 0.25s var(--ease-out-quint), filter 0.2s ease;
+  &:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); filter: brightness(1.03); }
+  &:active { transform: translateY(0) scale(0.97); }
+}
+
+/* Icons rotate slightly on hover of the parent element. */
+@utility icon-hover {
+  & svg, & [data-icon] {
+    transition: transform 0.3s var(--ease-spring);
+  }
+  &:hover svg, &:hover [data-icon] {
+    transform: rotate(-8deg) scale(1.08);
+  }
+}
+
+/* Slow, cinematic image drift. */
+@utility ken-burns {
+  animation: ken-burns 22s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Breathing gradient / glow. */
+@utility breathe {
+  animation: breathe 6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Charts rise from baseline. Set transform-origin bottom on the animated node. */
+@utility chart-rise {
+  transform-origin: bottom;
+  animation: chart-rise 0.7s var(--ease-out-quint) both;
+}
+
+/* Dropdowns / poppers spring in. */
+@utility spring-pop {
+  animation: spring-pop 0.22s var(--ease-spring) both;
+}
+
+/* Reflective glass tilt on hover. */
+@utility glass-reflect {
+  position: relative;
+  overflow: hidden;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(130deg, color-mix(in oklab, #ffffff 22%, transparent), transparent 45%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+  }
+  &:hover::before { opacity: 1; }
+}
