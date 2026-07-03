@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
@@ -8,21 +8,48 @@ import { routeTree } from "./routeTree.gen";
 // the shared layout instead of crashing the whole app.
 function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  const [retrying, setRetrying] = useState(true);
+
   useEffect(() => {
+    const route = typeof window !== "undefined" ? window.location.pathname : "ssr";
     console.error("[route-error]", {
-      route: typeof window !== "undefined" ? window.location.pathname : "ssr",
+      route,
       component: "RouteErrorFallback",
       message: error?.message ?? String(error),
     });
-  }, [error]);
+
+    if (typeof window === "undefined") {
+      setRetrying(false);
+      return;
+    }
+
+    const key = `stickmax.route-recovery:${route}`;
+    const alreadyTried = window.sessionStorage.getItem(key) === "1";
+    if (alreadyTried) {
+      setRetrying(false);
+      return;
+    }
+
+    window.sessionStorage.setItem(key, "1");
+    const id = window.setTimeout(() => {
+      void router.invalidate({ sync: true }).finally(reset);
+    }, 80);
+    return () => window.clearTimeout(id);
+  }, [error, reset, router]);
+
+  if (retrying) return <RoutePendingSkeleton />;
+
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <h2 className="text-lg font-semibold text-foreground">This section didn't load</h2>
+      <h2 className="text-lg font-semibold text-foreground">Page recovery needed</h2>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        Something went wrong on this page. The rest of the app is still working.
+        Your project data is safe. Refresh this page or try opening it again.
       </p>
       <button
         onClick={() => {
+          if (typeof window !== "undefined") {
+            window.sessionStorage.removeItem(`stickmax.route-recovery:${window.location.pathname}`);
+          }
           router.invalidate();
           reset();
         }}

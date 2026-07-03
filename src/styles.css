@@ -541,6 +541,15 @@ html.perf-lite .animated-gradient {
 html.perf-lite .float {
   animation: none !important;
 }
+html.perf-lite body {
+  background-attachment: scroll;
+}
+html.perf-lite .motion-page,
+html.perf-lite .ken-burns,
+html.perf-lite .breathe {
+  animation: none !important;
+  will-change: auto !important;
+}
 
 /* ============================================================
    Premium micro-interactions — alive, never distracting

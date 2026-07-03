@@ -22,7 +22,12 @@ export function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
+    if (!raw) return fallback;
+    const hit = parseCache.get(key);
+    if (hit && hit.raw === raw) return hit.value as T;
+    const value = JSON.parse(raw) as T;
+    parseCache.set(key, { raw, value });
+    return value;
   } catch {
     return fallback;
   }
@@ -30,7 +35,9 @@ export function readLocal<T>(key: string, fallback: T): T {
 
 export function writeLocal<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  const raw = JSON.stringify(value);
+  localStorage.setItem(key, raw);
+  parseCache.set(key, { raw, value });
   emit();
 }
 

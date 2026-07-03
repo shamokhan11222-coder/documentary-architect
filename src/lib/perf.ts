@@ -9,7 +9,10 @@ export function applyPerfProfile() {
     const cores = nav.hardwareConcurrency ?? 8;
     const memory = nav.deviceMemory ?? 8;
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const lite = cores <= 4 || memory <= 4 || !!reducedMotion;
+    const saveData = Boolean((nav as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
+    const smallViewport = window.innerWidth < 768;
+    const highDensityMobile = smallViewport && window.devicePixelRatio > 1.25;
+    const lite = cores <= 6 || memory <= 6 || !!reducedMotion || saveData || highDensityMobile;
     document.documentElement.classList.toggle("perf-lite", lite);
   } catch {
     /* ignore — keep full effects on detection failure */
