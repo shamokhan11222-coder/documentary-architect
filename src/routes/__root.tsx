@@ -266,7 +266,7 @@ function RootComponent() {
               onClick={() => setMobileNavOpen(false)}
             />
             <div className="absolute left-0 top-0 h-full p-3">
-              <Sidebar onNavigate={() => setMobileNavOpen(false)} />
+              <Sidebar mobile onNavigate={() => setMobileNavOpen(false)} />
             </div>
           </div>
         )}
