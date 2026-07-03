@@ -372,7 +372,7 @@ function ManagerPage() {
             <Progress value={pct} className="mt-2" />
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
               <Stat label="Completed" value={counts.completed} tone="text-green-600" />
-              <Stat label="Pending" value={counts.pending} tone="text-muted-foreground" />
+              <Stat label="Pending" value={counts.pending + counts.ready + counts.locked + counts.retry} tone="text-muted-foreground" />
               <Stat label="Failed" value={counts.failed} tone="text-red-600" />
               <Stat label="Est. remaining" value={busy ? fmtDuration(eta) : "—"} tone="text-foreground" />
             </div>
@@ -394,9 +394,17 @@ function ManagerPage() {
                 </Button>
               )}
               {failedStage && !busy && (
-                <Button variant="secondary" onClick={() => retryStage(failedStage.key)}>
-                  <RefreshCw className="mr-1 h-4 w-4" /> Retry {failedStage.label}
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={() => runSingleStage(failedStage.key)}>
+                    <RefreshCw className="mr-1 h-4 w-4" /> Retry Current Stage
+                  </Button>
+                  <Button variant="secondary" onClick={() => retryStage(failedStage.key)}>
+                    <Play className="mr-1 h-4 w-4" /> Continue From Failed Stage
+                  </Button>
+                  <Button variant="ghost" onClick={() => resetStage(failedStage.key)}>
+                    <RotateCw className="mr-1 h-4 w-4" /> Reset Current Stage Only
+                  </Button>
+                </>
               )}
               <Button variant="ghost" disabled={busy} onClick={() => runPipeline(true)}>
                 <RotateCw className="mr-1 h-4 w-4" /> Regenerate all
