@@ -255,7 +255,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen bg-background text-foreground">
-        {/* Desktop sidebar */}
+        {/* Desktop floating sidebar */}
         <div className="hidden md:flex">
           <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((v) => !v)} />
         </div>
@@ -267,24 +267,15 @@ function RootComponent() {
               className="absolute inset-0 bg-black/50"
               onClick={() => setMobileNavOpen(false)}
             />
-            <div className="absolute left-0 top-0 h-full">
+            <div className="absolute left-0 top-0 h-full p-3">
               <Sidebar onNavigate={() => setMobileNavOpen(false)} />
             </div>
           </div>
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Mobile top bar */}
-          <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border/70 glass px-4 py-3 md:hidden">
-            <button
-              onClick={() => setMobileNavOpen((v) => !v)}
-              aria-label="Toggle navigation"
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-            <Logo />
-          </header>
+          {/* Dashboard top navbar */}
+          <DashboardTopbar onOpenMobileNav={() => setMobileNavOpen((v) => !v)} />
           <main className="min-w-0 flex-1 overflow-x-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <RouteMotion />
