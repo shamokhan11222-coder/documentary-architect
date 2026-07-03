@@ -400,6 +400,10 @@ function VisualPage() {
         </Button>
         {hasMap && (
           <>
+            <Button onClick={generateAll} disabled={!!busy}>
+              {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Images className="mr-2 h-4 w-4" /> Generate All Images
+            </Button>
             <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <ImagePlus className="mr-2 h-4 w-4" /> Next 5
@@ -413,10 +417,16 @@ function VisualPage() {
               Next 20
             </Button>
             {failed.size > 0 && (
-              <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
-                {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
-              </Button>
+              <>
+                <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
+                  {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
+                </Button>
+                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy}>
+                  {busy === "continue" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <PlayCircle className="mr-2 h-4 w-4" /> Continue From Failed Scene
+                </Button>
+              </>
             )}
           </>
         )}
