@@ -143,6 +143,17 @@ export function renameTopic(id: string, name: string) {
   );
 }
 
+/** Assign a project to a folder (pass null/"" to remove from any folder). */
+export function setTopicFolder(id: string, folder: string | null) {
+  const clean = folder?.trim() || undefined;
+  write(
+    KEYS.topics,
+    read<Topic[]>(KEYS.topics, []).map((t) =>
+      t.id === id ? { ...t, folder: clean } : t,
+    ),
+  );
+}
+
 /** Delete every project and all of its generated stages. */
 export function clearAllTopics() {
   const topics = read<Topic[]>(KEYS.topics, []);
