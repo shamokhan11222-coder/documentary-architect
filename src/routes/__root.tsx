@@ -241,7 +241,6 @@ function RootComponent() {
       </div>
       <AIChat />
       <Toaster />
-      <CursorGlow />
     </QueryClientProvider>
   );
 }
