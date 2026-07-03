@@ -217,7 +217,7 @@ function ThumbnailPage() {
               topicId={selected.id}
               busy={busy}
               dev={dev}
-              scored={review?.scored.find((s) => s.index === i) ?? null}
+              scored={review?.scored?.find((s) => s.index === i) ?? null}
               recommended={review?.recommendedIndex === i}
               onRegen={() => handleRegen(i)}
               onChoose={() => handleChoose(i)}
