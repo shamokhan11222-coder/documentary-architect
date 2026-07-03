@@ -548,17 +548,18 @@ function RecentGenerations() {
   }
 
   return (
-    <Reveal className="rounded-3xl glass-card p-6" delay={40}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Recent Generations" />
-        <Button onClick={load} disabled={loading} variant="outline" size="sm">
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        The Hidden Origins of Everyday Life — weak ideas auto-rejected; rejecting trains your taste.
-      </p>
+    <Reveal delay={40}>
+      <SectionHeader
+        icon={<Sparkles className="h-4 w-4" />}
+        title="Trending Documentary Ideas"
+        subtitle="Fresh, high-potential stories curated for you — reject any to sharpen your taste."
+        action={
+          <Button onClick={load} disabled={loading} variant="outline" size="sm">
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Refresh
+          </Button>
+        }
+      />
 
       {loading && categories.length === 0 && (
         <div className="mt-10 flex flex-col items-center gap-4">
