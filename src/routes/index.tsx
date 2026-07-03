@@ -572,6 +572,17 @@ function RecentGenerations() {
         </div>
       )}
 
+      {!loading && categories.length === 0 && (
+        <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/70 px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            Get fresh, high-potential documentary ideas curated for your taste.
+          </p>
+          <Button onClick={load} size="sm">
+            <Sparkles className="mr-2 h-4 w-4" /> Generate ideas
+          </Button>
+        </div>
+      )}
+
       <div className="mt-6 space-y-8">
         {categories.map((cat) => {
           const ideas = cat.ideas.filter((i) => !rejected.has(i.topic));
