@@ -534,12 +534,11 @@ function ProgressRing({ percent, running }: { percent: number; running: boolean 
   return (
     <div className="relative h-16 w-16">
       <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" className="opacity-40" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--muted)" strokeWidth="6" className="opacity-60" />
         <circle
-          cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--brand))" strokeWidth="6"
+          cx="32" cy="32" r={r} fill="none" stroke="var(--brand)" strokeWidth="6"
           strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
           className="transition-[stroke-dashoffset] duration-700 ease-out"
-          style={{ stroke: "var(--color-brand, #2563EB)" }}
         />
       </svg>
       <span className="absolute inset-0 grid place-items-center text-sm font-bold">
