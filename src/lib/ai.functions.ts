@@ -555,7 +555,7 @@ const THUMB_SHAPE = `{
 }`;
 
 export const generateThumbnails = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script?: string; angle?: string }) => {
+  .inputValidator((data: { topic: string; script?: string; angle?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
@@ -563,7 +563,7 @@ export const generateThumbnails = createServerFn({ method: "POST" })
     const user = `Documentary topic: "${data.topic}"
 ${data.angle ? `Main story angle: ${data.angle}` : ""}
 ${data.script ? `SCRIPT:\n${data.script.slice(0, 6000)}` : ""}
-
+${injectionBlock(data)}
 Generate 10 distinct high-CTR thumbnail ideas.
 
 Return a JSON object:
