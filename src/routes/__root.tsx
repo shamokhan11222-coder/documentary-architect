@@ -204,20 +204,60 @@ function RouteMotion() {
   );
 }
 
+// Public marketing/auth pages use the top navbar; everything else is the
+// dashboard "studio" and uses the collapsible left sidebar.
+const PUBLIC_PREFIXES = [
+  "/landing",
+  "/pricing",
+  "/faq",
+  "/docs",
+  "/community",
+  "/roadmap",
+  "/login",
+  "/signup",
+  "/upgrade",
+  "/unlock",
+];
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const publicPage = isPublicPath(pathname);
 
   useEffect(() => {
     applyTheme();
   }, []);
 
+  // Public layout: top navbar + full-width content.
+  if (publicPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <div className="flex min-h-screen flex-col bg-background text-foreground">
+          <TopNavbar />
+          <main className="min-w-0 flex-1">
+            <RouteMotion />
+          </main>
+        </div>
+        <Toaster />
+      </QueryClientProvider>
+    );
+  }
+
+  // Dashboard layout: collapsible left sidebar.
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen bg-background text-foreground">
         {/* Desktop sidebar */}
         <div className="hidden md:flex">
-          <Sidebar />
+          <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed((v) => !v)} />
         </div>
 
         {/* Mobile drawer */}
@@ -254,6 +294,102 @@ function RootComponent() {
       <AIChat />
       <Toaster />
     </QueryClientProvider>
+  );
+}
+
+const TOP_LINKS = [
+  { to: "/landing", label: "Features" },
+  { to: "/pricing", label: "Pricing" },
+  { to: "/docs", label: "Docs" },
+  { to: "/community", label: "Community" },
+  { to: "/roadmap", label: "Roadmap" },
+] as const;
+
+function TopNavbar() {
+  const account = useAccount();
+  const [open, setOpen] = useState(false);
+  return (
+    <header className="sticky top-0 z-40 border-b border-border/60 glass">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5">
+        <div className="flex items-center gap-8">
+          <Link to="/landing" className="shrink-0">
+            <Logo />
+          </Link>
+          <nav className="hidden items-center gap-1 md:flex">
+            {TOP_LINKS.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground [&.active]:text-foreground"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <div className="hidden items-center gap-2 md:flex">
+          {!account && (
+            <Link
+              to="/login"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Login
+            </Link>
+          )}
+          <Link
+            to="/"
+            className="btn-press flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-brand-foreground shadow-soft"
+          >
+            <LayoutDashboard className="h-4 w-4" /> Dashboard
+          </Link>
+        </div>
+
+        {/* Mobile menu toggle */}
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label="Toggle menu"
+          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
+        >
+          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {open && (
+        <div className="border-t border-border/60 px-5 py-3 md:hidden">
+          <nav className="flex flex-col gap-1">
+            {TOP_LINKS.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground"
+              >
+                {l.label}
+              </Link>
+            ))}
+            <div className="mt-2 flex gap-2">
+              {!account && (
+                <Link
+                  to="/login"
+                  onClick={() => setOpen(false)}
+                  className="flex-1 rounded-xl border border-border px-3 py-2 text-center text-sm font-medium"
+                >
+                  Login
+                </Link>
+              )}
+              <Link
+                to="/"
+                onClick={() => setOpen(false)}
+                className="flex-1 rounded-xl bg-brand px-3 py-2 text-center text-sm font-semibold text-brand-foreground"
+              >
+                Dashboard
+              </Link>
+            </div>
+          </nav>
+        </div>
+      )}
+    </header>
   );
 }
 
