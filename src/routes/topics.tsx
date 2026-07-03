@@ -57,6 +57,8 @@ import {
 } from "@/lib/ai.functions";
 import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
 import { putImage, useImage } from "@/lib/images";
+import { getVisualInstructions } from "@/lib/visual-instructions";
+import { buildInjection, getScriptPattern } from "@/lib/generation-context";
 import { spendCredits, canGenerate } from "@/lib/account";
 import { useActiveProvider } from "@/lib/provider";
 import { completionPercent, nextStage, PIPELINE, type StageKey } from "@/lib/manager";
@@ -190,16 +192,27 @@ function ProjectsPage() {
     setSelectedTopicId(t.id);
     try {
       setAutoStep("Researching…");
-      const research = (await doResearch({ data: { topic: t.topic, explanation: t.explanation } })) as Omit<Research, "topicId" | "generatedAt">;
+      const research = (await doResearch({
+        data: { topic: t.topic, explanation: t.explanation, ...buildInjection(["story", "approvedTopic"]) },
+      })) as Omit<Research, "topicId" | "generatedAt">;
       const researchFull: Research = { ...research, topicId: t.id, generatedAt: Date.now() };
       saveResearch(researchFull);
 
       setAutoStep("Writing story…");
-      const story = (await doStory({ data: { topic: t.topic, research: researchFull } })) as Omit<Story, "topicId" | "generatedAt">;
+      const story = (await doStory({
+        data: {
+          topic: t.topic,
+          research: researchFull,
+          scriptPattern: getScriptPattern() ?? undefined,
+          ...buildInjection(["hook", "story", "instruction"]),
+        },
+      })) as Omit<Story, "topicId" | "generatedAt">;
       saveStory({ ...story, topicId: t.id, generatedAt: Date.now() });
 
       setAutoStep("Building storyboard…");
-      const scenes = (await doVisual({ data: { topic: t.topic, script: story.script } })) as VisualScene[];
+      const scenes = (await doVisual({
+        data: { topic: t.topic, script: story.script, visualInstructions: getVisualInstructions() },
+      })) as VisualScene[];
       saveVisualMap({ topicId: t.id, scenes, generatedAt: Date.now() });
 
       for (let i = 0; i < scenes.length; i++) {
@@ -211,7 +224,9 @@ function ProjectsPage() {
       }
 
       setAutoStep("Designing thumbnails…");
-      const ideas = (await doThumbs({ data: { topic: t.topic, script: story.script, angle: research.storyAngles?.[0] } })) as ThumbnailIdea[];
+      const ideas = (await doThumbs({
+        data: { topic: t.topic, script: story.script, angle: research.storyAngles?.[0], ...buildInjection(["thumbnail"]) },
+      })) as ThumbnailIdea[];
       saveThumbnails({ topicId: t.id, ideas, generatedAt: Date.now() });
       for (let i = 0; i < ideas.length; i++) {
         setAutoStep(`Rendering thumbnails… ${i + 1}/${ideas.length}`);
@@ -222,7 +237,7 @@ function ProjectsPage() {
       }
 
       setAutoStep("Writing SEO…");
-      const seo = await doSeo({ data: { topic: t.topic, script: story.script } });
+      const seo = await doSeo({ data: { topic: t.topic, script: story.script, ...buildInjection(["seo"]) } });
       saveSeo({ ...seo, topicId: t.id, generatedAt: Date.now() });
 
       setAutoStep("Rating…");
