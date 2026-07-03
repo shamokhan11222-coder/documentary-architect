@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw, Images, PlayCircle } from "lucide-react";
 
 import { generateVisualMap, checkImageConsistency } from "@/lib/ai.functions";
 import {
@@ -16,6 +16,7 @@ import {
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage } from "@/lib/generate-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
+import { imageProviderReady } from "@/lib/provider";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { StageShell } from "@/components/StageShell";
