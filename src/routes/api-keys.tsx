@@ -231,6 +231,35 @@ function ApiKeysPage() {
   );
 }
 
+/**
+ * Diagnostic panel — shows the resolved provider + credit mode + whether
+ * generation is allowed, so it's obvious why generation is (or isn't) blocked.
+ */
+function DebugStatus() {
+  const active = useActiveProvider();
+  const admin = useIsAdmin();
+  const unlimited = useHasUnlimitedAccess();
+  const allowed = useCanGenerate();
+
+  const activeProvider = active ? "Gemini" : "Built-in AI";
+  const creditMode = admin
+    ? "Developer Unlimited"
+    : unlimited
+      ? "Provider Unlimited"
+      : "Customer Credits";
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs">
+      <div className="mb-2 font-sans text-sm font-medium">Diagnostics</div>
+      <div className="grid gap-1">
+        <div>Active Provider: {activeProvider}</div>
+        <div>Credit Mode: {creditMode}</div>
+        <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
+      </div>
+    </div>
+  );
+}
+
 function ProviderStatus({
   state,
   message,
