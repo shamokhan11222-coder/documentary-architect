@@ -93,8 +93,9 @@ export function useStageHistory(stage: StageId, topicId: string | null): StageHi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  // Watch for edits (autosave). Store writes emit only in-tab, so poll plus
-  // listen on the synthetic storage event for responsiveness.
+  // Watch for edits (autosave). Store writes emit a synthetic same-tab storage
+  // event, so avoid polling large project JSON on an interval — that was a
+  // major source of navigation/typing lag in bigger projects.
   useEffect(() => {
     if (!topicId) return;
     let last = readSlice(stage, topicId);
@@ -116,10 +117,10 @@ export function useStageHistory(stage: StageId, topicId: string | null): StageHi
       setSavedAt(Date.now());
     };
     window.addEventListener("storage", check);
-    const iv = window.setInterval(check, 700);
+    window.addEventListener("focus", check);
     return () => {
       window.removeEventListener("storage", check);
-      window.clearInterval(iv);
+      window.removeEventListener("focus", check);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

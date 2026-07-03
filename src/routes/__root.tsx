@@ -121,12 +121,50 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+type GateStatus = { enabled: boolean; unlocked: boolean };
+let openGateCache: GateStatus | null = null;
+
+async function getFastGateStatus(): Promise<GateStatus> {
+  if (openGateCache) return openGateCache;
+
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.sessionStorage.getItem("stickmax.gate.status");
+      if (raw) {
+        const cached = JSON.parse(raw) as GateStatus & { at?: number };
+        if (
+          typeof cached.enabled === "boolean" &&
+          typeof cached.unlocked === "boolean" &&
+          Date.now() - (cached.at ?? 0) < 5 * 60 * 1000
+        ) {
+          return { enabled: cached.enabled, unlocked: cached.unlocked };
+        }
+      }
+    } catch {
+      /* ignore stale cache */
+    }
+  }
+
+  const status = await getGateStatus();
+  if (!status.enabled) openGateCache = status;
+
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem("stickmax.gate.status", JSON.stringify({ ...status, at: Date.now() }));
+    } catch {
+      /* ignore cache failures */
+    }
+  }
+
+  return status;
+}
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({ location }) => {
     // Private-access gate: only redirects when SITE_PASSWORD is configured on
     // the deployment. Open by default so the app works as a normal website.
     if (location.pathname === "/unlock") return;
-    const status = await getGateStatus();
+    const status = await getFastGateStatus();
     if (status.enabled && !status.unlocked) {
       throw redirect({ to: "/unlock" });
     }
@@ -185,7 +223,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
