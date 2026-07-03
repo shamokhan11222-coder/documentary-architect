@@ -45,8 +45,17 @@ function VisualPage() {
 
   // A story object can exist without a usable script. Only a non-empty string
   // script is valid — everything downstream (scene counting) depends on it.
-  const scriptText = typeof story?.script === "string" ? story.script : "";
+  // Script may come from the Story page (saved story) OR a manually pasted
+  // script for the selected project.
+  const [pasted, setPasted] = useState("");
+  const storyScript = typeof story?.script === "string" ? story.script : "";
+  const scriptText = storyScript.trim().length > 0 ? storyScript : pasted;
   const hasValidScript = scriptText.trim().length > 0;
+
+  // A visual map may exist without a valid scenes array (older/partial saves).
+  // Always work off a guaranteed array so `.length`/`.filter` never crash.
+  const scenes: VisualScene[] = Array.isArray(map?.scenes) ? map!.scenes : [];
+  const hasMap = !!map && scenes.length > 0;
 
   // Refs let per-scene card callbacks stay referentially stable (so memoized
   // SceneCards don't re-render on every progress tick) while still reading the
@@ -68,7 +77,7 @@ function VisualPage() {
   const [failed, setFailed] = useState<Set<number>>(new Set());
 
   const refreshHave = useCallback(async () => {
-    if (!selected || !map) {
+    if (!selected || !map || !Array.isArray(map.scenes)) {
       setHave(new Set());
       return;
     }
@@ -106,8 +115,9 @@ function VisualPage() {
       const scenes = (await gen({
         data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
       })) as VisualScene[];
-      saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
-      toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
+      const safeScenes = Array.isArray(scenes) ? scenes : [];
+      saveVisualMap({ topicId: selected.id, scenes: safeScenes, generatedAt: Date.now() });
+      toast.success(`Storyboard built — ${safeScenes.length} scenes. Now generate images`);
     });
   }
 
@@ -152,7 +162,7 @@ function VisualPage() {
   }
 
   const pendingScenes = () =>
-    [...(map?.scenes ?? [])]
+    [...scenes]
       .sort((a, b) => a.sceneNumber - b.sceneNumber)
       .filter((s) => !have.has(s.sceneNumber));
 
@@ -161,8 +171,7 @@ function VisualPage() {
   }
 
   function retryFailed() {
-    const scenes = (map?.scenes ?? []).filter((s) => failed.has(s.sceneNumber));
-    return runBatch("retry", scenes);
+    return runBatch("retry", scenes.filter((s) => failed.has(s.sceneNumber)));
   }
 
   // Stable, per-scene card callbacks (read latest state via refs). Keeping these
@@ -207,13 +216,13 @@ function VisualPage() {
   const onCardDelete = useCallback((sceneNumber: number) => {
     const m = mapRef.current;
     const sel = selectedRef.current;
-    if (!m || !sel) return;
+    if (!m || !sel || !Array.isArray(m.scenes)) return;
     deleteImage(sceneImageId(sel.id, sceneNumber));
     saveVisualMap({ ...m, scenes: m.scenes.filter((s) => s.sceneNumber !== sceneNumber) });
   }, []);
 
   function handleConsistency() {
-    if (!selected || !map) return;
+    if (!selected || !map || !Array.isArray(map.scenes)) return;
     return withBusy("check", async () => {
       const withImages: number[] = [];
       for (const s of map.scenes) {
@@ -251,9 +260,9 @@ function VisualPage() {
         </select>
         <Button onClick={handleBuildBoard} disabled={!selected || !hasValidScript || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {map ? "Rebuild Storyboard" : "Build Storyboard"}
+          {hasMap ? "Rebuild Storyboard" : "Build Storyboard"}
         </Button>
-        {map && (
+        {hasMap && (
           <>
             <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -275,7 +284,7 @@ function VisualPage() {
             )}
           </>
         )}
-        {map && (
+        {hasMap && (
           <Button variant="outline" onClick={handleConsistency} disabled={!!busy}>
             {busy === "check" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Check Consistency
@@ -338,23 +347,37 @@ function VisualPage() {
       )}
 
       {selected && !hasValidScript && (
-        <p className="mt-3 text-xs text-amber-600">
-          Script is missing. Generate or paste a script first.
-        </p>
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-amber-600">
+            Script is missing. Generate or paste a script first.
+          </p>
+          <textarea
+            className="min-h-[120px] w-full resize-y rounded-md border border-input bg-background p-2 text-sm leading-relaxed"
+            placeholder="Paste your script here to build a storyboard…"
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+          />
+        </div>
       )}
 
       {!selected && (
         <p className="mt-6 text-sm text-muted-foreground">Select a project to build a storyboard.</p>
       )}
 
-      {map && selected && (
+      {selected && hasValidScript && !hasMap && (
+        <p className="mt-6 text-sm text-muted-foreground">
+          No storyboard yet. Click “Build Storyboard” to turn your script into scenes.
+        </p>
+      )}
+
+      {hasMap && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="col-span-full text-xs text-muted-foreground">
-            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)} · {have.size}/
-            {map.scenes.length} images done · {credit.label} mode (recommended batch{" "}
+            {scenes.length} scenes · numbered {pad3(1)}–{pad3(scenes.length)} · {have.size}/
+            {scenes.length} images done · {credit.label} mode (recommended batch{" "}
             {credit.defaultImageBatch})
           </div>
-          {[...map.scenes]
+          {[...scenes]
             .sort((a, b) => a.sceneNumber - b.sceneNumber)
             .map((s) => (
             <SceneCard
