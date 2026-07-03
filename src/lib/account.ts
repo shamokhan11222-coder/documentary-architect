@@ -15,8 +15,23 @@ export interface Account {
 
 const ACCOUNT_KEY = "stickmax.account";
 
-/** Owner/admin accounts — not limited by public user credits. */
-const OWNER_EMAILS = ["owner@stickmax.io", "admin@stickmax.io"];
+/**
+ * Developer / owner accounts — permanent unlimited "Developer Mode".
+ * These emails always run with the admin role: unlimited AI, images,
+ * research, story, voice, thumbnails, exports, SEO and ratings, with no
+ * credit deductions, no upgrade popups and no "out of credits" messages.
+ * Never exposed to public users — membership is defined here only.
+ */
+const OWNER_EMAILS = [
+  "owner@stickmax.io",
+  "admin@stickmax.io",
+  "shamokhan11222@gmail.com",
+];
+
+/** True when an email belongs to a permanent developer/owner account. */
+export function isDeveloperEmail(email: string | null | undefined): boolean {
+  return !!email && OWNER_EMAILS.includes(email.trim().toLowerCase());
+}
 
 export function useAccount(): Account | null {
   return useLocal<Account | null>(ACCOUNT_KEY, null);
@@ -26,13 +41,19 @@ export function getAccount(): Account | null {
   return readLocal<Account | null>(ACCOUNT_KEY, null);
 }
 
-/** True when the signed-in account is the owner/admin (unlimited credits). */
+/**
+ * True when the signed-in account is a developer/owner (unlimited credits).
+ * Self-healing: developer emails are always treated as admin even if an older
+ * locally-stored account was created before Developer Mode existed.
+ */
 export function isAdmin(): boolean {
-  return getAccount()?.role === "admin";
+  const acc = getAccount();
+  return acc?.role === "admin" || isDeveloperEmail(acc?.email);
 }
 
 export function useIsAdmin(): boolean {
-  return useAccount()?.role === "admin";
+  const acc = useAccount();
+  return acc?.role === "admin" || isDeveloperEmail(acc?.email);
 }
 
 /**
