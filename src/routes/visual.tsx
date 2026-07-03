@@ -124,7 +124,7 @@ function VisualPage() {
   const doCheck = useServerFn(checkImageConsistency);
   const credit = useCreditConfig();
   const [busy, setBusy] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
   // Which scenes already have a generated image (smart cache — never redo these)
   // and which failed on the last run (for "Retry Failed Only").
