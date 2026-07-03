@@ -92,16 +92,21 @@ function VoicePage() {
 
   async function genBlock(block: VoiceBlock) {
     if (!selected || !voice) return;
+    const guard = voiceGuard();
+    if (guard) {
+      toast.error(guard);
+      return;
+    }
     setBusy(`b-${block.index}`);
     try {
-      const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
+      const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
       const blocks = voice.blocks.map((b) =>
         b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b,
       );
       saveVoice({ ...voice, blocks });
       toast.success(`Block ${block.index + 1} narrated`);
     } catch (e) {
-      toast.error(humanizeError(e, "Voice failed"));
+      toast.error(humanizeError(e, "Voice generation failed"));
     } finally {
       setBusy(null);
     }
@@ -109,6 +114,11 @@ function VoicePage() {
 
   async function genAll() {
     if (!selected || !voice) return;
+    const guard = voiceGuard();
+    if (guard) {
+      toast.error(guard);
+      return;
+    }
     setBusy("all");
     let blocks = [...voice.blocks];
     let creditsOut = false;
@@ -121,11 +131,11 @@ function VoicePage() {
     }
     for (const block of pending) {
       try {
-        const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
+        const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
         blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
         saveVoice({ ...voice, blocks });
       } catch (e) {
-        const msg = humanizeError(e, "failed");
+        const msg = humanizeError(e, "voice generation failed");
         if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
           creditsOut = true;
           toast.error("Credits exhausted. Your generated voice blocks are saved. Continue later.");
