@@ -51,7 +51,7 @@ import {
 } from "@/lib/ai.functions";
 import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
 import { putImage, useImage } from "@/lib/images";
-import { spendCredits, hasUnlimitedAccess, canGenerate } from "@/lib/account";
+import { spendCredits, canGenerate } from "@/lib/account";
 import { useActiveProvider } from "@/lib/provider";
 import { completionPercent, nextStage, type StageKey } from "@/lib/manager";
 import { Button } from "@/components/ui/button";
