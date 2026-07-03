@@ -573,25 +573,25 @@ function TopNavbar() {
 
 type NavLink = { to: string; label: string; icon: LucideIcon };
 
-// Primary tabs — the reduced, clutter-free core of the studio.
-const PRIMARY_NAV: NavLink[] = [
-  { to: "/", label: "Studio", icon: Home },
+// Primary navigation — lives in the top bar (animated underline).
+const STUDIO_TOP_NAV: NavLink[] = [
   { to: "/topics", label: "Projects", icon: FolderKanban },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
   { to: "/visual", label: "Images", icon: ImageIcon },
-  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/voice", label: "Voice", icon: Mic },
+  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/seo", label: "SEO", icon: BarChart3 },
-  { to: "/export", label: "Export", icon: Download },
-  { to: "/knowledge", label: "Knowledge", icon: BookOpen },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/community", label: "Community", icon: Sparkles },
+  { to: "/pricing", label: "Pricing", icon: CreditCard },
 ];
 
-// Everything else lives under a collapsible "More tools" group.
-const MORE_NAV: NavLink[] = [
+// Secondary navigation — lives in the collapsible left sidebar.
+const SECONDARY_NAV: NavLink[] = [
+  { to: "/", label: "Studio", icon: Home },
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
-  { to: "/credits", label: "Credits", icon: Coins },
+  { to: "/export", label: "Export", icon: Download },
+  { to: "/knowledge", label: "Knowledge", icon: BookOpen },
   { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
   { to: "/rating", label: "Rating", icon: Star },
   { to: "/subtitles", label: "Subtitles", icon: Captions },
