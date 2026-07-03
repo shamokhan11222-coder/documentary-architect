@@ -71,6 +71,30 @@ export function useHasUnlimitedAccess(): boolean {
   return useIsAdmin() || useActiveProvider() !== null;
 }
 
+/**
+ * ONE global generation guard used by every generation action. Generation is
+ * always allowed when the account is an admin/developer, has unlimited access,
+ * OR an external Gemini provider is connected. Only normal customers WITHOUT an
+ * external key fall back to the internal credit balance.
+ *
+ * `account` is optional so callers can pass an explicit user; when omitted the
+ * currently signed-in local account is used.
+ */
+export function canGenerate(account?: Account | null): boolean {
+  const acc = account ?? getAccount();
+  const admin = acc?.role === "admin" || isDeveloperEmail(acc?.email);
+  if (admin) return true;
+  if (getActiveProvider() !== null) return true; // external provider connected
+  return getBalance() > 0; // normal customer: internal credits apply
+}
+
+/** Reactive version of {@link canGenerate} for UI. */
+export function useCanGenerate(): boolean {
+  const unlimited = useHasUnlimitedAccess();
+  const { balance } = useCredits();
+  return unlimited || balance > 0;
+}
+
 export function login(email: string, name?: string) {
   const clean = email.trim().toLowerCase();
   const derived =

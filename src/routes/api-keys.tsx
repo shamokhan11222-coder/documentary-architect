@@ -22,6 +22,7 @@ import {
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
 import type { ApiProvider } from "@/lib/types";
+import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
@@ -130,6 +131,8 @@ function ApiKeysPage() {
         testing={status === "testing"}
       />
 
+      <DebugStatus />
+
       <div className="mt-6 rounded-lg border border-border bg-card p-4">
         <div className="text-sm font-medium">Add provider</div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -223,6 +226,35 @@ function ApiKeysPage() {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Diagnostic panel — shows the resolved provider + credit mode + whether
+ * generation is allowed, so it's obvious why generation is (or isn't) blocked.
+ */
+function DebugStatus() {
+  const active = useActiveProvider();
+  const admin = useIsAdmin();
+  const unlimited = useHasUnlimitedAccess();
+  const allowed = useCanGenerate();
+
+  const activeProvider = active ? "Gemini" : "Built-in AI";
+  const creditMode = admin
+    ? "Developer Unlimited"
+    : unlimited
+      ? "Provider Unlimited"
+      : "Customer Credits";
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs">
+      <div className="mb-2 font-sans text-sm font-medium">Diagnostics</div>
+      <div className="grid gap-1">
+        <div>Active Provider: {activeProvider}</div>
+        <div>Credit Mode: {creditMode}</div>
+        <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
       </div>
     </div>
   );
