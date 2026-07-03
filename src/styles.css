@@ -148,6 +148,8 @@
   --foreground: oklch(0.984 0.003 247.858);
   --brand: #4f86ff;
   --brand-foreground: #ffffff;
+  --cyan: #4fe0fb;
+  --cyan-foreground: #06263a;
   --card: oklch(0.208 0.042 265.755);
   --card-foreground: oklch(0.984 0.003 247.858);
   --popover: oklch(0.208 0.042 265.755);
