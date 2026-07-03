@@ -93,7 +93,8 @@ function VisualPage() {
     }
     const s = new Set<number>();
     for (const sc of map.scenes) {
-      if (await loadImage(sceneImageId(selected.id, sc.sceneNumber))) s.add(sc.sceneNumber);
+      const img = await loadImage(sceneImageId(selected.id, sc.sceneNumber));
+      if (isValidImage(img)) s.add(sc.sceneNumber);
     }
     setHave(s);
   }, [selected, map]);
