@@ -19,6 +19,7 @@ import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
 import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ScriptAnalyzerRouteImport } from './routes/script-analyzer'
@@ -26,6 +27,7 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
 import { Route as ManagerRouteImport } from './routes/manager'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as ExportRouteImport } from './routes/export'
@@ -88,6 +90,11 @@ const StoryRoute = StoryRouteImport.update({
   path: '/story',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -121,6 +128,11 @@ const QueueRoute = QueueRouteImport.update({
 const ManagerRoute = ManagerRouteImport.update({
   id: '/manager',
   path: '/manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KnowledgeRoute = KnowledgeRouteImport.update({
@@ -188,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
@@ -195,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
@@ -218,6 +232,7 @@ export interface FileRoutesByTo {
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
@@ -225,6 +240,7 @@ export interface FileRoutesByTo {
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
@@ -249,6 +265,7 @@ export interface FileRoutesById {
   '/export': typeof ExportRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
+  '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
@@ -256,6 +273,7 @@ export interface FileRoutesById {
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
   '/thumbnail': typeof ThumbnailRoute
@@ -281,6 +299,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/instructions'
     | '/knowledge'
+    | '/login'
     | '/manager'
     | '/queue'
     | '/rating'
@@ -288,6 +307,7 @@ export interface FileRouteTypes {
     | '/script-analyzer'
     | '/seo'
     | '/settings'
+    | '/signup'
     | '/story'
     | '/subtitles'
     | '/thumbnail'
@@ -311,6 +331,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/instructions'
     | '/knowledge'
+    | '/login'
     | '/manager'
     | '/queue'
     | '/rating'
@@ -318,6 +339,7 @@ export interface FileRouteTypes {
     | '/script-analyzer'
     | '/seo'
     | '/settings'
+    | '/signup'
     | '/story'
     | '/subtitles'
     | '/thumbnail'
@@ -341,6 +363,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/instructions'
     | '/knowledge'
+    | '/login'
     | '/manager'
     | '/queue'
     | '/rating'
@@ -348,6 +371,7 @@ export interface FileRouteTypes {
     | '/script-analyzer'
     | '/seo'
     | '/settings'
+    | '/signup'
     | '/story'
     | '/subtitles'
     | '/thumbnail'
@@ -372,6 +396,7 @@ export interface RootRouteChildren {
   ExportRoute: typeof ExportRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
+  LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
@@ -379,6 +404,7 @@ export interface RootRouteChildren {
   ScriptAnalyzerRoute: typeof ScriptAnalyzerRoute
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
   StoryRoute: typeof StoryRoute
   SubtitlesRoute: typeof SubtitlesRoute
   ThumbnailRoute: typeof ThumbnailRoute
@@ -466,6 +492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -513,6 +546,13 @@ declare module '@tanstack/react-router' {
       path: '/manager'
       fullPath: '/manager'
       preLoaderRoute: typeof ManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/knowledge': {
@@ -604,6 +644,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExportRoute: ExportRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
+  LoginRoute: LoginRoute,
   ManagerRoute: ManagerRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
@@ -611,6 +652,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScriptAnalyzerRoute: ScriptAnalyzerRoute,
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
   StoryRoute: StoryRoute,
   SubtitlesRoute: SubtitlesRoute,
   ThumbnailRoute: ThumbnailRoute,
