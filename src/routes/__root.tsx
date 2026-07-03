@@ -638,12 +638,13 @@ function Sidebar({
   onNavigate,
   collapsed = false,
   onToggleCollapse,
+  mobile = false,
 }: {
   onNavigate?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  mobile?: boolean;
 }) {
-  const [moreOpen, setMoreOpen] = useState(false);
   return (
     <aside
       className={`sticky top-4 my-4 ml-4 flex h-[calc(100vh-2rem)] shrink-0 flex-col rounded-2xl border border-border/60 glass shadow-[0_24px_60px_-24px_color-mix(in_oklab,var(--brand)_28%,transparent)] transition-[width] duration-300 ${
@@ -683,37 +684,37 @@ function Sidebar({
         </button>
       )}
       <nav className="flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-3 pb-4">
-        {PRIMARY_NAV.map((item, i) => (
+        {/* On mobile the top bar is hidden, so surface primary nav here too */}
+        {mobile && (
+          <>
+            <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
+              Primary
+            </p>
+            {STUDIO_TOP_NAV.map((item, i) => (
+              <SidebarLink
+                key={item.to}
+                item={item}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+                delay={i * 18}
+              />
+            ))}
+          </>
+        )}
+        {!collapsed && (
+          <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
+            {mobile ? "Tools" : "Secondary"}
+          </p>
+        )}
+        {SECONDARY_NAV.map((item, i) => (
           <SidebarLink
             key={item.to}
             item={item}
             collapsed={collapsed}
             onNavigate={onNavigate}
-            delay={i * 22}
+            delay={i * 18}
           />
         ))}
-
-        {!collapsed && (
-          <button
-            onClick={() => setMoreOpen((v) => !v)}
-            className="mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 transition-colors hover:text-foreground"
-          >
-            More tools
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-        )}
-        {(moreOpen || collapsed) &&
-          MORE_NAV.map((item, i) => (
-            <SidebarLink
-              key={item.to}
-              item={item}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-              delay={i * 18}
-            />
-          ))}
       </nav>
     </aside>
   );
