@@ -330,3 +330,173 @@ export function Floating({
 export function ShimmerBlock({ className }: { className?: string }) {
   return <div className={cn("shimmer rounded-xl", className)} />;
 }
+
+/* --------------------------------------------------------------------------
+ * Scroll-triggered reveal variants + stagger orchestration.
+ * All use transform/opacity only, 200–500ms, elegant easing.
+ * ------------------------------------------------------------------------ */
+
+function useInView<T extends HTMLElement>(once = true) {
+  const ref = useRef<T | null>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setShown(true);
+          if (once) io.disconnect();
+        } else if (!once) {
+          setShown(false);
+        }
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [once]);
+  return { ref, shown };
+}
+
+/** Blur + rise reveal on scroll. */
+export function RevealBlur({
+  children,
+  className,
+  delay = 0,
+  as: Tag = "div",
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  as?: ElementType;
+}) {
+  const { ref, shown } = useInView<HTMLElement>();
+  return (
+    <Tag
+      ref={ref as never}
+      className={cn(
+        "transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity,filter]",
+        shown ? "translate-y-0 blur-0 opacity-100" : "translate-y-3 blur-md opacity-0",
+        className,
+      )}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
+    </Tag>
+  );
+}
+
+/** Soft scale-in reveal on scroll. */
+export function RevealScale({
+  children,
+  className,
+  delay = 0,
+  as: Tag = "div",
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  as?: ElementType;
+}) {
+  const { ref, shown } = useInView<HTMLElement>();
+  return (
+    <Tag
+      ref={ref as never}
+      className={cn(
+        "transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity]",
+        shown ? "scale-100 opacity-100" : "scale-95 opacity-0",
+        className,
+      )}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
+    </Tag>
+  );
+}
+
+/**
+ * Stagger container — reveals children one after another when scrolled into
+ * view. Wrap each child in <StaggerItem> (or pass plain nodes; they animate
+ * with an incremental delay based on order).
+ */
+export function Stagger({
+  children,
+  className,
+  step = 70,
+  as: Tag = "div",
+}: {
+  children: ReactNode;
+  className?: string;
+  /** delay between each item, ms */
+  step?: number;
+  as?: ElementType;
+}) {
+  const { ref, shown } = useInView<HTMLElement>();
+  const items = Array.isArray(children) ? children : [children];
+  return (
+    <Tag ref={ref as never} className={className}>
+      {items.map((child, i) => (
+        <div
+          key={i}
+          className={cn(
+            "transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity]",
+            shown ? "translate-y-0 opacity-100" : "translate-y-3.5 opacity-0",
+          )}
+          style={{ transitionDelay: `${shown ? i * step : 0}ms` }}
+        >
+          {child}
+        </div>
+      ))}
+    </Tag>
+  );
+}
+
+/** Determinate, smoothly-filling progress bar. */
+export function ProgressBar({
+  value,
+  className,
+  barClassName,
+}: {
+  /** 0–100 */
+  value: number;
+  className?: string;
+  barClassName?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <span
+      className={cn(
+        "relative block h-1.5 w-full overflow-hidden rounded-full bg-muted",
+        className,
+      )}
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <span
+        className={cn(
+          "absolute inset-y-0 left-0 rounded-full bg-brand transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          barClassName,
+        )}
+        style={{ width: `${pct}%` }}
+      />
+    </span>
+  );
+}
+
+/** Skeleton line/box helper set for loading states. */
+export function Skeleton({
+  className,
+  rounded = "rounded-xl",
+}: {
+  className?: string;
+  rounded?: string;
+}) {
+  return <div className={cn("shimmer", rounded, className)} />;
+}
