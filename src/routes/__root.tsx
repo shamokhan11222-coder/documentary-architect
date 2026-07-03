@@ -592,7 +592,9 @@ const STUDIO_TOP_NAV: NavLink[] = [
   { to: "/pricing", label: "Pricing", icon: CreditCard },
 ];
 
-// Secondary navigation — lives in the collapsible left sidebar.
+// Secondary navigation — lives in the collapsible left sidebar, grouped into
+// clear sections for a premium, Linear-style hierarchy.
+type NavSection = { title: string; items: NavLink[] };
 const SECONDARY_NAV: NavLink[] = [
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
   { to: "/export", label: "Export", icon: Download },
@@ -610,6 +612,44 @@ const SECONDARY_NAV: NavLink[] = [
   { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
   { to: "/api-keys", label: "API Settings", icon: KeyRound },
   { to: "/settings", label: "Settings", icon: Settings },
+];
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: "Production",
+    items: [
+      { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
+      { to: "/timeline", label: "Timeline", icon: GanttChartSquare },
+      { to: "/queue", label: "Image Queue", icon: ListVideo },
+      { to: "/checklist", label: "Checklist", icon: ListChecks },
+      { to: "/export", label: "Export", icon: Download },
+    ],
+  },
+  {
+    title: "Craft",
+    items: [
+      { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
+      { to: "/rating", label: "Rating", icon: Star },
+      { to: "/subtitles", label: "Subtitles", icon: Captions },
+      { to: "/audio", label: "Music & SFX", icon: Music },
+    ],
+  },
+  {
+    title: "Library",
+    items: [
+      { to: "/assets", label: "Assets Library", icon: Library },
+      { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
+      { to: "/visual-dna", label: "Visual DNA", icon: Dna },
+    ],
+  },
+  {
+    title: "Configuration",
+    items: [
+      { to: "/instructions", label: "AI Instructions", icon: Sparkles },
+      { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
+      { to: "/api-keys", label: "API Settings", icon: KeyRound },
+      { to: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 function SidebarLink({
