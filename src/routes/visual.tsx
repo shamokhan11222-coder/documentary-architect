@@ -36,6 +36,16 @@ export const Route = createFileRoute("/visual")({
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
+/** A stored image only counts as "generated" if it's a real, non-empty
+ *  data/http image URL. Empty strings or junk left over from a failed run
+ *  must NOT be treated as done, or scenes get skipped forever. */
+function isValidImage(url: string | null | undefined): boolean {
+  if (typeof url !== "string") return false;
+  const v = url.trim();
+  if (v.length < 16) return false;
+  return v.startsWith("data:image") || v.startsWith("http://") || v.startsWith("https://") || v.startsWith("blob:");
+}
+
 function VisualPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
@@ -83,7 +93,8 @@ function VisualPage() {
     }
     const s = new Set<number>();
     for (const sc of map.scenes) {
-      if (await loadImage(sceneImageId(selected.id, sc.sceneNumber))) s.add(sc.sceneNumber);
+      const img = await loadImage(sceneImageId(selected.id, sc.sceneNumber));
+      if (isValidImage(img)) s.add(sc.sceneNumber);
     }
     setHave(s);
   }, [selected, map]);
@@ -124,6 +135,7 @@ function VisualPage() {
   async function genImage(scene: VisualScene) {
     if (!selected) return;
     const dataUrl = await generateSceneImage(scene);
+    if (!isValidImage(dataUrl)) throw new Error("Image generation returned no image");
     await putImage(sceneImageId(selected.id, scene.sceneNumber), dataUrl);
     setHave((prev) => new Set(prev).add(scene.sceneNumber));
     setFailed((prev) => {
@@ -172,6 +184,44 @@ function VisualPage() {
 
   function retryFailed() {
     return runBatch("retry", scenes.filter((s) => failed.has(s.sceneNumber)));
+  }
+
+  // Repair: drop any stored image that is missing/invalid so those scenes
+  // become pending again, then re-scan. Fixes "status completed but no image".
+  function repairMissing() {
+    if (!selected || scenes.length === 0) return;
+    return withBusy("repair", async () => {
+      let repaired = 0;
+      for (const sc of scenes) {
+        const id = sceneImageId(selected.id, sc.sceneNumber);
+        const img = await loadImage(id);
+        if (!isValidImage(img)) {
+          if (img != null) await deleteImage(id);
+          repaired++;
+        }
+      }
+      await refreshHave();
+      setFailed(new Set());
+      toast.success(
+        repaired > 0
+          ? `${repaired} scene(s) marked pending — use Next 5/10/20 to generate.`
+          : "All images present and valid.",
+      );
+    });
+  }
+
+  // Reset: clear every generated image for this project so the whole
+  // storyboard can be regenerated from scratch. Scenes are preserved.
+  function resetImages() {
+    if (!selected || scenes.length === 0) return;
+    return withBusy("reset", async () => {
+      for (const sc of scenes) {
+        await deleteImage(sceneImageId(selected.id, sc.sceneNumber));
+      }
+      setHave(new Set());
+      setFailed(new Set());
+      toast.success("Image status reset — all scenes are pending.");
+    });
   }
 
   // Stable, per-scene card callbacks (read latest state via refs). Keeping these
@@ -290,6 +340,18 @@ function VisualPage() {
             Check Consistency
           </Button>
         )}
+        {hasMap && (
+          <>
+            <Button variant="outline" onClick={repairMissing} disabled={!!busy}>
+              {busy === "repair" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Repair Missing Images
+            </Button>
+            <Button variant="ghost" onClick={resetImages} disabled={!!busy}>
+              {busy === "reset" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reset Image Status
+            </Button>
+          </>
+        )}
       </div>
 
       {report && (
@@ -366,15 +428,27 @@ function VisualPage() {
 
       {selected && hasValidScript && !hasMap && (
         <p className="mt-6 text-sm text-muted-foreground">
-          No storyboard yet. Click “Build Storyboard” to turn your script into scenes.
+          Build storyboard first.
         </p>
       )}
 
       {hasMap && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="col-span-full flex flex-wrap gap-2 text-xs">
+            {([
+              ["Total scenes", scenes.length, "bg-muted text-muted-foreground"],
+              ["Images generated", have.size, "bg-green-500/15 text-green-600"],
+              ["Images missing", Math.max(0, scenes.length - have.size), "bg-amber-500/15 text-amber-600"],
+              ["Pending", pendingScenes().length, "bg-blue-500/15 text-blue-600"],
+              ["Failed", failed.size, "bg-red-500/15 text-red-600"],
+            ] as [string, number, string][]).map(([label, value, cls]) => (
+              <span key={label} className={`rounded-full px-2.5 py-1 font-medium ${cls}`}>
+                {label}: {value}
+              </span>
+            ))}
+          </div>
           <div className="col-span-full text-xs text-muted-foreground">
-            {scenes.length} scenes · numbered {pad3(1)}–{pad3(scenes.length)} · {have.size}/
-            {scenes.length} images done · {credit.label} mode (recommended batch{" "}
+            Numbered {pad3(1)}–{pad3(scenes.length)} · {credit.label} mode (recommended batch{" "}
             {credit.defaultImageBatch})
           </div>
           {[...scenes]
