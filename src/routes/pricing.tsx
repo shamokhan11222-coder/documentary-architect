@@ -10,10 +10,14 @@ import {
   Building2,
   ArrowRight,
   Zap,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/pricing")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    reason: search.reason === "credits" ? ("credits" as const) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Pricing — Stickmax Studio" },
@@ -171,6 +175,7 @@ function FeatureRow({ feature }: { feature: Feature }) {
 
 function PricingPage() {
   const [annual, setAnnual] = useState(true);
+  const { reason } = Route.useSearch();
 
   return (
     <div className="brand-gradient relative min-h-screen overflow-hidden">
@@ -178,9 +183,27 @@ function PricingPage() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="float absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-brand/25 blur-[120px]" />
         <div className="breathe absolute top-1/3 -right-24 h-80 w-80 rounded-full bg-brand/15 blur-[120px]" />
+        <div className="breathe absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-cyan/15 blur-[120px] [animation-delay:3s]" />
       </div>
 
       <div className="relative mx-auto max-w-6xl px-6 py-20 md:py-28">
+        {/* Out-of-credits context banner (arrived via smooth blur redirect) */}
+        {reason === "credits" && (
+          <div className="mx-auto mb-10 flex max-w-3xl items-center gap-4 rounded-2xl glass-card px-5 py-4 animate-[fade-up_0.5s_var(--ease-out-quint)_both]">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-cyan text-brand-foreground shadow-[var(--shadow-glow)]">
+              <Crown className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-display text-sm font-semibold">
+                You're out of credits — your work is safe.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Pick a plan below to keep producing cinematic documentaries without limits.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Hero */}
         <div className="text-center animate-[fade-up_0.6s_var(--ease-out-quint)_both]">
           <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-4 py-1.5 text-xs font-semibold text-brand backdrop-blur">
@@ -261,7 +284,10 @@ function PricingPage() {
                 <h3 className="font-display text-xl font-bold">{p.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{p.tagline}</p>
                 <div className="mt-5 flex items-end gap-1">
-                  <span className="text-5xl font-bold tracking-tight">
+                  <span
+                    key={`${p.name}-${annual}`}
+                    className="text-5xl font-bold tracking-tight animate-[fade-up_0.35s_var(--ease-out-quint)_both]"
+                  >
                     ${price}
                   </span>
                   <span className="pb-1.5 text-sm text-muted-foreground">
@@ -406,6 +432,33 @@ function PricingPage() {
                   Contact Sales
                   <ArrowRight className="h-4 w-4" />
                 </a>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="btn-press">
+                <Link to="/credits">Buy more credits</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Beautiful conversion CTA */}
+        <div className="relative mt-24 overflow-hidden rounded-[2rem] glass-card glass-sheen p-10 text-center md:p-16">
+          <div className="breathe pointer-events-none absolute -left-16 -top-16 h-64 w-64 rounded-full bg-brand/25 blur-[100px]" />
+          <div className="breathe pointer-events-none absolute -right-16 bottom-0 h-64 w-64 rounded-full bg-cyan/20 blur-[100px] [animation-delay:2s]" />
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-4 py-1.5 text-xs font-semibold text-brand">
+              <Sparkles className="h-3.5 w-3.5" /> Join 1,200+ creators
+            </span>
+            <h2 className="mx-auto mt-6 max-w-2xl font-display text-3xl font-bold tracking-tight md:text-5xl">
+              Produce your next documentary today
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
+              Start free, upgrade the moment you feel the momentum. No lock-in, cancel anytime.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button asChild size="lg" variant="brand" className="btn-press">
+                <Link to="/signup">
+                  Start creating free <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="btn-press">
                 <Link to="/credits">Buy more credits</Link>
