@@ -699,8 +699,15 @@ html.perf-lite .breathe {
     0 6px 20px -8px rgba(37, 99, 235, 0.4);
 }
 
-/* Low-perf: drop sidebar backdrop blur, keep a solid readable surface. */
+/* Low-perf: keep the light frosted-glass look but with a cheaper, static blur
+   so the premium effect still shows on high-DPI mobile / low-power devices. */
 html.perf-lite .sidebar-glass {
-  backdrop-filter: none !important;
-  background: color-mix(in oklab, #ffffff 96%, var(--brand));
+  backdrop-filter: blur(8px) saturate(140%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(219, 234, 254, 0.35)),
+    rgba(255, 255, 255, 0.72);
+}
+/* Drop only the extra decorative reflection layers on low-power devices. */
+html.perf-lite .sidebar-glass::after {
+  display: none;
 }
