@@ -402,7 +402,7 @@ function LandingPage() {
         </div>
         <div className="border-t border-border/50">
           <div className="mx-auto max-w-6xl px-6 py-6 text-center text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Stickmax Studio. All rights reserved.
+            © {new Date().getFullYear()} Stickmax · stickmax.io — All rights reserved.
           </div>
         </div>
       </footer>
