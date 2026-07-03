@@ -17,6 +17,7 @@ import { EditableCard } from "@/components/EditableCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Research } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { buildInjection } from "@/lib/generation-context";
 
 export const Route = createFileRoute("/research")({
   head: () => ({ meta: [{ title: "Research — Stickmax Studio" }] }),
@@ -52,7 +53,11 @@ function ResearchPage() {
     setLoading(true);
     try {
       const data = (await run({
-        data: { topic: selected.topic, explanation: selected.explanation },
+        data: {
+          topic: selected.topic,
+          explanation: selected.explanation,
+          ...buildInjection(["story", "approvedTopic"]),
+        },
       })) as Omit<Research, "topicId" | "generatedAt">;
       saveResearch({ ...data, topicId: selected.id, generatedAt: Date.now() });
       toast.success("Research complete — reviewed by Research Expert");
