@@ -519,7 +519,8 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 function StageIcon({ status }: { status: TaskStatus }) {
   if (status === "completed") return <CheckCircle2 className="h-4 w-4 text-green-600" />;
   if (status === "failed") return <XCircle className="h-4 w-4 text-red-600" />;
-  if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+  if (status === "running" || status === "retry") return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+  if (status === "locked") return <Circle className="h-4 w-4 text-muted-foreground/30" />;
   return <Circle className="h-4 w-4 text-muted-foreground/40" />;
 }
 
