@@ -216,10 +216,28 @@ function VoicePage() {
             <CustomVoice
               activeProfileId={settings.clonedProfileId}
               onUse={(id) => update({ clonedProfileId: id })}
+              currentSettings={settings}
             />
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
+            {/* Select Voice Profile — drives which cloned voice narration uses. */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Voice profile</label>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={settings.clonedProfileId ?? ""}
+                onChange={(e) => update({ clonedProfileId: e.target.value || undefined })}
+              >
+                <option value="">Select a voice profile…</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button onClick={buildBlocks}>
               <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
@@ -230,6 +248,10 @@ function VoicePage() {
               </Button>
             ) : null}
           </div>
+
+          {profiles.length > 0 && !settings.clonedProfileId && (
+            <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
+          )}
 
           {voice?.blocks.length ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
