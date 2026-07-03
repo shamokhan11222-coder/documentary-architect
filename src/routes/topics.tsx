@@ -216,6 +216,23 @@ function ProjectsPage() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  onClick={() => {
+                    const next =
+                      typeof window !== "undefined"
+                        ? window.prompt("Rename project", t.topic)
+                        : null;
+                    if (next && next.trim()) {
+                      renameTopic(t.id, next);
+                      toast.success("Project renamed");
+                    }
+                  }}
+                  aria-label="Rename"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
                   onClick={() => toggleFavorite(t.id)}
                   aria-label="Favorite"
                 >
