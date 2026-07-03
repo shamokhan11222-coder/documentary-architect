@@ -531,10 +531,8 @@ function RecentGenerations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (categories.length === 0) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Do NOT auto-generate on mount — opening the Dashboard must be instant and
+  // must never trigger an AI request. Ideas load only when the user asks.
 
   function handleSave(idea: GeneratedIdea) {
     addTaste("liked", idea.topic);
