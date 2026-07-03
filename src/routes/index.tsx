@@ -110,7 +110,13 @@ function Workspace() {
   const activeId = active?.id ?? null;
   const [query, setQuery] = useState("");
 
-  const headline = useMemo(() => HEADLINES[new Date().getDay() % HEADLINES.length], []);
+  // Time/date-dependent values must not run during SSR/first render — they
+  // differ between server and client and cause a hydration crash. Compute
+  // them only after mount, with deterministic fallbacks for the first paint.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const headline = mounted ? HEADLINES[new Date().getDay() % HEADLINES.length] : HEADLINES[0];
+  const greetingText = mounted ? greeting() : "Welcome back";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
