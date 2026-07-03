@@ -138,7 +138,7 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
   const b64 = data?.data?.[0]?.b64_json;
   const url = data?.data?.[0]?.url;
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
-  if (typeof url === "string") return Response.json({ image: url });
+  if (typeof url === "string" && url.trim()) return Response.json({ image: url });
   return jsonError("OpenAI Images returned no image.", 502);
 }
 

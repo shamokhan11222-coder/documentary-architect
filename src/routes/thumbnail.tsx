@@ -24,6 +24,7 @@ import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 import { StageErrorBoundary } from "@/components/StageErrorBoundary";
+import { buildInjection } from "@/lib/generation-context";
 
 export const Route = createFileRoute("/thumbnail")({
   head: () => ({ meta: [{ title: "Thumbnail — Stickmax Studio" }] }),
@@ -103,7 +104,12 @@ function ThumbnailPage() {
     if (!selected) return;
     return withBusy("gen", async () => {
       const ideas = (await gen({
-        data: { topic: selected.topic, script: story?.script, angle: research?.storyAngles?.[0] },
+        data: {
+          topic: selected.topic,
+          script: story?.script,
+          angle: research?.storyAngles?.[0],
+          ...buildInjection(["thumbnail"]),
+        },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
       await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
@@ -211,7 +217,7 @@ function ThumbnailPage() {
               topicId={selected.id}
               busy={busy}
               dev={dev}
-              scored={review?.scored.find((s) => s.index === i) ?? null}
+              scored={review?.scored?.find((s) => s.index === i) ?? null}
               recommended={review?.recommendedIndex === i}
               onRegen={() => handleRegen(i)}
               onChoose={() => handleChoose(i)}

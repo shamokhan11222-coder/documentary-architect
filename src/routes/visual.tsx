@@ -353,6 +353,7 @@ function VisualPage() {
         const ready = imageProviderReady();
         if (!ready.ok) throw new Error(ready.message);
         const dataUrl = await generateSceneImage(scene);
+        if (!isValidImage(dataUrl)) throw new Error("Image generation returned no image");
         await putImage(sceneImageId(sel.id, scene.sceneNumber), dataUrl);
         setHave((prev) => new Set(prev).add(scene.sceneNumber));
         setFailed((prev) => {

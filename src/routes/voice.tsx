@@ -134,7 +134,7 @@ function VoicePage() {
       try {
         const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
         blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
-        saveVoice({ ...voice, blocks });
+        saveVoice({ ...voice, blocks, generatedAt: Date.now() });
       } catch (e) {
         const msg = humanizeError(e, "voice generation failed");
         if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {

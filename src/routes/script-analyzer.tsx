@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/lib/io";
 import { humanizeError } from "@/lib/humanize-error";
+import { saveScriptPattern, getScriptPattern } from "@/lib/generation-context";
 
 export const Route = createFileRoute("/script-analyzer")({
   head: () => ({ meta: [{ title: "Script Analyzer — Stickmax Studio" }] }),
@@ -39,6 +40,13 @@ function ScriptAnalyzerPage() {
   const [pattern, setPattern] = useState<ScriptPattern | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
+  // Restore a previously analyzed pattern (persisted so the Story engine can
+  // reuse it) after hydration to avoid an SSR/client mismatch.
+  useEffect(() => {
+    const saved = getScriptPattern();
+    if (saved) setPattern(saved);
+  }, []);
+
   const [topic, setTopic] = useState("");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{
@@ -51,6 +59,7 @@ function ScriptAnalyzerPage() {
     try {
       const p = await analyze({ data: { script: reference } });
       setPattern(p);
+      saveScriptPattern(p);
       toast.success("Pattern extracted");
     } catch (e) {
       toast.error(humanizeError(e, "Analysis failed"));

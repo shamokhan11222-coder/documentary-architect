@@ -33,6 +33,23 @@ ${content.slice(0, 8000)}`;
   }
 }
 
+// ---------------- Shared injection (Instructions + Knowledge Base) ----------------
+// AI Instructions and the Knowledge Base are gathered client-side (localStorage)
+// and passed into every generation call so they don't just save — they actively
+// steer every AI request. Empty strings are ignored.
+export interface InjectionContext {
+  instructions?: string;
+  knowledge?: string;
+}
+
+function injectionBlock(ctx?: InjectionContext): string {
+  const parts: string[] = [];
+  if (ctx?.instructions?.trim())
+    parts.push(`PERMANENT AI INSTRUCTIONS (always obey these across every stage):\n${ctx.instructions.trim()}`);
+  if (ctx?.knowledge?.trim()) parts.push(ctx.knowledge.trim());
+  return parts.length ? `\n\n${parts.join("\n\n")}\n` : "";
+}
+
 const CATEGORIES = [
   "Today's Best Documentary Ideas",
   "Trending Evergreen Ideas",
@@ -171,15 +188,20 @@ Return a JSON object with this exact shape:
 // ---------------- Research Engine ----------------
 
 export const researchTopic = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; explanation?: string }) => {
+  .inputValidator((data: { topic: string; explanation?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
-    return { topic: data.topic.trim(), explanation: data.explanation ?? "" };
+    return {
+      topic: data.topic.trim(),
+      explanation: data.explanation ?? "",
+      instructions: data.instructions ?? "",
+      knowledge: data.knowledge ?? "",
+    };
   })
   .handler(async ({ data }) => {
     const system = `${EXPERTS.research} Return ONLY valid JSON.`;
     const user = `Documentary topic: "${data.topic}"
 ${data.explanation ? `Angle: ${data.explanation}` : ""}
-
+${injectionBlock(data)}
 Perform deep documentary research. Be specific and concrete (real names, real dates, real facts). Return a JSON object with this exact shape (arrays of concise strings):
 {
   "mainConflict": "string - the single central conflict/tension of the story",
@@ -263,7 +285,7 @@ Key Takeaways: ${j(r.keyTakeaways)}`;
 }
 
 export const generateStory = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; research?: Research; minWords?: number; maxWords?: number; targetLabel?: string }) => {
+  .inputValidator((data: { topic: string; research?: Research; minWords?: number; maxWords?: number; targetLabel?: string; instructions?: string; knowledge?: string; scriptPattern?: ScriptPattern }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
@@ -273,11 +295,23 @@ export const generateStory = createServerFn({ method: "POST" })
     const targetLabel = data.targetLabel ?? "9–11 minutes";
     const system = `${EXPERTS.story} ${STORY_RULES}
 Return ONLY valid JSON.`;
+    const patternBlock = data.scriptPattern
+      ? `\nREFERENCE STORY STRUCTURE TO FOLLOW (reuse the structure only, never copy wording):
+- Hook: ${data.scriptPattern.hookStructure}
+- Pacing: ${data.scriptPattern.pacing}
+- Section flow: ${data.scriptPattern.sectionFlow}
+- Curiosity loops: ${data.scriptPattern.curiosityLoops}
+- Transitions: ${data.scriptPattern.transitionStyle}
+- Evidence placement: ${data.scriptPattern.evidencePlacement}
+- Ending: ${data.scriptPattern.endingStyle}
+- Tone: ${data.scriptPattern.tone}
+- Rhythm: ${data.scriptPattern.storyRhythm}\n`
+      : "";
     const user = `Write a full documentary narration script for: "${data.topic}"
 
 TARGET LENGTH: ${targetLabel} of finished video.
 REQUIRED WORD COUNT: between ${minWords} and ${maxWords} words of spoken narration (excluding section titles). This is a hard requirement — do NOT produce a shorter script. Expand each section with real substance (never filler) until the total lands inside this range. A ${targetLabel} video must NOT be a 3–4 minute script.
-
+${injectionBlock(data)}${patternBlock}
 ${buildResearchContext(data.research)}
 
 Write the narration as SEPARATE sections. Never merge them into one giant block.
@@ -521,7 +555,7 @@ const THUMB_SHAPE = `{
 }`;
 
 export const generateThumbnails = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script?: string; angle?: string }) => {
+  .inputValidator((data: { topic: string; script?: string; angle?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
@@ -529,7 +563,7 @@ export const generateThumbnails = createServerFn({ method: "POST" })
     const user = `Documentary topic: "${data.topic}"
 ${data.angle ? `Main story angle: ${data.angle}` : ""}
 ${data.script ? `SCRIPT:\n${data.script.slice(0, 6000)}` : ""}
-
+${injectionBlock(data)}
 Generate 10 distinct high-CTR thumbnail ideas.
 
 Return a JSON object:
@@ -575,14 +609,14 @@ const SEO_SHAPE = `{
 }`;
 
 export const generateSeo = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script?: string }) => {
+  .inputValidator((data: { topic: string; script?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
   .handler(async ({ data }) => {
     const user = `Documentary topic: "${data.topic}"
 ${data.script ? `SCRIPT:\n${data.script.slice(0, 8000)}` : ""}
-
+${injectionBlock(data)}
 Generate complete upload-ready YouTube metadata.
 
 Return a JSON object with this exact shape: ${SEO_SHAPE}`;

@@ -62,7 +62,9 @@ export async function generateVoiceBlock(
       }
       throw new Error(res.status === 429 ? `429 ${msg}` : msg);
     }
-    return (await res.json()) as { audio: string };
+    const json = (await res.json()) as { audio?: string };
+    if (!json?.audio) throw new Error("Voice generation returned no audio.");
+    return json as { audio: string };
   }, "Voice");
   await putImage(voiceBlockId(topicId, index), data.audio);
   return measureDuration(data.audio);

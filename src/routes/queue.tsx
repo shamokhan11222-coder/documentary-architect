@@ -39,7 +39,14 @@ function QueuePage() {
     const existing = queue?.items ?? [];
     const items: QueueItem[] = [...map.scenes]
       .sort((a, b) => a.sceneNumber - b.sceneNumber)
-      .map((s) => existing.find((i) => i.sceneNumber === s.sceneNumber) ?? { sceneNumber: s.sceneNumber, status: "pending" });
+      .map((s) => {
+        const ex = existing.find((i) => i.sceneNumber === s.sceneNumber);
+        if (!ex) return { sceneNumber: s.sceneNumber, status: "pending" };
+        // A tab closed mid-run leaves items stuck in "generating"; reset them to
+        // "pending" so they are picked up again instead of frozen.
+        if (ex.status === "generating") return { ...ex, status: "pending" as const };
+        return ex;
+      });
     saveQueue({ topicId: selected.id, items, cursor: queue?.cursor ?? 0, updatedAt: Date.now() });
     toast.success("Queue ready");
   }
