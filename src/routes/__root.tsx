@@ -129,7 +129,9 @@ async function getFastGateStatus(): Promise<GateStatus> {
 
   if (typeof window !== "undefined") {
     try {
-      const raw = window.sessionStorage.getItem("stickmax.gate.status");
+      const raw =
+        window.localStorage.getItem("stickmax.gate.status") ??
+        window.sessionStorage.getItem("stickmax.gate.status");
       if (raw) {
         const cached = JSON.parse(raw) as GateStatus & { at?: number };
         if (
@@ -145,12 +147,29 @@ async function getFastGateStatus(): Promise<GateStatus> {
     }
   }
 
-  const status = await getGateStatus();
+  // Never let a slow/hung server call block the whole app on a fresh tab.
+  // If the gate check does not resolve quickly, treat the site as open
+  // (the gate is opt-in and off by default) and let a later check correct it.
+  let status: GateStatus;
+  try {
+    status = await Promise.race([
+      getGateStatus(),
+      new Promise<GateStatus>((resolve) =>
+        setTimeout(() => resolve({ enabled: false, unlocked: true }), 2500),
+      ),
+    ]);
+  } catch {
+    status = { enabled: false, unlocked: true };
+  }
+
   if (!status.enabled) openGateCache = status;
 
   if (typeof window !== "undefined") {
     try {
-      window.sessionStorage.setItem("stickmax.gate.status", JSON.stringify({ ...status, at: Date.now() }));
+      const payload = JSON.stringify({ ...status, at: Date.now() });
+      // localStorage is shared across tabs so new tabs skip the round-trip.
+      window.localStorage.setItem("stickmax.gate.status", payload);
+      window.sessionStorage.setItem("stickmax.gate.status", payload);
     } catch {
       /* ignore cache failures */
     }
