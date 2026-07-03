@@ -296,9 +296,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const theme = useTheme();
   const account = useAccount();
   const { balance } = useCredits();
-  const low = balance <= 40;
+  const admin = useIsAdmin();
+  const low = !admin && balance <= 10;
   return (
-    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border/70 glass">
+    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border/70 glass shadow-[8px_0_40px_-24px_rgba(16,24,40,0.35)]">
       <div className="px-5 py-6">
         <Logo />
         <div className="mt-1.5 pl-9 text-xs text-muted-foreground">stickmax.io</div>
