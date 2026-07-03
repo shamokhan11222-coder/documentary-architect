@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
+import { hasUnlimitedAccess } from "@/lib/account";
 import { PIPELINE, stageDone, completionPercent, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
