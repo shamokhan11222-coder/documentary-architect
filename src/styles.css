@@ -203,23 +203,42 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-size: 17px;
+    line-height: 1.65;
+    letter-spacing: -0.006em;
+    font-weight: 400;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  h1, h2, h3, h4 {
+  h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    letter-spacing: -0.025em;
-    font-weight: 700;
+    font-weight: 600;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+  h1 {
+    letter-spacing: -0.03em;
+    line-height: 1.06;
+  }
+  h2 {
+    letter-spacing: -0.024em;
+  }
+  h3 {
+    letter-spacing: -0.018em;
+  }
+  h4, h5, h6 {
+    letter-spacing: -0.012em;
   }
 
   /* Navigation + buttons use Geist for a crisp, modern UI voice */
   nav {
     font-family: var(--font-geist);
+    letter-spacing: -0.006em;
   }
   button {
     font-family: var(--font-geist);
-    font-weight: 600;
+    font-weight: 500;
+    letter-spacing: -0.006em;
   }
 
   /* Premium native dropdowns everywhere */
