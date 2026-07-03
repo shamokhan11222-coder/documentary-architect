@@ -454,7 +454,7 @@ function TopNavbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-5">
         <div className="flex items-center gap-8">
           <Link to="/landing" className="shrink-0">
-            <Logo />
+            <Logo studio />
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {TOP_LINKS.map((l) => (
