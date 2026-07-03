@@ -47,6 +47,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AIChat } from "../components/AIChat";
+import { CreditGate } from "../components/CreditGate";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { PageTransition } from "../components/motion";
@@ -284,6 +285,7 @@ function RootComponent() {
       </div>
       <AIChat />
       <Toaster />
+      <CreditGate />
     </QueryClientProvider>
   );
 }

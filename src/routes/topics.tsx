@@ -132,7 +132,8 @@ function ProjectsPage() {
 
   async function autoGenerate(t: Topic) {
     if (!isAdmin() && getBalance() <= 0) {
-      router.navigate({ to: "/upgrade" });
+      // Elegant upgrade popup instead of an abrupt redirect.
+      window.dispatchEvent(new Event("open-credit-gate"));
       return;
     }
     setAutoId(t.id);

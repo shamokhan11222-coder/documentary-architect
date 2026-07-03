@@ -72,6 +72,8 @@ export interface CreditEntry {
 interface CreditState {
   balance: number;
   history: CreditEntry[];
+  /** Timestamp of the next free-credit renewal (monthly for free plan). */
+  renewsAt?: number;
 }
 
 const CREDITS_KEY = "stickmax.credits";
@@ -99,9 +101,14 @@ export const FULL_RUN_ESTIMATE =
 
 export const LOW_CREDIT_THRESHOLD = 5;
 
+/** Free plan renews the welcome allowance once a month. */
+export const RENEWAL_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
+export const MONTHLY_FREE_CREDITS = DEFAULT_CREDITS;
+
 function readState(): CreditState {
   return readLocal<CreditState>(CREDITS_KEY, {
     balance: DEFAULT_CREDITS,
+    renewsAt: Date.now() + RENEWAL_INTERVAL_MS,
     history: [
       {
         id: "seed",
@@ -121,6 +128,74 @@ export function getBalance(): number {
   return readState().balance;
 }
 
+/** Next renewal timestamp (creates a default if the state predates renewals). */
+export function getRenewsAt(): number {
+  const s = readState();
+  return s.renewsAt ?? Date.now() + RENEWAL_INTERVAL_MS;
+}
+
+export function useRenewsAt(): number {
+  const s = useCredits();
+  return s.renewsAt ?? Date.now() + RENEWAL_INTERVAL_MS;
+}
+
+/**
+ * Top up the monthly free allowance when a renewal is due. Idempotent and safe
+ * to call on every app mount. Only free (non-admin) accounts renew.
+ */
+export function ensureRenewal() {
+  if (isAdmin()) return;
+  const s = readState();
+  const now = Date.now();
+  // Backfill a renewal date for older local states.
+  if (!s.renewsAt) {
+    writeLocal<CreditState>(CREDITS_KEY, { ...s, renewsAt: now + RENEWAL_INTERVAL_MS });
+    return;
+  }
+  if (now < s.renewsAt) return;
+  // Advance the renewal window past "now" (covers long absences) and grant once.
+  let next = s.renewsAt;
+  while (next <= now) next += RENEWAL_INTERVAL_MS;
+  const entry: CreditEntry = {
+    id: crypto.randomUUID(),
+    at: now,
+    amount: MONTHLY_FREE_CREDITS,
+    label: "Monthly free credits",
+  };
+  writeLocal<CreditState>(CREDITS_KEY, {
+    balance: s.balance + MONTHLY_FREE_CREDITS,
+    renewsAt: next,
+    history: [entry, ...s.history].slice(0, 100),
+  });
+}
+
+export interface UsageDay {
+  label: string;
+  date: string;
+  spent: number;
+  added: number;
+}
+
+/** Aggregate the credit history into per-day spend/top-up buckets for charts. */
+export function usageByDay(history: CreditEntry[], days = 7): UsageDay[] {
+  const out: UsageDay[] = [];
+  const dayMs = 24 * 60 * 60 * 1000;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = days - 1; i >= 0; i--) {
+    const start = today.getTime() - i * dayMs;
+    const end = start + dayMs;
+    const inDay = history.filter((h) => h.at >= start && h.at < end);
+    out.push({
+      label: new Date(start).toLocaleDateString(undefined, { weekday: "short" }),
+      date: new Date(start).toLocaleDateString(),
+      spent: inDay.filter((h) => h.amount < 0).reduce((s, h) => s + Math.abs(h.amount), 0),
+      added: inDay.filter((h) => h.amount > 0).reduce((s, h) => s + h.amount, 0),
+    });
+  }
+  return out;
+}
+
 export function spendCredits(amount: number, label: string) {
   // Owner/admin accounts have unlimited internal credits.
   if (isAdmin()) return;
@@ -132,6 +207,7 @@ export function spendCredits(amount: number, label: string) {
     label,
   };
   writeLocal<CreditState>(CREDITS_KEY, {
+    ...s,
     balance: Math.max(0, s.balance - Math.abs(amount)),
     history: [entry, ...s.history].slice(0, 100),
   });
@@ -146,6 +222,7 @@ export function addCredits(amount: number, label = "Credits added") {
     label,
   };
   writeLocal<CreditState>(CREDITS_KEY, {
+    ...s,
     balance: s.balance + Math.abs(amount),
     history: [entry, ...s.history].slice(0, 100),
   });
