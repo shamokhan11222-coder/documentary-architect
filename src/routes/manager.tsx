@@ -417,7 +417,7 @@ function ManagerPage() {
             <div className="text-sm font-medium">Production timeline</div>
             <div className="mt-3 space-y-1.5">
               {PIPELINE.map((s) => {
-                const st: TaskStatus = pipeline?.stages[s.key]?.status ?? "pending";
+                const st: TaskStatus = derivedStatus(s.key);
                 const err = pipeline?.stages[s.key]?.error;
                 return (
                   <div
@@ -442,7 +442,17 @@ function ManagerPage() {
                         </Button>
                       ) : (
                         <span className="text-[11px] text-muted-foreground">
-                          {st === "completed" ? "done" : st === "running" ? "running" : s.expert}
+                          {st === "completed"
+                            ? "done"
+                            : st === "running"
+                              ? "running"
+                              : st === "retry"
+                                ? "waiting to retry…"
+                                : st === "locked"
+                                  ? "locked"
+                                  : st === "ready"
+                                    ? "ready"
+                                    : s.expert}
                         </span>
                       )}
                     </div>
