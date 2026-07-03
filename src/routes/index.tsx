@@ -641,87 +641,48 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
   );
 }
 
-function ProviderRow({ name, detail, ok }: { name: string; detail: string; ok: boolean }) {
+function SectionHeader({
+  icon,
+  title,
+  subtitle,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5">
-      <span className={`h-2 w-2 shrink-0 rounded-full ${ok ? "animate-pulse bg-emerald-500" : "bg-muted-foreground/50"}`} />
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">{name}</span>
-        <span className="text-xs text-muted-foreground">{detail}</span>
-      </span>
-      <span className="text-xs font-medium text-emerald-500">{ok ? "Online" : "Idle"}</span>
-    </div>
-  );
-}
-
-function ProgressRing({ percent, running }: { percent: number; running: boolean }) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const offset = c - (percent / 100) * c;
-  return (
-    <div className="relative h-16 w-16">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--muted)" strokeWidth="6" className="opacity-60" />
-        <circle
-          cx="32" cy="32" r={r} fill="none" stroke="var(--brand)" strokeWidth="6"
-          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
-          className="transition-[stroke-dashoffset] duration-700 ease-out"
-        />
-      </svg>
-      <span className="absolute inset-0 grid place-items-center text-sm font-bold">
-        {running ? <Loader2 className="h-4 w-4 animate-spin text-brand" /> : `${percent}%`}
-      </span>
-    </div>
-  );
-}
-
-function UsageGraph({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.value));
-  return (
-    <div className="mt-4 flex h-28 items-stretch gap-2">
-      {data.map((d, i) => (
-        <div key={i} className="group flex h-full flex-1 flex-col items-center gap-1.5">
-          <div className="flex w-full flex-1 items-end">
-            <div
-              className="chart-rise w-full rounded-t-md bg-gradient-to-t from-brand/60 to-brand transition-all duration-700 ease-out group-hover:from-brand"
-              style={{ height: `${Math.max(6, (d.value / max) * 100)}%`, animationDelay: `${i * 60}ms` }}
-              title={`${d.value}`}
-            />
-          </div>
-          <span className="text-[10px] text-muted-foreground">{d.label}</span>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand/12 text-brand">{icon}</span>
+          <h2 className="font-display text-xl font-bold tracking-tight md:text-2xl">{title}</h2>
         </div>
-      ))}
+        {subtitle && <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>}
+      </div>
+      {action}
     </div>
   );
 }
 
-function buildUsage(topics: { savedAt?: number }[]) {
-  const days = ["S", "M", "T", "W", "T", "F", "S"];
-  const now = new Date();
-  const buckets = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() - (6 - i));
-    return { label: days[d.getDay()], key: d.toDateString(), value: 0 };
-  });
-  for (const t of topics) {
-    if (!t.savedAt) continue;
-    const key = new Date(t.savedAt).toDateString();
-    const b = buckets.find((x) => x.key === key);
-    if (b) b.value += 1;
-  }
-  // seed a gentle baseline so the graph never looks empty
-  return buckets.map((b, i) => ({ label: b.label, value: b.value * 3 + ((i * 5 + 4) % 7) + 2 }));
+function EmptyCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-6 rounded-3xl glass-card p-10 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
 }
 
 /* ---------------------------- static data ---------------------------- */
 
-const QUICK_ACTIONS = [
+const QUICK_CREATE = [
+  { to: "/topics", label: "New Project", icon: Wand2 },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
   { to: "/visual", label: "Images", icon: ImageIcon },
   { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/voice", label: "Voice", icon: Mic },
-  { to: "/export", label: "Export", icon: Download },
 ] as const;
 
 const TEMPLATES = [
@@ -736,4 +697,16 @@ const AI_NEWS = [
   { tag: "Research", title: "New retrieval methods sharpen long-form scripting", source: "arXiv Digest", url: "https://arxiv.org/list/cs.AI/recent" },
   { tag: "Voice", title: "Realtime voice cloning gets more natural prosody", source: "TechCrunch", url: "https://techcrunch.com/category/artificial-intelligence/" },
   { tag: "Tooling", title: "Creators lean on AI pipelines for faster output", source: "Wired", url: "https://www.wired.com/tag/artificial-intelligence/" },
+];
+
+const COMMUNITY_PICKS = [
+  { tag: "Trending", title: "The Secret History of the Paperclip", author: "Ava Lin", stat: "2.4M views" },
+  { tag: "Editor's Pick", title: "Cities That Vanished Overnight", author: "Marcus Reed", stat: "1.1M views" },
+  { tag: "Rising", title: "How Salt Built Civilizations", author: "Priya Nair", stat: "870K views" },
+];
+
+const TUTORIALS = [
+  { title: "From Idea to Script in 10 Minutes", desc: "Take a topic all the way to a polished narration.", length: "10:24", url: "https://www.youtube.com/results?search_query=documentary+scriptwriting" },
+  { title: "Designing Cinematic Storyboards", desc: "Turn scenes into a consistent visual language.", length: "8:12", url: "https://www.youtube.com/results?search_query=storyboarding+documentary" },
+  { title: "Voiceovers That Keep Viewers Watching", desc: "Direct pacing, tone and emotion for retention.", length: "6:47", url: "https://www.youtube.com/results?search_query=documentary+voiceover" },
 ];
