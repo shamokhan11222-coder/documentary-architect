@@ -393,78 +393,156 @@ function TopNavbar() {
   );
 }
 
-type NavItem =
-  | { section: string }
-  | { to: string; label: string; icon: LucideIcon };
+type NavLink = { to: string; label: string; icon: LucideIcon };
 
-const NAV: NavItem[] = [
-  { section: "Studio" },
-  { to: "/", label: "Home", icon: Home },
-  { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
+// Primary tabs — the reduced, clutter-free core of the studio.
+const PRIMARY_NAV: NavLink[] = [
+  { to: "/", label: "Studio", icon: Home },
   { to: "/topics", label: "Projects", icon: FolderKanban },
-  { to: "/credits", label: "Credits", icon: Coins },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
-  { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
   { to: "/visual", label: "Images", icon: ImageIcon },
   { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
+  { to: "/voice", label: "Voice", icon: Mic },
   { to: "/seo", label: "SEO", icon: BarChart3 },
+  { to: "/export", label: "Export", icon: Download },
+  { to: "/knowledge", label: "Knowledge", icon: BookOpen },
+  { to: "/settings", label: "Settings", icon: Settings },
+];
+
+// Everything else lives under a collapsible "More tools" group.
+const MORE_NAV: NavLink[] = [
+  { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
+  { to: "/credits", label: "Credits", icon: Coins },
+  { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
   { to: "/rating", label: "Rating", icon: Star },
-  { section: "Production" },
-  { to: "/voice", label: "Voice Studio", icon: Mic },
   { to: "/subtitles", label: "Subtitles", icon: Captions },
   { to: "/queue", label: "Image Queue", icon: ListVideo },
   { to: "/timeline", label: "Timeline", icon: GanttChartSquare },
   { to: "/audio", label: "Music & SFX", icon: Music },
   { to: "/checklist", label: "Checklist", icon: ListChecks },
-  { to: "/export", label: "Export", icon: Download },
-  { section: "Library" },
   { to: "/assets", label: "Assets Library", icon: Library },
   { to: "/visual-dna", label: "Visual DNA", icon: Dna },
   { to: "/instructions", label: "AI Instructions", icon: Sparkles },
   { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
-  { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { to: "/api-keys", label: "API Settings", icon: KeyRound },
-  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarLink({
+  item,
+  collapsed,
+  onNavigate,
+  delay,
+}: {
+  item: NavLink;
+  collapsed?: boolean;
+  onNavigate?: () => void;
+  delay: number;
+}) {
+  return (
+    <Link
+      to={item.to}
+      activeOptions={{ exact: item.to === "/" }}
+      onClick={onNavigate}
+      title={collapsed ? item.label : undefined}
+      style={{ animation: "var(--animate-slide-in-left)", animationDelay: `${delay}ms` }}
+      className={`group flex items-center gap-2.5 rounded-xl py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand ${
+        collapsed ? "justify-center px-2" : "px-3 hover:translate-x-0.5"
+      }`}
+    >
+      <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+      {!collapsed && <span className="truncate">{item.label}</span>}
+    </Link>
+  );
+}
+
+function Sidebar({
+  onNavigate,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const theme = useTheme();
   const account = useAccount();
   const { balance } = useCredits();
   const admin = useIsAdmin();
   const low = !admin && balance <= 10;
+  const [moreOpen, setMoreOpen] = useState(false);
   return (
-    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border/70 glass shadow-[8px_0_40px_-24px_rgba(16,24,40,0.35)]">
-      <div className="px-5 py-6">
-        <Logo />
-        <div className="mt-1.5 pl-9 text-xs text-muted-foreground">stickmax.io</div>
-      </div>
-      <nav className="flex flex-col gap-0.5 overflow-y-auto px-3 pb-4">
-        {NAV.map((item, i) =>
-          "section" in item ? (
-            <div
-              key={`s-${i}`}
-              className="px-3 pb-1.5 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60"
-            >
-              {item.section}
-            </div>
-          ) : (
-            <Link
-              key={item.to}
-              to={item.to}
-              activeOptions={{ exact: item.to === "/" }}
-              onClick={onNavigate}
-              style={{ animation: "var(--animate-slide-in-left)", animationDelay: `${i * 22}ms` }}
-              className="group flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:translate-x-0.5 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand"
-            >
-              <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          ),
+    <aside
+      className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-border/70 glass shadow-[8px_0_40px_-24px_rgba(16,24,40,0.35)] transition-[width] duration-300 ${
+        collapsed ? "w-[4.5rem]" : "w-60"
+      }`}
+      style={{ transitionTimingFunction: "var(--ease-out-quint)" }}
+    >
+      <div className={`flex items-center justify-between py-6 ${collapsed ? "px-3" : "px-5"}`}>
+        {collapsed ? (
+          <Link to="/" className="mx-auto">
+            <Logo iconOnly />
+          </Link>
+        ) : (
+          <Link to="/">
+            <Logo />
+          </Link>
         )}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${
+              collapsed ? "hidden" : ""
+            }`}
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {collapsed && onToggleCollapse && (
+        <button
+          onClick={onToggleCollapse}
+          aria-label="Expand sidebar"
+          className="mx-auto mb-2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+        </button>
+      )}
+      <nav className="flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-3 pb-4">
+        {PRIMARY_NAV.map((item, i) => (
+          <SidebarLink
+            key={item.to}
+            item={item}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+            delay={i * 22}
+          />
+        ))}
+
+        {!collapsed && (
+          <button
+            onClick={() => setMoreOpen((v) => !v)}
+            className="mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 transition-colors hover:text-foreground"
+          >
+            More tools
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+        )}
+        {(moreOpen || collapsed) &&
+          MORE_NAV.map((item, i) => (
+            <SidebarLink
+              key={item.to}
+              item={item}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+              delay={i * 18}
+            />
+          ))}
       </nav>
-      <div className="mt-auto space-y-2 border-t border-border/60 p-3">
+      <div className={`mt-auto space-y-2 border-t border-border/60 p-3 ${collapsed ? "hidden" : ""}`}>
         {/* Credits balance */}
         <Link
           to="/credits"
