@@ -35,7 +35,7 @@ export const PProgress = React.forwardRef<HTMLDivElement, PProgressProps>(
             <div className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-brand [animation:var(--animate-progress-indeterminate)]" />
           ) : (
             <div
-              className="h-full rounded-full bg-brand shadow-glow transition-[width] duration-500 ease-out"
+              className="relative h-full overflow-hidden rounded-full bg-brand shadow-glow transition-[width] duration-700 ease-out glass-sheen"
               style={{ width: `${pct}%` }}
             />
           )}
