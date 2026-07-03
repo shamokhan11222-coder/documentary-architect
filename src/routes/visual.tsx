@@ -373,7 +373,7 @@ function VisualPage() {
   );
 }
 
-function SceneCard({
+const SceneCard = memo(function SceneCard({
   scene,
   topicId,
   busy,
@@ -384,9 +384,9 @@ function SceneCard({
   scene: VisualScene;
   topicId: string;
   busy: string | null;
-  onRegen: () => void;
-  onReplace: (f: File | null) => void;
-  onDelete: () => void;
+  onRegen: (scene: VisualScene) => void;
+  onReplace: (scene: VisualScene, file: File | null) => void;
+  onDelete: (sceneNumber: number) => void;
 }) {
   const img = useImage(sceneImageId(topicId, scene.sceneNumber));
   const inputId = `replace-${topicId}-${scene.sceneNumber}`;
@@ -431,10 +431,10 @@ function SceneCard({
         )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <Button size="sm" variant="secondary" onClick={onRegen} disabled={!!busy}>
+          <Button size="sm" variant="secondary" onClick={() => onRegen(scene)} disabled={!!busy}>
             <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate
           </Button>
-          <input id={inputId} type="file" accept="image/*" className="hidden" onChange={(e) => onReplace(e.target.files?.[0] ?? null)} />
+          <input id={inputId} type="file" accept="image/*" className="hidden" onChange={(e) => onReplace(scene, e.target.files?.[0] ?? null)} />
           <label htmlFor={inputId}>
             <Button asChild size="sm" variant="ghost">
               <span>
@@ -442,11 +442,11 @@ function SceneCard({
               </span>
             </Button>
           </label>
-          <Button size="sm" variant="ghost" onClick={onDelete}>
+          <Button size="sm" variant="ghost" onClick={() => onDelete(scene.sceneNumber)}>
             <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
           </Button>
         </div>
       </div>
     </div>
   );
-}
+});
