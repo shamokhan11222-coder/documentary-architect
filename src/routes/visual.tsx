@@ -18,7 +18,7 @@ import { generateSceneImage } from "@/lib/generate-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
-import { Steps } from "@/components/Steps";
+import { StageShell } from "@/components/StageShell";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
 
 export const Route = createFileRoute("/visual")({
@@ -186,8 +186,7 @@ function VisualPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      <Steps current="visual" />
+    <StageShell stage="visual" maxWidth="max-w-5xl">
       <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Images</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         The AI turns your script into ordered storyboard images and generates them automatically,
@@ -327,7 +326,7 @@ function VisualPage() {
           ))}
         </div>
       )}
-    </div>
+    </StageShell>
   );
 }
 

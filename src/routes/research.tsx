@@ -12,7 +12,7 @@ import {
   saveResearch,
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { ProjectHeader } from "@/components/ProjectHeader";
+import { StageShell } from "@/components/StageShell";
 import { EditableCard } from "@/components/EditableCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Research } from "@/lib/types";
@@ -84,8 +84,7 @@ function ResearchPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <ProjectHeader topics={topics} selectedId={selectedId} />
+    <StageShell stage="research" maxWidth="max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Research Engine</h1>
@@ -136,6 +135,6 @@ function ResearchPage() {
           })}
         </div>
       )}
-    </div>
+    </StageShell>
   );
 }
