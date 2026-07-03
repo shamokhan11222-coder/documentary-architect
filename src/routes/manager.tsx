@@ -19,7 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { hasUnlimitedAccess } from "@/lib/account";
-import { PIPELINE, stageDone, completionPercent, type StageKey } from "@/lib/manager";
+import { PIPELINE, stageDone, completionPercent, prereqsMet, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
   getPipeline,
@@ -89,6 +89,35 @@ function ManagerPage() {
   const [busy, setBusy] = useState(false);
   const cancelled = useRef(false);
 
+  // Automatic retry with exponential backoff for transient AI outages.
+  const RETRY_BACKOFFS_MS = [10000, 30000, 60000];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  function isTransient(msg: string): boolean {
+    return /unavailable|temporarily|overloaded|timeout|timed out|try again|\b(429|502|503|504)\b|rate.?limit/i.test(
+      msg,
+    );
+  }
+  // Run an AI call, retrying on transient failures (10s → 30s → 60s). After the
+  // final attempt the error propagates so ONLY this stage is marked failed —
+  // earlier completed stages (Research, Story) stay saved.
+  async function withRetry<T>(id: string, stage: StageKey, fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!isTransient(msg) || attempt >= RETRY_BACKOFFS_MS.length) throw e;
+        const wait = RETRY_BACKOFFS_MS[attempt];
+        patchStage(id, stage, { status: "retry" });
+        setTask(id, stage, `Waiting before retry… (${wait / 1000}s)`);
+        logActivity(id, `${stage} paused — AI briefly unavailable, retrying in ${wait / 1000}s`, "info");
+        await sleep(wait);
+        if (cancelled.current) throw new Error("Stopped");
+        patchStage(id, stage, { status: "running" });
+      }
+    }
+  }
+
   const doResearch = useServerFn(researchTopic);
   const doStory = useServerFn(generateStory);
   const doVisual = useServerFn(generateVisualMap);
@@ -114,7 +143,9 @@ function ManagerPage() {
         const story = readLS<Story>("docos.story", id);
         if (!story) throw new Error("Story required before storyboard");
         setTask(id, stage, "Visual Director → building storyboard…");
-        const scenes = (await doVisual({ data: { topic, script: story.script } })) as VisualScene[];
+        const scenes = (await withRetry(id, stage, () =>
+          doVisual({ data: { topic, script: story.script } }),
+        )) as VisualScene[];
         saveVisualMap({ topicId: id, scenes, generatedAt: Date.now() });
       } else if (stage === "images") {
         const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
