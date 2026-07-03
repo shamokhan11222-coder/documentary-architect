@@ -165,10 +165,30 @@ function VisualPage() {
       const words = (scriptText.match(/\S+/g) ?? []).length;
       const minScenes = Math.max(8, Math.round(words / 12));
       const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
-      const scenes = (await gen({
-        data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
-      })) as VisualScene[];
-      const safeScenes = Array.isArray(scenes) ? scenes : [];
+      let safeScenes: VisualScene[] = [];
+      try {
+        const scenes = (await gen({
+          data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
+        })) as VisualScene[];
+        safeScenes = Array.isArray(scenes) ? scenes.filter(Boolean) : [];
+      } catch (e) {
+        // fall through to local rebuild below
+        safeScenes = [];
+      }
+
+      // If the AI produced no usable scenes, rebuild locally from the script so
+      // the storyboard is never empty when a valid script exists.
+      if (safeScenes.length === 0) {
+        safeScenes = scenesFromScript(scriptText);
+      }
+
+      // A storyboard is only "built" when it actually has scenes. An empty map
+      // must be treated as Failed — never saved and never shown as completed.
+      if (safeScenes.length === 0) {
+        toast.error("No storyboard scenes found. Generate Story first, then rebuild storyboard.");
+        return;
+      }
+
       saveVisualMap({ topicId: selected.id, scenes: safeScenes, generatedAt: Date.now() });
       toast.success(`Storyboard built — ${safeScenes.length} scenes. Now generate images`);
     });
