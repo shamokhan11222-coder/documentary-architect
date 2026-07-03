@@ -213,8 +213,8 @@ export function usageByDay(history: CreditEntry[], days = 7): UsageDay[] {
 }
 
 export function spendCredits(amount: number, label: string) {
-  // Owner/admin accounts have unlimited internal credits.
-  if (isAdmin()) return;
+  // Admins and users with a connected external provider don't consume credits.
+  if (hasUnlimitedAccess()) return;
   const s = readState();
   const entry: CreditEntry = {
     id: crypto.randomUUID(),
