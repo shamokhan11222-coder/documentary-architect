@@ -125,12 +125,23 @@ function imageLabel(choice: ProviderChoice): string {
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   if (!entry) return null;
   if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate") return null;
+
+  // For Gemini image, ONLY use models containing "image" in the name.
+  // The user's text modelName (e.g. gemini-2.5-flash) must NOT be used for image gen.
+  let imageModel = entry.modelName?.trim() || "";
+  if (choice === "gemini") {
+    // Force an image-capable model. Ignore text model names.
+    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.5-flash-image";
+  } else if (!imageModel) {
+    imageModel = defaultImageModel(choice);
+  }
+
   return {
     id: entry.id,
     name: choice,
     label: imageLabel(choice),
     apiKey: entry.apiKey.trim(),
-    imageModel: entry.modelName?.trim() || defaultImageModel(choice),
+    imageModel,
     testPassed: entry.testResult === IMAGE_PROVIDER_TEST_PASSED,
   };
 }
