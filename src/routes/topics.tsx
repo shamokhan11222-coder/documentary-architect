@@ -22,6 +22,8 @@ import {
   toggleArchived,
   duplicateTopic,
   searchProject,
+  renameTopic,
+  clearArchivedTopics,
 } from "@/lib/store";
 import {
   researchTopic,

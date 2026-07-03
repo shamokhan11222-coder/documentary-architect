@@ -29,6 +29,7 @@ import { Route as QueueRouteImport } from './routes/queue'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LandingRouteImport } from './routes/landing'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as FaqRouteImport } from './routes/faq'
@@ -143,6 +144,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LandingRoute = LandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KnowledgeRoute = KnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
+  '/landing': typeof LandingRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
   '/pricing': typeof PricingRoute
@@ -255,6 +262,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
+  '/landing': typeof LandingRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
   '/pricing': typeof PricingRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
+  '/landing': typeof LandingRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
   '/pricing': typeof PricingRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/instructions'
     | '/knowledge'
+    | '/landing'
     | '/login'
     | '/manager'
     | '/pricing'
@@ -363,6 +373,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/instructions'
     | '/knowledge'
+    | '/landing'
     | '/login'
     | '/manager'
     | '/pricing'
@@ -398,6 +409,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/instructions'
     | '/knowledge'
+    | '/landing'
     | '/login'
     | '/manager'
     | '/pricing'
@@ -434,6 +446,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
+  LandingRoute: typeof LandingRoute
   LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRoute
   PricingRoute: typeof PricingRoute
@@ -601,6 +614,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/landing': {
+      id: '/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof LandingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/knowledge': {
       id: '/knowledge'
       path: '/knowledge'
@@ -706,6 +726,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
+  LandingRoute: LandingRoute,
   LoginRoute: LoginRoute,
   ManagerRoute: ManagerRoute,
   PricingRoute: PricingRoute,
