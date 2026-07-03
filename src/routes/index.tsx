@@ -710,13 +710,17 @@ function EmptyCard({ children }: { children: React.ReactNode }) {
 
 /* ---------------------------- static data ---------------------------- */
 
-const QUICK_CREATE = [
-  { to: "/topics", label: "New Project", icon: Wand2 },
-  { to: "/research", label: "Research", icon: Search },
-  { to: "/story", label: "Story", icon: BookText },
-  { to: "/visual", label: "Images", icon: ImageIcon },
-  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
-  { to: "/voice", label: "Voice", icon: Mic },
+const TOOLS = [
+  { to: "/topics", title: "AI Documentary Generator", desc: "Go from a single idea to a full documentary pipeline.", icon: Wand2, gradient: "from-brand/30 via-brand/10 to-transparent" },
+  { to: "/topics", title: "Topic Finder", desc: "Discover high-potential, click-worthy story ideas.", icon: Compass, gradient: "from-sky-400/25 via-brand/10 to-transparent" },
+  { to: "/story", title: "Script Writer", desc: "Turn research into a cinematic, retention-first script.", icon: BookText, gradient: "from-indigo-400/25 via-brand/10 to-transparent" },
+  { to: "/visual", title: "Storyboard Builder", desc: "Break your script into ordered, visual scenes.", icon: Film, gradient: "from-violet-400/25 via-brand/10 to-transparent" },
+  { to: "/visual", title: "Image Generator", desc: "Generate consistent scene images with your Visual DNA.", icon: ImageIcon, gradient: "from-cyan-400/25 via-brand/10 to-transparent" },
+  { to: "/thumbnail", title: "Thumbnail Generator", desc: "Design scroll-stopping, high-CTR thumbnails.", icon: ImagePlus, gradient: "from-rose-400/25 via-brand/10 to-transparent" },
+  { to: "/voice", title: "Voice Studio", desc: "Natural AI narration with pacing and emotion control.", icon: Mic, gradient: "from-emerald-400/25 via-brand/10 to-transparent" },
+  { to: "/seo", title: "SEO Generator", desc: "Titles, descriptions and tags built to rank.", icon: TrendingUp, gradient: "from-teal-400/25 via-brand/10 to-transparent" },
+  { to: "/script-analyzer", title: "Script Analyzer", desc: "Score hooks, pacing and retention before you publish.", icon: FlaskConical, gradient: "from-amber-400/25 via-brand/10 to-transparent" },
+  { to: "/export", title: "Export Manager", desc: "Package scripts, visuals and voice for production.", icon: Download, gradient: "from-blue-400/25 via-brand/10 to-transparent" },
 ] as const;
 
 const TEMPLATES = [
