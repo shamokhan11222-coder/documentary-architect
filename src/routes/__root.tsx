@@ -447,7 +447,39 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           </Link>
         )}
       </div>
+      </div>
+
+      {/* Primary navigation — animated underline */}
+      <nav className="hidden items-center gap-6 overflow-x-auto px-6 pb-1.5 md:flex">
+        {STUDIO_TOP_NAV.map((l) => (
+          <TopNavLink key={l.to} to={l.to} label={l.label} exact={l.to === "/"} />
+        ))}
+      </nav>
     </header>
+  );
+}
+
+function TopNavLink({
+  to,
+  label,
+  exact,
+  onClick,
+}: {
+  to: string;
+  label: string;
+  exact?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      to={to}
+      activeOptions={{ exact }}
+      onClick={onClick}
+      className="group relative shrink-0 py-1 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground [&.active]:text-foreground"
+    >
+      {label}
+      <span className="pointer-events-none absolute -bottom-0.5 left-0 h-0.5 w-full origin-left scale-x-0 rounded-full bg-brand shadow-[0_0_10px_color-mix(in_oklab,var(--brand)_60%,transparent)] transition-transform duration-300 ease-out group-hover:scale-x-100 group-[.active]:scale-x-100" />
+    </Link>
   );
 }
 
