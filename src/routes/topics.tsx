@@ -24,6 +24,7 @@ import {
   searchProject,
   renameTopic,
   clearArchivedTopics,
+  clearAllTopics,
 } from "@/lib/store";
 import {
   researchTopic,
