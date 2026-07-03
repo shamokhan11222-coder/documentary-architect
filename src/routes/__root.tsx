@@ -481,7 +481,7 @@ function Sidebar({
       <div className={`flex items-center justify-between py-6 ${collapsed ? "px-3" : "px-5"}`}>
         {collapsed ? (
           <Link to="/" className="mx-auto">
-            <Logo iconOnly />
+            <Logo showWordmark={false} />
           </Link>
         ) : (
           <Link to="/">
