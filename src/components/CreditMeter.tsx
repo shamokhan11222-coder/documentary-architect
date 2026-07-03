@@ -39,8 +39,8 @@ export function CreditMeter({
       <svg width={size} height={size} className="-rotate-90">
         <defs>
           <linearGradient id="creditMeterGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(var(--brand))" />
-            <stop offset="100%" stopColor="hsl(var(--brand) / 0.55)" />
+            <stop offset="0%" stopColor="var(--brand)" />
+            <stop offset="100%" stopColor="color-mix(in oklab, var(--brand) 55%, transparent)" />
           </linearGradient>
         </defs>
         <circle
@@ -48,7 +48,7 @@ export function CreditMeter({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="hsl(var(--muted))"
+          stroke="var(--border)"
           strokeWidth={stroke}
           className="opacity-40"
         />
@@ -57,7 +57,7 @@ export function CreditMeter({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={low ? "hsl(var(--destructive))" : "url(#creditMeterGrad)"}
+          stroke={low ? "var(--destructive)" : "url(#creditMeterGrad)"}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
