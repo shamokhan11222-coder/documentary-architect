@@ -4,10 +4,13 @@ import type {
   RatingReport,
   Research,
   Seo,
+  StageReview,
   Story,
   TasteMemory,
+  ThumbnailIdea,
   ThumbnailPack,
   Topic,
+  VisualScene,
   VisualMap,
 } from "./types";
 
@@ -570,7 +573,7 @@ export function useAllVisuals(): Record<string, VisualMap> {
 
 export function usePromptPack(topicId: string | null): PromptPack | null {
   const all = useStored<unknown>(KEYS.prompts, {});
-  return topicId ? (all[topicId] ?? null) : null;
+  return topicId ? (asRecord<PromptPack>(all)[topicId] ?? null) : null;
 }
 
 export function savePromptPack(p: PromptPack) {
