@@ -43,6 +43,8 @@ import {
 import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import { generateVoiceBlock } from "@/lib/generate-voice";
+import { getVisualInstructions } from "@/lib/visual-instructions";
+import { buildInjection, getScriptPattern } from "@/lib/generation-context";
 import {
   DEFAULT_VOICE_SETTINGS,
   scriptToParagraphs,
