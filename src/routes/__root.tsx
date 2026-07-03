@@ -672,10 +672,11 @@ function SidebarLink({
       onClick={onNavigate}
       title={collapsed ? item.label : undefined}
       style={{ animation: "var(--animate-slide-in-left)", animationDelay: `${delay}ms` }}
-      className={`group relative flex items-center gap-2.5 rounded-xl py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/12 [&.active]:font-medium [&.active]:text-brand [&.active]:shadow-[0_0_22px_-4px_color-mix(in_oklab,var(--brand)_65%,transparent)] [&.active]:ring-1 [&.active]:ring-brand/25 ${
+      className={`nav-pill group relative flex items-center gap-2.5 rounded-xl py-2 text-sm text-muted-foreground hover:text-foreground [&.active]:nav-pill-active [&.active]:font-medium [&.active]:text-brand ${
         collapsed ? "justify-center px-2" : "px-3 hover:translate-x-0.5"
       }`}
     >
+      <span className="pointer-events-none absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-brand opacity-0 shadow-[0_0_12px_color-mix(in_oklab,var(--brand)_75%,transparent)] transition-opacity duration-200 group-[.active]:opacity-100" />
       <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
@@ -695,7 +696,7 @@ function Sidebar({
 }) {
   return (
     <aside
-      className={`sticky top-4 my-4 ml-4 flex h-[calc(100vh-2rem)] shrink-0 flex-col rounded-2xl border border-border/60 glass shadow-[0_24px_60px_-24px_color-mix(in_oklab,var(--brand)_28%,transparent)] transition-[width] duration-300 ${
+      className={`sidebar-glass sticky top-4 my-4 ml-4 flex h-[calc(100vh-2rem)] shrink-0 flex-col rounded-3xl transition-[width] duration-300 ${
         collapsed ? "w-[4.75rem]" : "w-60"
       }`}
       style={{ transitionTimingFunction: "var(--ease-out-quint)" }}
