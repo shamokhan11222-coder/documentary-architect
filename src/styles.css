@@ -624,3 +624,78 @@ html.perf-lite .float {
   }
   &:hover::before { opacity: 1; }
 }
+
+/* ============================================================
+   Premium sidebar — floating frosted glass panel with 3D depth,
+   glossy top reflection, soft border highlight and inner shadow.
+   ============================================================ */
+@utility sidebar-glass {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, #ffffff 14%, transparent), transparent 34%),
+    linear-gradient(168deg, color-mix(in oklab, var(--brand) 16%, transparent), transparent 44%),
+    radial-gradient(140% 60% at 50% -8%, color-mix(in oklab, var(--cyan) 14%, transparent), transparent 60%),
+    color-mix(in oklab, var(--card) 60%, transparent);
+  backdrop-filter: blur(30px) saturate(190%);
+  border: 1px solid color-mix(in oklab, #ffffff 24%, color-mix(in oklab, var(--border) 55%, transparent));
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #ffffff 55%, transparent) inset,
+    0 0 0 1px color-mix(in oklab, var(--brand) 9%, transparent) inset,
+    0 18px 60px -22px color-mix(in oklab, #000 70%, transparent) inset,
+    0 30px 70px -28px color-mix(in oklab, var(--brand) 40%, transparent);
+  /* Glossy light reflection sweeping the top edge */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 38%;
+    border-radius: inherit;
+    background: linear-gradient(180deg, color-mix(in oklab, #ffffff 20%, transparent), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: -1;
+  }
+  /* Faint vertical inner highlight along the right edge for 3D depth */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent 82%, color-mix(in oklab, #ffffff 10%, transparent));
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: -1;
+  }
+}
+
+/* Glass pill nav item — translucent capsule that lights up on hover. */
+@utility nav-pill {
+  position: relative;
+  transition: transform 0.2s var(--ease-out-quint), color 0.2s ease, background 0.25s ease, box-shadow 0.25s ease;
+  &:hover {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, #ffffff 12%, transparent), transparent 60%),
+      color-mix(in oklab, var(--brand) 12%, transparent);
+    box-shadow:
+      0 1px 0 0 color-mix(in oklab, #ffffff 30%, transparent) inset,
+      0 6px 18px -10px color-mix(in oklab, var(--brand) 55%, transparent);
+  }
+}
+
+/* Softly glowing active nav item. */
+@utility nav-pill-active {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, #ffffff 14%, transparent), transparent 62%),
+    color-mix(in oklab, var(--brand) 20%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #ffffff 36%, transparent) inset,
+    0 0 0 1px color-mix(in oklab, var(--brand) 30%, transparent) inset,
+    0 8px 26px -8px color-mix(in oklab, var(--brand) 65%, transparent);
+}
+
+/* Low-perf: drop sidebar backdrop blur, keep a solid readable surface. */
+html.perf-lite .sidebar-glass {
+  backdrop-filter: none !important;
+  background: color-mix(in oklab, var(--card) 95%, transparent);
+}
