@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Mic, Square, Upload, Trash2, Check, Star, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { fileToDataUrl } from "@/lib/images";
+import { fileToDataUrl, putImage, deleteImage, useImage } from "@/lib/images";
 import {
   useVoiceProfiles,
   saveVoiceProfile,
@@ -84,7 +84,7 @@ export function CustomVoice({
     setRecording(false);
   }
 
-  function save() {
+  async function save() {
     if (!sample) {
       toast.error("Upload or record a voice sample first");
       return;
@@ -98,11 +98,22 @@ export function CustomVoice({
       return;
     }
     const provider = getActiveProvider()?.name ?? "Built-in AI";
+    const id = crypto.randomUUID();
+    // Store the (large) sample audio in IndexedDB, NOT localStorage — a base64
+    // audio blob easily exceeds the ~5MB localStorage quota and would silently
+    // fail the write, making the profile "disappear" after reload.
+    const sampleAudioId = `voicesample:${id}`;
+    try {
+      await putImage(sampleAudioId, sample.url);
+    } catch {
+      toast.error("Could not save the voice sample. Try a shorter sample.");
+      return;
+    }
     const profile: VoiceProfile = {
-      id: crypto.randomUUID(),
+      id,
       name: name.trim(),
       source: sample.source,
-      sampleAudio: sample.url,
+      sampleAudioId,
       consent: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -179,93 +190,107 @@ export function CustomVoice({
       {profiles.length > 0 && (
         <div className="mt-4 space-y-1.5">
           <div className="text-xs font-medium text-muted-foreground">Voice Library</div>
-          {profiles.map((p) => {
-            const status = p.status ?? (p.sampleAudio ? "ready" : "needs-sample");
-            return (
-              <div
-                key={p.id}
-                className={[
-                  "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm",
-                  activeProfileId === p.id ? "border-primary bg-primary/5" : "border-border",
-                ].join(" ")}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{p.name}</span>
-                  {p.isDefault && (
-                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
-                      Default
-                    </span>
-                  )}
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[status] ?? STATUS_STYLES["needs-sample"]}`}
-                  >
-                    {status === "needs-sample" ? "Needs sample" : status[0].toUpperCase() + status.slice(1)}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {p.source === "record" ? "recorded" : "uploaded"}
-                    {p.provider ? ` · ${p.provider}` : ""}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Play sample */}
-                  <audio controls src={p.sampleAudio} className="h-7" />
-                  {/* Use Voice */}
-                  <Button
-                    size="sm"
-                    variant={activeProfileId === p.id ? "default" : "outline"}
-                    className="h-7 text-xs"
-                    onClick={() => onUse(activeProfileId === p.id ? undefined : p.id)}
-                  >
-                    {activeProfileId === p.id ? "In use" : "Use Voice"}
-                  </Button>
-                  {/* Set as Default */}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    title="Set as default"
-                    onClick={() => {
-                      setDefaultVoiceProfile(p.id);
-                      toast.success(`"${p.name}" is now the default voice`);
-                    }}
-                  >
-                    <Star className={`h-3.5 w-3.5 ${p.isDefault ? "fill-primary text-primary" : ""}`} />
-                  </Button>
-                  {/* Rename */}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    title="Rename"
-                    onClick={() => {
-                      const next = window.prompt("Rename voice profile", p.name);
-                      if (next && next.trim()) {
-                        renameVoiceProfile(p.id, next);
-                        toast.success("Voice profile renamed");
-                      }
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  {/* Delete */}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    title="Delete"
-                    onClick={() => {
-                      deleteVoiceProfile(p.id);
-                      if (activeProfileId === p.id) onUse(undefined);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+          {profiles.map((p) => (
+            <VoiceLibraryRow key={p.id} p={p} activeProfileId={activeProfileId} onUse={onUse} />
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function VoiceLibraryRow({
+  p,
+  activeProfileId,
+  onUse,
+}: {
+  p: VoiceProfile;
+  activeProfileId?: string;
+  onUse: (id: string | undefined) => void;
+}) {
+  const stored = useImage(p.sampleAudioId ?? null);
+  const sampleUrl = stored ?? p.sampleAudio ?? undefined;
+  const status = p.status ?? (p.sampleAudioId || p.sampleAudio ? "ready" : "needs-sample");
+  return (
+    <div
+      className={[
+        "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm",
+        activeProfileId === p.id ? "border-primary bg-primary/5" : "border-border",
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-2">
+        <span className="font-medium">{p.name}</span>
+        {p.isDefault && (
+          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+            Default
+          </span>
+        )}
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[status] ?? STATUS_STYLES["needs-sample"]}`}
+        >
+          {status === "needs-sample" ? "Needs sample" : status[0].toUpperCase() + status.slice(1)}
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          {p.source === "record" ? "recorded" : "uploaded"}
+          {p.provider ? ` · ${p.provider}` : ""}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        {/* Play sample */}
+        {sampleUrl && <audio controls src={sampleUrl} className="h-7" />}
+        {/* Use Voice */}
+        <Button
+          size="sm"
+          variant={activeProfileId === p.id ? "default" : "outline"}
+          className="h-7 text-xs"
+          onClick={() => onUse(activeProfileId === p.id ? undefined : p.id)}
+        >
+          {activeProfileId === p.id ? "In use" : "Use Voice"}
+        </Button>
+        {/* Set as Default */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="Set as default"
+          onClick={() => {
+            setDefaultVoiceProfile(p.id);
+            toast.success(`"${p.name}" is now the default voice`);
+          }}
+        >
+          <Star className={`h-3.5 w-3.5 ${p.isDefault ? "fill-primary text-primary" : ""}`} />
+        </Button>
+        {/* Rename */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="Rename"
+          onClick={() => {
+            const next = window.prompt("Rename voice profile", p.name);
+            if (next && next.trim()) {
+              renameVoiceProfile(p.id, next);
+              toast.success("Voice profile renamed");
+            }
+          }}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        {/* Delete */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="Delete"
+          onClick={() => {
+            if (p.sampleAudioId) void deleteImage(p.sampleAudioId);
+            deleteVoiceProfile(p.id);
+            if (activeProfileId === p.id) onUse(undefined);
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
