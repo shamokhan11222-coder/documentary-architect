@@ -217,9 +217,17 @@ function VisualPage() {
       toast.info("Nothing to generate — every image in range is already done.");
       return;
     }
+    // Requirement: images must use the active Image Provider. If it isn't
+    // configured, do not start generation and never fall back to built-in AI.
+    const ready = imageProviderReady();
+    if (!ready.ok) {
+      toast.error(ready.message ?? "Image provider not configured. Connect an image provider in API Settings.");
+      return;
+    }
     return withBusy(key, async () => {
-      setProgress({ done: 0, total: scenes.length });
+      setProgress({ done: 0, total: scenes.length, current: scenes[0]?.sceneNumber ?? null });
       for (let i = 0; i < scenes.length; i++) {
+        setProgress({ done: i, total: scenes.length, current: scenes[i].sceneNumber });
         try {
           await genImage(scenes[i]);
         } catch (e) {
@@ -231,7 +239,7 @@ function VisualPage() {
           }
           toast.error(`Scene ${scenes[i].sceneNumber}: ${msg}`);
         }
-        setProgress({ done: i + 1, total: scenes.length });
+        setProgress({ done: i + 1, total: scenes.length, current: scenes[i].sceneNumber });
       }
       setProgress(null);
       void refreshHave();
@@ -245,6 +253,19 @@ function VisualPage() {
 
   function generateNext(n: number) {
     return runBatch(`next-${n}`, pendingScenes().slice(0, n));
+  }
+
+  // Generate every pending scene, in order (001, 002, 003 …). Sequential —
+  // the shared queue guarantees no parallel spam.
+  function generateAll() {
+    return runBatch("all", pendingScenes());
+  }
+
+  // Resume generation from the first failed scene onward.
+  function continueFromFailed() {
+    if (failed.size === 0) return generateAll();
+    const firstFailed = Math.min(...failed);
+    return runBatch("continue", pendingScenes().filter((s) => s.sceneNumber >= firstFailed));
   }
 
   function retryFailed() {
