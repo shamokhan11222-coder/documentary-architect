@@ -11,13 +11,10 @@ import {
   ArrowRight,
   ArrowUpRight,
   Sparkles,
-  Clock,
-  Coins,
   ImagePlus,
   Mic,
   Download,
   Play,
-  Zap,
   BookText,
   Search,
   Image as ImageIcon,
@@ -26,7 +23,12 @@ import {
   TrendingUp,
   Wand2,
   Rocket,
-  CircleDot,
+  Plus,
+  FileText,
+  Film,
+  Users,
+  GraduationCap,
+  PlayCircle,
   Landmark,
   Compass,
   FlaskConical,
@@ -40,18 +42,17 @@ import {
   useTaste,
   addTaste,
   useTopics,
-  useProjectStatus,
+  useAllStories,
+  useAllVisuals,
 } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
-import { useActiveProvider } from "@/lib/provider";
 import { useSelectedProject } from "@/components/ProjectPicker";
-import { PIPELINE, completionPercent, nextStage, stageDone, type StageKey } from "@/lib/manager";
-import { usePipeline, etaRemainingMs, fmtDuration } from "@/lib/pipeline";
-import { useCreditConfig } from "@/lib/credit-mode";
-import { AnimatedNumber, Reveal, AIThinking } from "@/components/motion";
+import { nextStage, type StageKey } from "@/lib/manager";
+import { loadImage } from "@/lib/images";
+import { Reveal, AIThinking } from "@/components/motion";
 import { LogoLoading } from "@/components/Logo";
-import type { GeneratedIdea, IdeaCategory } from "@/lib/types";
+import type { GeneratedIdea, IdeaCategory, Story, VisualMap } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 
 const STAGE_ROUTE: Record<StageKey, string> = {
@@ -64,6 +65,16 @@ const STAGE_ROUTE: Record<StageKey, string> = {
   voice: "/voice",
   rating: "/rating",
 };
+
+const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
+
+const HEADLINES = [
+  "Create Stories Millions Will Watch.",
+  "Your Next Viral Documentary Starts Here.",
+  "Turn Curiosity Into Cinematic Stories.",
+  "Craft the Documentary the World Remembers.",
+  "Every Great Documentary Begins With One Idea.",
+];
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [{ title: "Workspace — Stickmax Studio" }] }),
@@ -80,123 +91,100 @@ function greeting() {
 /* ====================================================================== */
 
 function HomePage() {
-  const activeProvider = useActiveProvider();
-
   return (
     <div className="brand-gradient min-h-screen">
-      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10 space-y-6">
-        <Workspace activeProviderName={activeProvider?.name ?? null} />
+      <div className="mx-auto max-w-7xl px-6 py-10 md:px-10 md:py-14 space-y-12 md:space-y-16">
+        <Workspace />
       </div>
     </div>
   );
 }
 
-function Workspace({ activeProviderName }: { activeProviderName: string | null }) {
+function Workspace() {
   const router = useRouter();
   const { selected } = useSelectedProject();
   const topics = useTopics();
+  const stories = useAllStories();
+  const visuals = useAllVisuals();
   const active = selected ?? topics[0] ?? null;
   const activeId = active?.id ?? null;
-  const credit = useCreditConfig();
+  const [query, setQuery] = useState("");
 
-  const pipeline = usePipeline(activeId);
-  const status = useProjectStatus(activeId);
-  const percent = activeId ? completionPercent(activeId) : 0;
-  const remainingMs = pipeline ? etaRemainingMs(pipeline) : 0;
-  const running = pipeline?.running ?? false;
-  const next = activeId ? nextStage(activeId) : null;
-  const currentStageDef = PIPELINE.find((s) => s.key === (pipeline?.currentStage ?? next)) ?? null;
+  const headline = useMemo(() => HEADLINES[new Date().getDay() % HEADLINES.length], []);
 
-  const doneStages = PIPELINE.filter((s) => activeId && stageDone(activeId, s.key)).length;
-  const exportReady = [status.research, status.story, status.visual, status.thumbnail, status.seo].filter(Boolean).length;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return topics;
+    return topics.filter((t) => t.topic.toLowerCase().includes(q));
+  }, [topics, query]);
 
-  // Usage graph — last 7 days activity derived from topics + pipeline
-  const usage = useMemo(() => buildUsage(topics), [topics]);
-  const totalGenerations = usage.reduce((a, b) => a + b.value, 0);
+  const exportable = useMemo(
+    () => topics.filter((t) => stories[t.id] || visuals[t.id]).slice(0, 4),
+    [topics, stories, visuals],
+  );
 
-  const exports = useMemo(
-    () => topics.filter((t) => completionPercent(t.id) >= 60).slice(0, 4),
-    [topics]
+  const recentScripts = useMemo(
+    () =>
+      Object.values(stories)
+        .sort((a, b) => (b.generatedAt ?? 0) - (a.generatedAt ?? 0))
+        .slice(0, 4),
+    [stories],
   );
 
   function continueWorking() {
-    if (activeId) setSelectedTopicId(activeId);
+    if (!activeId) return;
+    setSelectedTopicId(activeId);
+    const next = nextStage(activeId);
     router.navigate({ to: next ? STAGE_ROUTE[next] : "/export" });
   }
 
+  const titleFor = (id: string) => topics.find((t) => t.id === id)?.topic ?? "Untitled project";
+
   return (
     <>
-      {/* WELCOME + CONTINUE WORKING */}
-      <Reveal className="overflow-hidden rounded-3xl glass-card p-6 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-brand" /> {greeting()}
-            </div>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">
-              Welcome back to your workspace
-            </h1>
-            {active ? (
-              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                Continue working on{" "}
-                <span className="font-medium text-foreground">{active.topic}</span> — you're{" "}
-                {percent}% through the pipeline.
-              </p>
-            ) : (
-              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                Spin up your first documentary project below and watch every AI stage happen live.
-              </p>
-            )}
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              {active ? (
-                <Button onClick={continueWorking} className="btn-press">
-                  {next ? <Play className="mr-1.5 h-4 w-4" /> : <Download className="mr-1.5 h-4 w-4" />}
-                  {next ? "Continue Working" : "Go to Export"}
-                </Button>
-              ) : (
-                <Button asChild className="btn-press">
-                  <Link to="/topics"><Wand2 className="mr-1.5 h-4 w-4" /> Generate Ideas</Link>
-                </Button>
-              )}
-              {active && (
-                <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <CircleDot className="h-4 w-4 text-brand" />
-                  {currentStageDef ? `Next: ${currentStageDef.label}` : "Complete"}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Continue-working progress ring */}
-          {active && (
-            <div className="flex items-center gap-4 rounded-2xl border border-border/60 bg-background/40 p-4">
-              <ProgressRing percent={percent} running={running} />
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">Pipeline</div>
-                <div className="text-lg font-semibold tabular-nums">{doneStages}/{PIPELINE.length} stages</div>
-                <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" /> {remainingMs > 0 ? fmtDuration(remainingMs) : "Ready"}
-                </div>
-              </div>
-            </div>
-          )}
+      {/* HERO — greeting + inspirational headline + search */}
+      <Reveal className="pt-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
+          <Sparkles className="h-3.5 w-3.5" /> {greeting()}
         </div>
+        <h1 className="mt-4 max-w-4xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
+          {headline}
+        </h1>
+        <p className="mt-4 max-w-2xl text-base text-muted-foreground md:text-lg">
+          Turn a spark of curiosity into a cinematic documentary — research, script, visuals and voice, all in one studio.
+        </p>
+
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="group mt-8 flex max-w-2xl items-center gap-3 rounded-2xl glass-card px-5 py-4"
+        >
+          <Search className="h-5 w-5 shrink-0 text-muted-foreground transition-colors group-focus-within:text-brand" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search your projects, ideas and scripts…"
+            className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
+          <Button asChild className="btn-press shrink-0">
+            <Link to="/topics"><Wand2 className="mr-1.5 h-4 w-4" /> New Idea</Link>
+          </Button>
+        </form>
       </Reveal>
 
-      {/* QUICK ACTIONS */}
+      {/* QUICK CREATE */}
       <Reveal delay={40}>
-        <SectionTitle icon={<Zap className="h-4 w-4" />} title="Quick Actions" />
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {QUICK_ACTIONS.map((q, i) => (
+        <SectionHeader icon={<Plus className="h-4 w-4" />} title="Quick Create" subtitle="Jump straight into any part of the studio." />
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {QUICK_CREATE.map((q, i) => (
             <Link
               key={q.to}
               to={q.to}
               onClick={() => activeId && setSelectedTopicId(activeId)}
-              className="card-lift group flex flex-col gap-3 rounded-2xl glass-card p-4 animate-spring-in"
+              className="card-lift group flex flex-col gap-4 rounded-3xl glass-card p-6 animate-spring-in"
               style={{ animationDelay: `${i * 40}ms` }}
             >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/12 text-brand transition-transform group-hover:scale-110">
-                <q.icon className="h-5 w-5" />
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand/12 text-brand transition-transform group-hover:scale-110">
+                <q.icon className="h-6 w-6" />
               </span>
               <span className="text-sm font-semibold tracking-tight">{q.label}</span>
             </Link>
@@ -204,151 +192,79 @@ function Workspace({ activeProviderName }: { activeProviderName: string | null }
         </div>
       </Reveal>
 
-      {/* STATUS ROW: credits, provider, usage graph */}
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Reveal className="rounded-3xl glass-card p-5" delay={40}>
-          <SectionTitle icon={<Coins className="h-4 w-4" />} title="Credits" />
-          <div className="mt-4 flex items-end justify-between">
-            <div>
-              <AnimatedNumber value={credit.defaultImageBatch * 100} className="text-3xl font-bold tracking-tight" />
-              <div className="mt-0.5 text-xs text-muted-foreground">credits available</div>
+      {/* CONTINUE LAST PROJECT */}
+      <Reveal delay={40}>
+        <SectionHeader icon={<Play className="h-4 w-4" />} title="Continue Last Project" />
+        <div className="mt-6 overflow-hidden rounded-3xl glass-card p-8 md:p-10">
+          {active ? (
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="min-w-0">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Pick up where you left off
+                </div>
+                <h3 className="mt-2 max-w-2xl font-display text-2xl font-bold leading-tight md:text-3xl">
+                  {active.topic}
+                </h3>
+              </div>
+              <Button onClick={continueWorking} size="lg" className="btn-press shrink-0">
+                <Play className="mr-2 h-4 w-4" /> Continue Creating
+              </Button>
             </div>
-            <span className="rounded-full bg-brand/12 px-2.5 py-1 text-xs font-semibold text-brand">
-              {credit.label}
-            </span>
-          </div>
-          <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-brand" style={{ width: "68%" }} />
-          </div>
-          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Batch {credit.defaultImageBatch} · {credit.dnaReferences} refs</span>
-            <Link to="/upgrade" className="font-medium text-brand hover:underline">Upgrade</Link>
-          </div>
-        </Reveal>
-
-        <Reveal className="rounded-3xl glass-card p-5" delay={80}>
-          <SectionTitle icon={<Zap className="h-4 w-4" />} title="AI Provider Status" />
-          <div className="mt-4 space-y-3">
-            <ProviderRow
-              name={activeProviderName ? "Gemini" : "Lovable AI Gateway"}
-              detail={activeProviderName ? "External provider connected" : "Built-in, always available"}
-              ok
-            />
-            <ProviderRow name="Image Engine" detail="Operational" ok />
-            <ProviderRow name="Voice Engine" detail="Operational" ok />
-          </div>
-        </Reveal>
-
-        <Reveal className="rounded-3xl glass-card p-5" delay={120}>
-          <div className="flex items-center justify-between">
-            <SectionTitle icon={<TrendingUp className="h-4 w-4" />} title="Usage" />
-            <span className="text-xs text-muted-foreground">
-              <AnimatedNumber value={totalGenerations} className="font-semibold text-foreground" /> this week
-            </span>
-          </div>
-          <UsageGraph data={usage} />
-        </Reveal>
-      </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="min-w-0">
+                <h3 className="font-display text-2xl font-bold md:text-3xl">Start your first documentary</h3>
+                <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                  Generate a fresh idea and Stickmax will help you build the whole story.
+                </p>
+              </div>
+              <Button asChild size="lg" className="btn-press shrink-0">
+                <Link to="/topics"><Wand2 className="mr-2 h-4 w-4" /> Generate Ideas</Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      </Reveal>
 
       {/* RECENT PROJECTS */}
-      <Reveal className="rounded-3xl glass-card p-6" delay={40}>
-        <div className="flex items-center justify-between">
-          <SectionTitle icon={<Rocket className="h-4 w-4" />} title="Recent Projects" />
-          <Link to="/topics" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-            View all <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-        {topics.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No projects yet — generate an idea below to get started.
-          </p>
+      <Reveal delay={40}>
+        <SectionHeader
+          icon={<Rocket className="h-4 w-4" />}
+          title="Recent Projects"
+          action={<Link to="/topics" className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">View all <ArrowRight className="h-3.5 w-3.5" /></Link>}
+        />
+        {filtered.length === 0 ? (
+          <EmptyCard>{query ? "No projects match your search." : "No projects yet — generate an idea below to begin."}</EmptyCard>
         ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {topics.slice(0, 6).map((t) => {
-              const p = completionPercent(t.id);
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => {
-                    setSelectedTopicId(t.id);
-                    toast.success("Active project switched");
-                  }}
-                  className={`card-lift flex flex-col rounded-2xl border p-4 text-left ${
-                    t.id === activeId ? "border-brand/50 bg-brand/5" : "border-border bg-card/60"
-                  }`}
-                >
-                  <div className="line-clamp-2 text-sm font-semibold">{t.topic}</div>
-                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-brand" style={{ width: `${p}%` }} />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{p}% complete</span>
-                    {t.id === activeId && <span className="font-medium text-brand">Active</span>}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.slice(0, 6).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setSelectedTopicId(t.id);
+                  toast.success("Active project switched");
+                }}
+                className={`card-lift flex flex-col gap-3 rounded-3xl glass-card p-6 text-left ${
+                  t.id === activeId ? "ring-1 ring-brand/50" : ""
+                }`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand/12 text-brand">
+                  <Film className="h-5 w-5" />
+                </span>
+                <span className="line-clamp-2 text-base font-semibold leading-snug">{t.topic}</span>
+                <span className="mt-auto inline-flex items-center gap-1.5 text-xs font-medium text-brand">
+                  {t.id === activeId ? "Active project" : "Open project"} <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </Reveal>
 
-      {/* RECENT EXPORTS + LATEST AI NEWS */}
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Reveal className="rounded-3xl glass-card p-5 lg:col-span-1" delay={40}>
-          <div className="flex items-center justify-between">
-            <SectionTitle icon={<Download className="h-4 w-4" />} title="Recent Exports" />
-            <Link to="/export" className="text-xs font-medium text-brand hover:underline">Open</Link>
-          </div>
-          <div className="mt-4 space-y-2.5">
-            {exports.length === 0 && (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                Finish a project to see exports here.
-              </p>
-            )}
-            {exports.map((t) => (
-              <Link
-                key={t.id}
-                to="/export"
-                onClick={() => setSelectedTopicId(t.id)}
-                className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5 transition-colors hover:border-brand/40"
-              >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/12 text-brand">
-                  <Download className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{t.topic}</span>
-                  <span className="text-xs text-muted-foreground">{completionPercent(t.id)}% ready</span>
-                </span>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-              </Link>
-            ))}
-          </div>
-        </Reveal>
-
-        <Reveal className="rounded-3xl glass-card p-5 lg:col-span-2" delay={80}>
-          <SectionTitle icon={<Newspaper className="h-4 w-4" />} title="Latest AI News" />
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {AI_NEWS.map((n) => (
-              <a
-                key={n.title}
-                href={n.url}
-                target="_blank"
-                rel="noreferrer"
-                className="card-lift flex flex-col gap-1.5 rounded-2xl border border-border/60 bg-background/40 p-4"
-              >
-                <span className="text-xs font-semibold uppercase tracking-wider text-brand">{n.tag}</span>
-                <span className="text-sm font-semibold leading-snug">{n.title}</span>
-                <span className="text-xs text-muted-foreground">{n.source}</span>
-              </a>
-            ))}
-          </div>
-        </Reveal>
-      </div>
-
-      {/* TRENDING TEMPLATES */}
-      <Reveal className="rounded-3xl glass-card p-6" delay={40}>
-        <SectionTitle icon={<LayoutTemplate className="h-4 w-4" />} title="Trending Templates" />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* TEMPLATES */}
+      <Reveal delay={40}>
+        <SectionHeader icon={<LayoutTemplate className="h-4 w-4" />} title="Templates" subtitle="Proven documentary formats to start from." />
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {TEMPLATES.map((tpl, i) => (
             <button
               key={tpl.name}
@@ -367,25 +283,219 @@ function Workspace({ activeProviderName }: { activeProviderName: string | null }
                 setSelectedTopicId(t.id);
                 toast.success("Template added to Projects");
               }}
-              className="card-lift flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/40 p-4 text-left animate-spring-in"
+              className="card-lift flex flex-col gap-3 rounded-3xl glass-card p-6 text-left animate-spring-in"
               style={{ animationDelay: `${i * 40}ms` }}
             >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/15">
-                <tpl.icon className="h-5 w-5" />
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand/10 text-brand ring-1 ring-brand/15">
+                <tpl.icon className="h-6 w-6" />
               </span>
-              <span className="text-sm font-semibold leading-snug">{tpl.name}</span>
-              <span className="text-xs text-muted-foreground line-clamp-2">{tpl.desc}</span>
-              <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand">
-                Use template <ArrowRight className="h-3 w-3" />
+              <span className="text-base font-semibold leading-snug">{tpl.name}</span>
+              <span className="text-sm text-muted-foreground line-clamp-2">{tpl.desc}</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-brand">
+                Use template <ArrowRight className="h-3.5 w-3.5" />
               </span>
             </button>
           ))}
         </div>
       </Reveal>
 
-      {/* RECENT GENERATIONS (idea feed) */}
+      {/* TRENDING DOCUMENTARY IDEAS */}
       <RecentGenerations />
+
+      {/* LATEST AI FEATURES */}
+      <Reveal delay={40}>
+        <SectionHeader icon={<Newspaper className="h-4 w-4" />} title="Latest AI Features" subtitle="Fresh capabilities shaping the future of storytelling." />
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {AI_NEWS.map((n) => (
+            <a
+              key={n.title}
+              href={n.url}
+              target="_blank"
+              rel="noreferrer"
+              className="card-lift flex flex-col gap-2 rounded-3xl glass-card p-6"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider text-brand">{n.tag}</span>
+              <span className="text-base font-semibold leading-snug">{n.title}</span>
+              <span className="mt-auto text-xs text-muted-foreground">{n.source}</span>
+            </a>
+          ))}
+        </div>
+      </Reveal>
+
+      {/* COMMUNITY PICKS */}
+      <Reveal delay={40}>
+        <SectionHeader icon={<Users className="h-4 w-4" />} title="Community Picks" subtitle="Loved by creators in the Stickmax community." />
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {COMMUNITY_PICKS.map((c) => (
+            <div key={c.title} className="card-lift flex flex-col gap-3 rounded-3xl glass-card p-6">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-brand/12 px-2.5 py-1 text-xs font-semibold text-brand">{c.tag}</span>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  <TrendingUp className="h-3.5 w-3.5 text-brand" /> {c.stat}
+                </span>
+              </div>
+              <span className="text-base font-semibold leading-snug">{c.title}</span>
+              <span className="text-sm text-muted-foreground">by {c.author}</span>
+            </div>
+          ))}
+        </div>
+      </Reveal>
+
+      {/* TUTORIAL VIDEOS */}
+      <Reveal delay={40}>
+        <SectionHeader icon={<GraduationCap className="h-4 w-4" />} title="Tutorial Videos" subtitle="Learn the workflow in minutes." />
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {TUTORIALS.map((v) => (
+            <a
+              key={v.title}
+              href={v.url}
+              target="_blank"
+              rel="noreferrer"
+              className="card-lift group flex flex-col overflow-hidden rounded-3xl glass-card"
+            >
+              <div className="relative flex aspect-video items-center justify-center bg-gradient-to-br from-brand/25 via-brand/10 to-transparent">
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-background/70 text-brand backdrop-blur transition-transform group-hover:scale-110">
+                  <PlayCircle className="h-7 w-7" />
+                </span>
+                <span className="absolute bottom-3 right-3 rounded-md bg-background/70 px-1.5 py-0.5 text-[11px] font-medium text-foreground backdrop-blur">
+                  {v.length}
+                </span>
+              </div>
+              <div className="p-5">
+                <span className="text-base font-semibold leading-snug">{v.title}</span>
+                <span className="mt-1 block text-sm text-muted-foreground">{v.desc}</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </Reveal>
+
+      {/* RECENT EXPORTS */}
+      <Reveal delay={40}>
+        <SectionHeader
+          icon={<Download className="h-4 w-4" />}
+          title="Recent Exports"
+          action={<Link to="/export" className="text-sm font-medium text-brand hover:underline">Open exports</Link>}
+        />
+        {exportable.length === 0 ? (
+          <EmptyCard>Your finished exports will appear here.</EmptyCard>
+        ) : (
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {exportable.map((t) => (
+              <Link
+                key={t.id}
+                to="/export"
+                onClick={() => setSelectedTopicId(t.id)}
+                className="card-lift flex flex-col gap-3 rounded-3xl glass-card p-6"
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand/12 text-brand">
+                  <Download className="h-5 w-5" />
+                </span>
+                <span className="line-clamp-2 text-base font-semibold leading-snug">{t.topic}</span>
+                <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-brand">
+                  Open export <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Reveal>
+
+      {/* RECENT IMAGES */}
+      <RecentImages visuals={visuals} topics={topics} />
+
+      {/* RECENT SCRIPTS */}
+      <Reveal delay={40}>
+        <SectionHeader
+          icon={<FileText className="h-4 w-4" />}
+          title="Recent Scripts"
+          action={<Link to="/story" className="text-sm font-medium text-brand hover:underline">Open scripts</Link>}
+        />
+        {recentScripts.length === 0 ? (
+          <EmptyCard>Scripts you generate will show up here.</EmptyCard>
+        ) : (
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            {recentScripts.map((s) => (
+              <Link
+                key={s.topicId}
+                to="/story"
+                onClick={() => setSelectedTopicId(s.topicId)}
+                className="card-lift flex flex-col gap-3 rounded-3xl glass-card p-6"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand/12 text-brand">
+                    <FileText className="h-5 w-5" />
+                  </span>
+                  <span className="line-clamp-1 text-base font-semibold">{titleFor(s.topicId)}</span>
+                </div>
+                <p className="line-clamp-3 text-sm text-muted-foreground">
+                  {(s.script || s.sections?.map((x) => x.content).join(" ") || "").slice(0, 220)}
+                </p>
+                <span className="mt-auto inline-flex items-center gap-1 text-xs font-medium text-brand">
+                  Open script <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Reveal>
     </>
+  );
+}
+
+/* ---- Recent Images (reads real generated scene images from IndexedDB) ---- */
+function RecentImages({ visuals, topics }: { visuals: Record<string, VisualMap>; topics: { id: string }[] }) {
+  const [images, setImages] = useState<string[]>([]);
+
+  const candidates = useMemo(() => {
+    const ids: string[] = [];
+    for (const t of topics) {
+      const v = visuals[t.id];
+      if (!v) continue;
+      for (const scene of v.scenes) ids.push(sceneImageId(t.id, scene.sceneNumber));
+    }
+    return ids.slice(0, 40);
+  }, [visuals, topics]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const found: string[] = [];
+      for (const id of candidates) {
+        if (found.length >= 8) break;
+        const url = await loadImage(id);
+        if (url) found.push(url);
+      }
+      if (!cancelled) setImages(found);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates]);
+
+  return (
+    <Reveal delay={40}>
+      <SectionHeader
+        icon={<ImageIcon className="h-4 w-4" />}
+        title="Recent Images"
+        action={<Link to="/visual" className="text-sm font-medium text-brand hover:underline">Open studio</Link>}
+      />
+      {images.length === 0 ? (
+        <EmptyCard>Generated visuals will appear here as a gallery.</EmptyCard>
+      ) : (
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {images.map((src, i) => (
+            <Link
+              key={i}
+              to="/visual"
+              className="card-lift group relative aspect-video overflow-hidden rounded-3xl glass-card"
+            >
+              <img src={src} alt="Recent generated scene" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </Reveal>
   );
 }
 
@@ -438,17 +548,18 @@ function RecentGenerations() {
   }
 
   return (
-    <Reveal className="rounded-3xl glass-card p-6" delay={40}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Recent Generations" />
-        <Button onClick={load} disabled={loading} variant="outline" size="sm">
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          Refresh
-        </Button>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        The Hidden Origins of Everyday Life — weak ideas auto-rejected; rejecting trains your taste.
-      </p>
+    <Reveal delay={40}>
+      <SectionHeader
+        icon={<Sparkles className="h-4 w-4" />}
+        title="Trending Documentary Ideas"
+        subtitle="Fresh, high-potential stories curated for you — reject any to sharpen your taste."
+        action={
+          <Button onClick={load} disabled={loading} variant="outline" size="sm">
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Refresh
+          </Button>
+        }
+      />
 
       {loading && categories.length === 0 && (
         <div className="mt-10 flex flex-col items-center gap-4">
@@ -531,87 +642,48 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
   );
 }
 
-function ProviderRow({ name, detail, ok }: { name: string; detail: string; ok: boolean }) {
+function SectionHeader({
+  icon,
+  title,
+  subtitle,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5">
-      <span className={`h-2 w-2 shrink-0 rounded-full ${ok ? "animate-pulse bg-emerald-500" : "bg-muted-foreground/50"}`} />
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">{name}</span>
-        <span className="text-xs text-muted-foreground">{detail}</span>
-      </span>
-      <span className="text-xs font-medium text-emerald-500">{ok ? "Online" : "Idle"}</span>
-    </div>
-  );
-}
-
-function ProgressRing({ percent, running }: { percent: number; running: boolean }) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const offset = c - (percent / 100) * c;
-  return (
-    <div className="relative h-16 w-16">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--muted)" strokeWidth="6" className="opacity-60" />
-        <circle
-          cx="32" cy="32" r={r} fill="none" stroke="var(--brand)" strokeWidth="6"
-          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
-          className="transition-[stroke-dashoffset] duration-700 ease-out"
-        />
-      </svg>
-      <span className="absolute inset-0 grid place-items-center text-sm font-bold">
-        {running ? <Loader2 className="h-4 w-4 animate-spin text-brand" /> : `${percent}%`}
-      </span>
-    </div>
-  );
-}
-
-function UsageGraph({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.value));
-  return (
-    <div className="mt-4 flex h-28 items-stretch gap-2">
-      {data.map((d, i) => (
-        <div key={i} className="group flex h-full flex-1 flex-col items-center gap-1.5">
-          <div className="flex w-full flex-1 items-end">
-            <div
-              className="chart-rise w-full rounded-t-md bg-gradient-to-t from-brand/60 to-brand transition-all duration-700 ease-out group-hover:from-brand"
-              style={{ height: `${Math.max(6, (d.value / max) * 100)}%`, animationDelay: `${i * 60}ms` }}
-              title={`${d.value}`}
-            />
-          </div>
-          <span className="text-[10px] text-muted-foreground">{d.label}</span>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand/12 text-brand">{icon}</span>
+          <h2 className="font-display text-xl font-bold tracking-tight md:text-2xl">{title}</h2>
         </div>
-      ))}
+        {subtitle && <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>}
+      </div>
+      {action}
     </div>
   );
 }
 
-function buildUsage(topics: { savedAt?: number }[]) {
-  const days = ["S", "M", "T", "W", "T", "F", "S"];
-  const now = new Date();
-  const buckets = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() - (6 - i));
-    return { label: days[d.getDay()], key: d.toDateString(), value: 0 };
-  });
-  for (const t of topics) {
-    if (!t.savedAt) continue;
-    const key = new Date(t.savedAt).toDateString();
-    const b = buckets.find((x) => x.key === key);
-    if (b) b.value += 1;
-  }
-  // seed a gentle baseline so the graph never looks empty
-  return buckets.map((b, i) => ({ label: b.label, value: b.value * 3 + ((i * 5 + 4) % 7) + 2 }));
+function EmptyCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-6 rounded-3xl glass-card p-10 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
 }
 
 /* ---------------------------- static data ---------------------------- */
 
-const QUICK_ACTIONS = [
+const QUICK_CREATE = [
+  { to: "/topics", label: "New Project", icon: Wand2 },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
   { to: "/visual", label: "Images", icon: ImageIcon },
   { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/voice", label: "Voice", icon: Mic },
-  { to: "/export", label: "Export", icon: Download },
 ] as const;
 
 const TEMPLATES = [
@@ -626,4 +698,16 @@ const AI_NEWS = [
   { tag: "Research", title: "New retrieval methods sharpen long-form scripting", source: "arXiv Digest", url: "https://arxiv.org/list/cs.AI/recent" },
   { tag: "Voice", title: "Realtime voice cloning gets more natural prosody", source: "TechCrunch", url: "https://techcrunch.com/category/artificial-intelligence/" },
   { tag: "Tooling", title: "Creators lean on AI pipelines for faster output", source: "Wired", url: "https://www.wired.com/tag/artificial-intelligence/" },
+];
+
+const COMMUNITY_PICKS = [
+  { tag: "Trending", title: "The Secret History of the Paperclip", author: "Ava Lin", stat: "2.4M views" },
+  { tag: "Editor's Pick", title: "Cities That Vanished Overnight", author: "Marcus Reed", stat: "1.1M views" },
+  { tag: "Rising", title: "How Salt Built Civilizations", author: "Priya Nair", stat: "870K views" },
+];
+
+const TUTORIALS = [
+  { title: "From Idea to Script in 10 Minutes", desc: "Take a topic all the way to a polished narration.", length: "10:24", url: "https://www.youtube.com/results?search_query=documentary+scriptwriting" },
+  { title: "Designing Cinematic Storyboards", desc: "Turn scenes into a consistent visual language.", length: "8:12", url: "https://www.youtube.com/results?search_query=storyboarding+documentary" },
+  { title: "Voiceovers That Keep Viewers Watching", desc: "Direct pacing, tone and emotion for retention.", length: "6:47", url: "https://www.youtube.com/results?search_query=documentary+voiceover" },
 ];
