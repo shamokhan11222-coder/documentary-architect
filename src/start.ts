@@ -3,6 +3,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 import { renderErrorPage } from "./lib/error-page";
 import { getActiveProvider } from "./lib/provider";
 import { recordTelemetry } from "./lib/provider-telemetry";
+import { enqueueAi } from "./lib/ai-queue";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -40,7 +41,12 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
       console.log("[AI] selected provider=builtin (no Gemini key connected)");
     }
     try {
-      const res = await next({ headers });
+      // Funnel through the global AI queue on the browser so we never fire
+      // parallel requests at Gemini / built-in AI. SSR bypasses the queue.
+      const res =
+        typeof window === "undefined"
+          ? await next({ headers })
+          : await enqueueAi(() => next({ headers }), usingGemini ? "Gemini request" : "AI request");
       console.log("[AI] response received (status=success)");
       recordTelemetry({
         lastProvider: usingGemini ? "gemini" : "builtin",
