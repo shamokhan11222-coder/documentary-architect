@@ -621,7 +621,7 @@ function Sidebar({
           </Link>
         ) : (
           <Link to="/">
-            <Logo />
+            <Logo studio />
           </Link>
         )}
         {onToggleCollapse && (
