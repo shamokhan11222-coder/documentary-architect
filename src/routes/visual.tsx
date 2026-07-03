@@ -492,8 +492,12 @@ function VisualPage() {
 
       {progress && (
         <div className="mt-4">
-          <div className="mb-1 text-xs text-muted-foreground">
-            Generating images… {progress.done}/{progress.total}
+          <div className="mb-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <span>Generated {progress.done} / {progress.total} scenes</span>
+            {progress.current != null && <span>· Current scene {pad3(progress.current)}</span>}
+            <span>· Pending {Math.max(0, progress.total - progress.done)}</span>
+            <span>· Completed {have.size}</span>
+            <span>· Failed {failed.size}</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
