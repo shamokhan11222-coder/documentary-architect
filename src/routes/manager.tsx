@@ -186,7 +186,8 @@ function ManagerPage() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      const isCredits = /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
+      const isCredits =
+        !hasUnlimitedAccess() && /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
       patchStage(id, stage, { status: "failed", error: msg, finishedAt: Date.now() });
       const label = PIPELINE.find((p) => p.key === stage)?.label ?? stage;
       if (isCredits) {
