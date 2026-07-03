@@ -108,6 +108,8 @@ function VisualPage() {
   // Always work off a guaranteed array so `.length`/`.filter` never crash.
   const scenes: VisualScene[] = Array.isArray(map?.scenes) ? map!.scenes : [];
   const hasMap = !!map && scenes.length > 0;
+  // A saved map with an empty scenes array is a failed/invalid storyboard.
+  const emptyMap = !!map && scenes.length === 0;
 
   // Refs let per-scene card callbacks stay referentially stable (so memoized
   // SceneCards don't re-render on every progress tick) while still reading the
