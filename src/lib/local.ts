@@ -36,7 +36,12 @@ export function readLocal<T>(key: string, fallback: T): T {
 export function writeLocal<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   const raw = JSON.stringify(value);
-  localStorage.setItem(key, raw);
+  try {
+    localStorage.setItem(key, raw);
+  } catch (err) {
+    console.error(`Failed to persist "${key}" — storage may be full.`, err);
+    return;
+  }
   parseCache.set(key, { raw, value });
   emit();
 }

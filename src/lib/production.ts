@@ -43,7 +43,12 @@ function read<T>(key: string, fallback: T): T {
 }
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error(`Failed to persist "${key}" — storage may be full.`, err);
+    return;
+  }
   emit();
 }
 function useStored<T>(key: string, fallback: T): T {
