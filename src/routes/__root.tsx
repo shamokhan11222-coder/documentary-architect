@@ -266,7 +266,7 @@ function RootComponent() {
               onClick={() => setMobileNavOpen(false)}
             />
             <div className="absolute left-0 top-0 h-full p-3">
-              <Sidebar onNavigate={() => setMobileNavOpen(false)} />
+              <Sidebar mobile onNavigate={() => setMobileNavOpen(false)} />
             </div>
           </div>
         )}
@@ -314,7 +314,8 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const low = !unlimited && balance <= 10;
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/60 glass px-4 py-3 md:px-6">
+    <header className="sticky top-0 z-30 border-b border-border/60 glass">
+      <div className="flex items-center gap-3 px-4 py-2.5 md:px-6">
       {/* Mobile menu toggle */}
       <button
         onClick={onOpenMobileNav}
@@ -324,8 +325,13 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
         <Menu className="h-5 w-5" />
       </button>
 
+      {/* Logo */}
+      <Link to="/" className="mr-1 hidden shrink-0 md:block">
+        <Logo studio />
+      </Link>
+
       {/* Search */}
-      <label className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2 transition-all duration-300 focus-within:border-brand/50 focus-within:bg-card focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] md:max-w-md">
+      <label className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2 transition-all duration-300 focus-within:border-brand/50 focus-within:bg-card focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] md:max-w-sm">
         <Search className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-focus-within:text-brand" />
         <input
           type="search"
@@ -441,7 +447,39 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           </Link>
         )}
       </div>
+      </div>
+
+      {/* Primary navigation — animated underline */}
+      <nav className="hidden items-center gap-6 overflow-x-auto px-6 pb-1.5 md:flex">
+        {STUDIO_TOP_NAV.map((l) => (
+          <TopNavLink key={l.to} to={l.to} label={l.label} exact={l.to === "/"} />
+        ))}
+      </nav>
     </header>
+  );
+}
+
+function TopNavLink({
+  to,
+  label,
+  exact,
+  onClick,
+}: {
+  to: string;
+  label: string;
+  exact?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      to={to}
+      activeOptions={{ exact }}
+      onClick={onClick}
+      className="group relative shrink-0 py-1 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground [&.active]:text-foreground"
+    >
+      {label}
+      <span className="pointer-events-none absolute -bottom-0.5 left-0 h-0.5 w-full origin-left scale-x-0 rounded-full bg-brand shadow-[0_0_10px_color-mix(in_oklab,var(--brand)_60%,transparent)] transition-transform duration-300 ease-out group-hover:scale-x-100 group-[.active]:scale-x-100" />
+    </Link>
   );
 }
 
@@ -535,25 +573,25 @@ function TopNavbar() {
 
 type NavLink = { to: string; label: string; icon: LucideIcon };
 
-// Primary tabs — the reduced, clutter-free core of the studio.
-const PRIMARY_NAV: NavLink[] = [
-  { to: "/", label: "Studio", icon: Home },
+// Primary navigation — lives in the top bar (animated underline).
+const STUDIO_TOP_NAV: NavLink[] = [
   { to: "/topics", label: "Projects", icon: FolderKanban },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
   { to: "/visual", label: "Images", icon: ImageIcon },
-  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/voice", label: "Voice", icon: Mic },
+  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/seo", label: "SEO", icon: BarChart3 },
-  { to: "/export", label: "Export", icon: Download },
-  { to: "/knowledge", label: "Knowledge", icon: BookOpen },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/community", label: "Community", icon: Sparkles },
+  { to: "/pricing", label: "Pricing", icon: CreditCard },
 ];
 
-// Everything else lives under a collapsible "More tools" group.
-const MORE_NAV: NavLink[] = [
+// Secondary navigation — lives in the collapsible left sidebar.
+const SECONDARY_NAV: NavLink[] = [
+  { to: "/", label: "Studio", icon: Home },
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
-  { to: "/credits", label: "Credits", icon: Coins },
+  { to: "/export", label: "Export", icon: Download },
+  { to: "/knowledge", label: "Knowledge", icon: BookOpen },
   { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
   { to: "/rating", label: "Rating", icon: Star },
   { to: "/subtitles", label: "Subtitles", icon: Captions },
@@ -600,12 +638,13 @@ function Sidebar({
   onNavigate,
   collapsed = false,
   onToggleCollapse,
+  mobile = false,
 }: {
   onNavigate?: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  mobile?: boolean;
 }) {
-  const [moreOpen, setMoreOpen] = useState(false);
   return (
     <aside
       className={`sticky top-4 my-4 ml-4 flex h-[calc(100vh-2rem)] shrink-0 flex-col rounded-2xl border border-border/60 glass shadow-[0_24px_60px_-24px_color-mix(in_oklab,var(--brand)_28%,transparent)] transition-[width] duration-300 ${
@@ -645,37 +684,37 @@ function Sidebar({
         </button>
       )}
       <nav className="flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden px-3 pb-4">
-        {PRIMARY_NAV.map((item, i) => (
+        {/* On mobile the top bar is hidden, so surface primary nav here too */}
+        {mobile && (
+          <>
+            <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
+              Primary
+            </p>
+            {STUDIO_TOP_NAV.map((item, i) => (
+              <SidebarLink
+                key={item.to}
+                item={item}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+                delay={i * 18}
+              />
+            ))}
+          </>
+        )}
+        {!collapsed && (
+          <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
+            {mobile ? "Tools" : "Secondary"}
+          </p>
+        )}
+        {SECONDARY_NAV.map((item, i) => (
           <SidebarLink
             key={item.to}
             item={item}
             collapsed={collapsed}
             onNavigate={onNavigate}
-            delay={i * 22}
+            delay={i * 18}
           />
         ))}
-
-        {!collapsed && (
-          <button
-            onClick={() => setMoreOpen((v) => !v)}
-            className="mt-3 flex items-center justify-between rounded-xl px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 transition-colors hover:text-foreground"
-          >
-            More tools
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform duration-200 ${moreOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-        )}
-        {(moreOpen || collapsed) &&
-          MORE_NAV.map((item, i) => (
-            <SidebarLink
-              key={item.to}
-              item={item}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-              delay={i * 18}
-            />
-          ))}
       </nav>
     </aside>
   );
