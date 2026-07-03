@@ -147,7 +147,20 @@ async function getFastGateStatus(): Promise<GateStatus> {
     }
   }
 
-  const status = await getGateStatus();
+  // Never let a slow/hung server call block the whole app on a fresh tab/window.
+  // If the gate check does not resolve within 5s, treat the site as open (the
+  // gate is opt-in and off by default) so the UI never stalls on a blank screen.
+  let status: GateStatus;
+  try {
+    status = await Promise.race([
+      getGateStatus(),
+      new Promise<GateStatus>((resolve) =>
+        setTimeout(() => resolve({ enabled: false, unlocked: true }), 5000),
+      ),
+    ]);
+  } catch {
+    status = { enabled: false, unlocked: true };
+  }
   if (!status.enabled) openGateCache = status;
 
   if (typeof window !== "undefined") {
