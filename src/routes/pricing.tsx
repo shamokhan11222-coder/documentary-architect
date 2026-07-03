@@ -10,10 +10,14 @@ import {
   Building2,
   ArrowRight,
   Zap,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/pricing")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    reason: search.reason === "credits" ? ("credits" as const) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Pricing — Stickmax Studio" },
