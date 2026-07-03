@@ -45,8 +45,17 @@ function VisualPage() {
 
   // A story object can exist without a usable script. Only a non-empty string
   // script is valid — everything downstream (scene counting) depends on it.
-  const scriptText = typeof story?.script === "string" ? story.script : "";
+  // Script may come from the Story page (saved story) OR a manually pasted
+  // script for the selected project.
+  const [pasted, setPasted] = useState("");
+  const storyScript = typeof story?.script === "string" ? story.script : "";
+  const scriptText = storyScript.trim().length > 0 ? storyScript : pasted;
   const hasValidScript = scriptText.trim().length > 0;
+
+  // A visual map may exist without a valid scenes array (older/partial saves).
+  // Always work off a guaranteed array so `.length`/`.filter` never crash.
+  const scenes: VisualScene[] = Array.isArray(map?.scenes) ? map!.scenes : [];
+  const hasMap = !!map && scenes.length > 0;
 
   // Refs let per-scene card callbacks stay referentially stable (so memoized
   // SceneCards don't re-render on every progress tick) while still reading the
