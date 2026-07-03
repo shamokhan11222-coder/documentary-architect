@@ -245,6 +245,8 @@ export interface VoiceProject {
 
 // A saved voice profile (uploaded sample or in-app recording). Cloning is only
 // permitted after the user confirms ownership/permission (consent).
+export type VoiceProfileStatus = "ready" | "processing" | "failed" | "needs-sample";
+
 export interface VoiceProfile {
   id: string;
   name: string;
@@ -252,6 +254,12 @@ export interface VoiceProfile {
   sampleAudio: string; // data URL of the sample
   consent: boolean;
   createdAt: number;
+  updatedAt?: number;
+  provider?: string; // provider used when the profile was created
+  cloneStatus?: string; // human-readable clone status
+  status?: VoiceProfileStatus;
+  isDefault?: boolean;
+  settings?: VoiceSettings; // voice settings snapshot saved with the profile
 }
 
 export interface Subtitle {
