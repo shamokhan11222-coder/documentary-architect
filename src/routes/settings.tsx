@@ -111,20 +111,6 @@ function SettingsPage() {
           </div>
         </section>
 
-        <section className="glass-panel rounded-2xl p-6 animate-[fade-up_0.5s_var(--ease-out-quint)_both]" style={{ animationDelay: "80ms" }}>
-          <div className="flex items-center gap-2 text-base font-semibold">
-            <Palette className="h-[18px] w-[18px] text-brand" /> Theme
-          </div>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Currently {theme === "dark" ? "dark" : "light"} mode.
-          </p>
-          <div className="mt-4">
-            <Button size="sm" variant="outline" onClick={toggleTheme}>
-              Switch to {theme === "dark" ? "light" : "dark"} mode
-            </Button>
-          </div>
-        </section>
-
         <section className="glass-panel rounded-2xl p-6 animate-[fade-up_0.5s_var(--ease-out-quint)_both]" style={{ animationDelay: "120ms" }}>
           <div className="flex items-center gap-2 text-base font-semibold">
             <SlidersHorizontal className="h-[18px] w-[18px] text-brand" /> Configuration
