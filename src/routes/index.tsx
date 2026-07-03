@@ -348,7 +348,17 @@ function Workspace({ activeProviderName }: { activeProviderName: string | null }
             <button
               key={tpl.name}
               onClick={() => {
-                const t = saveTopic({ universe: "Template", topic: tpl.name, explanation: tpl.desc } as GeneratedIdea & { universe: string });
+                const t = saveTopic({
+                  universe: "Template",
+                  topic: tpl.name,
+                  explanation: tpl.desc,
+                  ctrScore: 8,
+                  evergreenScore: 8,
+                  originalityScore: 8,
+                  researchDifficulty: "Medium",
+                  visualDifficulty: "Medium",
+                  estimatedLength: "12-18 min",
+                });
                 setSelectedTopicId(t.id);
                 toast.success("Template added to Projects");
               }}
