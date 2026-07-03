@@ -525,6 +525,23 @@
   }
 }
 
+/* Low-performance devices: drop the most expensive GPU effects (heavy backdrop
+   blur + saturate and infinite background animations) so scrolling and page
+   navigation stay smooth. Toggled by applyPerfProfile() adding `.perf-lite`
+   to <html>. Visual design is otherwise preserved (solid card surfaces). */
+html.perf-lite .glass,
+html.perf-lite .glass-card,
+html.perf-lite .glass-panel {
+  backdrop-filter: none !important;
+  background: color-mix(in oklab, var(--card) 94%, transparent);
+}
+html.perf-lite .animated-gradient {
+  animation: none !important;
+}
+html.perf-lite .float {
+  animation: none !important;
+}
+
 /* ============================================================
    Premium micro-interactions — alive, never distracting
    ============================================================ */

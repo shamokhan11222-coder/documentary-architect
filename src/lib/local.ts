@@ -41,9 +41,17 @@ export function useLocal<T>(key: string, fallback: T): T {
     () => "",
   );
   if (!snap) return fallback;
+  const hit = parseCache.get(key);
+  if (hit && hit.raw === snap) return hit.value as T;
   try {
-    return JSON.parse(snap) as T;
+    const value = JSON.parse(snap) as T;
+    parseCache.set(key, { raw: snap, value });
+    return value;
   } catch {
     return fallback;
   }
 }
+
+// Cache parsed values by (key, raw string) so an unchanged snapshot returns a
+// stable object reference — prevents needless re-renders in consumers.
+const parseCache = new Map<string, { raw: string; value: unknown }>();
