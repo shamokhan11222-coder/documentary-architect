@@ -491,9 +491,21 @@ function VisualPage() {
       )}
 
       {selected && hasValidScript && !hasMap && (
-        <p className="mt-6 text-sm text-muted-foreground">
-          Build storyboard first.
-        </p>
+        <div className="mt-6 space-y-3">
+          {emptyMap ? (
+            <>
+              <p className="text-sm text-amber-600">
+                No storyboard scenes found. Generate Story first, then rebuild storyboard.
+              </p>
+              <Button onClick={handleBuildBoard} disabled={!!busy}>
+                {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <RefreshCw className="mr-2 h-4 w-4" /> Rebuild Storyboard
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Build storyboard first.</p>
+          )}
+        </div>
       )}
 
       {hasMap && selected && (
