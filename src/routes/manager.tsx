@@ -141,19 +141,28 @@ function ManagerPage() {
     try {
       if (stage === "research") {
         setTask(id, stage, "Research Expert → gathering facts…");
-        const r = (await doResearch({ data: { topic, explanation } })) as Omit<Research, "topicId" | "generatedAt">;
+        const r = (await doResearch({
+          data: { topic, explanation, ...buildInjection(["story", "approvedTopic"]) },
+        })) as Omit<Research, "topicId" | "generatedAt">;
         saveResearch({ ...r, topicId: id, generatedAt: Date.now() });
       } else if (stage === "story") {
         const research = readLS<Research>("docos.research", id);
         setTask(id, stage, "Story Architect → writing script…");
-        const s = (await doStory({ data: { topic, research: research ?? undefined } })) as Omit<Story, "topicId" | "generatedAt">;
+        const s = (await doStory({
+          data: {
+            topic,
+            research: research ?? undefined,
+            scriptPattern: getScriptPattern() ?? undefined,
+            ...buildInjection(["hook", "story", "instruction"]),
+          },
+        })) as Omit<Story, "topicId" | "generatedAt">;
         saveStory({ ...s, topicId: id, generatedAt: Date.now() });
       } else if (stage === "storyboard") {
         const story = readLS<Story>("docos.story", id);
         if (!story) throw new Error("Story required before storyboard");
         setTask(id, stage, "Visual Director → building storyboard…");
         const scenes = (await withRetry(id, stage, () =>
-          doVisual({ data: { topic, script: story.script } }),
+          doVisual({ data: { topic, script: story.script, visualInstructions: getVisualInstructions() } }),
         )) as VisualScene[];
         saveVisualMap({ topicId: id, scenes, generatedAt: Date.now() });
       } else if (stage === "images") {
@@ -171,7 +180,14 @@ function ManagerPage() {
         const research = readLS<Research>("docos.research", id);
         if (!story) throw new Error("Story required before thumbnails");
         setTask(id, stage, "Thumbnail Designer → designing…");
-        const ideas = (await doThumbs({ data: { topic, script: story.script, angle: research?.storyAngles?.[0] } })) as ThumbnailIdea[];
+        const ideas = (await doThumbs({
+          data: {
+            topic,
+            script: story.script,
+            angle: research?.storyAngles?.[0],
+            ...buildInjection(["thumbnail"]),
+          },
+        })) as ThumbnailIdea[];
         saveThumbnails({ topicId: id, ideas, generatedAt: Date.now() });
         for (let i = 0; i < ideas.length; i++) {
           if (cancelled.current) throw new Error("Stopped");
@@ -187,7 +203,7 @@ function ManagerPage() {
         const story = readLS<Story>("docos.story", id);
         if (!story) throw new Error("Story required before SEO");
         setTask(id, stage, "SEO Specialist → metadata…");
-        const seo = await doSeo({ data: { topic, script: story.script } });
+        const seo = await doSeo({ data: { topic, script: story.script, ...buildInjection(["seo"]) } });
         saveSeo({ ...seo, topicId: id, generatedAt: Date.now() });
       } else if (stage === "voice") {
         const story = readLS<Story>("docos.story", id);
