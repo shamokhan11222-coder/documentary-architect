@@ -36,6 +36,7 @@ export interface ProviderSettings {
   text: ProviderChoice;
   image: ProviderChoice;
   voice: ProviderChoice;
+  thumbnail: ProviderChoice;
   /** Fall back to built-in Lovable AI if the external provider fails. */
   fallback: boolean;
 }
@@ -44,6 +45,7 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
   image: "gemini",
   voice: "gemini",
+  thumbnail: "gemini",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -99,6 +101,26 @@ export function imageProviderPayload() {
   const s = getProviderSettings();
   if (!p || s.image !== "gemini") return undefined;
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: s.fallback };
+}
+
+export function thumbnailProviderPayload() {
+  const p = getActiveProvider();
+  const s = getProviderSettings();
+  if (!p || s.thumbnail !== "gemini") return undefined;
+  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: s.fallback };
+}
+
+/** Whether image generation can start with the currently selected provider.
+ *  When the Image Provider is routed to an external provider that is not
+ *  connected, generation must NOT silently fall back to built-in AI. */
+export function imageProviderReady(): { ok: boolean; message?: string } {
+  const s = getProviderSettings();
+  const setupMsg = "Image provider not configured. Connect an image provider in API Settings.";
+  if (s.image === "builtin") return { ok: true };
+  // Routed to Gemini — it must be supported and connected.
+  if (!GEMINI_SUPPORTS.image) return { ok: false, message: setupMsg };
+  if (!getActiveProvider()) return { ok: false, message: setupMsg };
+  return { ok: true };
 }
 
 export function ttsProviderPayload() {

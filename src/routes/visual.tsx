@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw } from "lucide-react";
+import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw, Images, PlayCircle } from "lucide-react";
 
 import { generateVisualMap, checkImageConsistency } from "@/lib/ai.functions";
 import {
@@ -16,6 +16,7 @@ import {
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage } from "@/lib/generate-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
+import { imageProviderReady } from "@/lib/provider";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { StageShell } from "@/components/StageShell";
@@ -123,7 +124,7 @@ function VisualPage() {
   const doCheck = useServerFn(checkImageConsistency);
   const credit = useCreditConfig();
   const [busy, setBusy] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
   // Which scenes already have a generated image (smart cache — never redo these)
   // and which failed on the last run (for "Retry Failed Only").
@@ -216,9 +217,17 @@ function VisualPage() {
       toast.info("Nothing to generate — every image in range is already done.");
       return;
     }
+    // Requirement: images must use the active Image Provider. If it isn't
+    // configured, do not start generation and never fall back to built-in AI.
+    const ready = imageProviderReady();
+    if (!ready.ok) {
+      toast.error(ready.message ?? "Image provider not configured. Connect an image provider in API Settings.");
+      return;
+    }
     return withBusy(key, async () => {
-      setProgress({ done: 0, total: scenes.length });
+      setProgress({ done: 0, total: scenes.length, current: scenes[0]?.sceneNumber ?? null });
       for (let i = 0; i < scenes.length; i++) {
+        setProgress({ done: i, total: scenes.length, current: scenes[i].sceneNumber });
         try {
           await genImage(scenes[i]);
         } catch (e) {
@@ -230,7 +239,7 @@ function VisualPage() {
           }
           toast.error(`Scene ${scenes[i].sceneNumber}: ${msg}`);
         }
-        setProgress({ done: i + 1, total: scenes.length });
+        setProgress({ done: i + 1, total: scenes.length, current: scenes[i].sceneNumber });
       }
       setProgress(null);
       void refreshHave();
@@ -244,6 +253,19 @@ function VisualPage() {
 
   function generateNext(n: number) {
     return runBatch(`next-${n}`, pendingScenes().slice(0, n));
+  }
+
+  // Generate every pending scene, in order (001, 002, 003 …). Sequential —
+  // the shared queue guarantees no parallel spam.
+  function generateAll() {
+    return runBatch("all", pendingScenes());
+  }
+
+  // Resume generation from the first failed scene onward.
+  function continueFromFailed() {
+    if (failed.size === 0) return generateAll();
+    const firstFailed = Math.min(...failed);
+    return runBatch("continue", pendingScenes().filter((s) => s.sceneNumber >= firstFailed));
   }
 
   function retryFailed() {
@@ -378,6 +400,10 @@ function VisualPage() {
         </Button>
         {hasMap && (
           <>
+            <Button onClick={generateAll} disabled={!!busy}>
+              {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Images className="mr-2 h-4 w-4" /> Generate All Images
+            </Button>
             <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <ImagePlus className="mr-2 h-4 w-4" /> Next 5
@@ -391,10 +417,16 @@ function VisualPage() {
               Next 20
             </Button>
             {failed.size > 0 && (
-              <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
-                {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
-              </Button>
+              <>
+                <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
+                  {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
+                </Button>
+                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy}>
+                  {busy === "continue" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <PlayCircle className="mr-2 h-4 w-4" /> Continue From Failed Scene
+                </Button>
+              </>
             )}
           </>
         )}
@@ -460,8 +492,12 @@ function VisualPage() {
 
       {progress && (
         <div className="mt-4">
-          <div className="mb-1 text-xs text-muted-foreground">
-            Generating images… {progress.done}/{progress.total}
+          <div className="mb-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            <span>Generated {progress.done} / {progress.total} scenes</span>
+            {progress.current != null && <span>· Current scene {pad3(progress.current)}</span>}
+            <span>· Pending {Math.max(0, progress.total - progress.done)}</span>
+            <span>· Completed {have.size}</span>
+            <span>· Failed {failed.size}</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
