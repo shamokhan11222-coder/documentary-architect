@@ -747,20 +747,34 @@ function Sidebar({
             ))}
           </>
         )}
-        {!collapsed && (
-          <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">
-            {mobile ? "Tools" : "Secondary"}
-          </p>
+        {collapsed ? (
+          SECONDARY_NAV.map((item, i) => (
+            <SidebarLink
+              key={item.to}
+              item={item}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+              delay={i * 14}
+            />
+          ))
+        ) : (
+          NAV_SECTIONS.map((section, si) => (
+            <div key={section.title} className={si === 0 ? "" : "mt-4"}>
+              <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground/55">
+                {section.title}
+              </p>
+              {section.items.map((item, i) => (
+                <SidebarLink
+                  key={item.to}
+                  item={item}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                  delay={(si * 4 + i) * 14}
+                />
+              ))}
+            </div>
+          ))
         )}
-        {SECONDARY_NAV.map((item, i) => (
-          <SidebarLink
-            key={item.to}
-            item={item}
-            collapsed={collapsed}
-            onNavigate={onNavigate}
-            delay={i * 18}
-          />
-        ))}
       </nav>
     </aside>
   );
