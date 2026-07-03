@@ -323,11 +323,22 @@ function ManagerPage() {
   const pct = selectedId ? completionPercent(selectedId) : 0;
   const styleProfile = getStyleProfile();
 
-  const counts = { completed: 0, pending: 0, failed: 0, running: 0 };
+  // Derived per-stage status: a not-yet-run stage is "locked" until its
+  // prerequisites are complete, then "ready". Persisted running/completed/
+  // failed/retry states win.
+  function derivedStatus(stage: StageKey): TaskStatus {
+    const raw: TaskStatus = pipeline?.stages[stage]?.status ?? "pending";
+    if (raw === "completed" || raw === "running" || raw === "failed" || raw === "retry") return raw;
+    if (selectedId && !prereqsMet(selectedId, stage)) return "locked";
+    return "ready";
+  }
+
+  const counts: Record<TaskStatus, number> = {
+    completed: 0, pending: 0, failed: 0, running: 0, locked: 0, ready: 0, retry: 0,
+  };
   if (pipeline) {
     for (const s of PIPELINE) {
-      const st = pipeline.stages[s.key]?.status ?? "pending";
-      counts[st] += 1;
+      counts[derivedStatus(s.key)] += 1;
     }
   }
   const failedStage = PIPELINE.find((s) => pipeline?.stages[s.key]?.status === "failed");
