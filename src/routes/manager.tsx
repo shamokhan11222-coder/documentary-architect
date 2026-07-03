@@ -279,6 +279,10 @@ function ManagerPage() {
 
   async function retryStage(stage: StageKey) {
     if (!selected) return;
+    if (!prereqsMet(selected.id, stage)) {
+      toast.error("Complete the previous stage first.");
+      return;
+    }
     cancelled.current = false;
     setBusy(true);
     setRunning(selected.id, true, stage);
@@ -287,6 +291,33 @@ function ManagerPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Recovery: run ONLY the given stage (does not continue to later stages).
+  async function runSingleStage(stage: StageKey) {
+    if (!selected) return;
+    if (!prereqsMet(selected.id, stage)) {
+      toast.error("Complete the previous stage first.");
+      return;
+    }
+    cancelled.current = false;
+    setBusy(true);
+    setRunning(selected.id, true, stage);
+    try {
+      await runStage(selected.id, selected.topic, selected.explanation, stage);
+    } finally {
+      setRunning(selected.id, false);
+      setBusy(false);
+    }
+  }
+
+  // Recovery: clear a stage's failed/error marker so it returns to the queue,
+  // without touching any completed earlier stages or their saved output.
+  function resetStage(stage: StageKey) {
+    if (!selected) return;
+    patchStage(selected.id, stage, { status: "pending", error: undefined, finishedAt: undefined });
+    logActivity(selected.id, `${stage} reset`, "info");
+    toast.success("Stage reset.");
   }
 
   const pct = selectedId ? completionPercent(selectedId) : 0;
