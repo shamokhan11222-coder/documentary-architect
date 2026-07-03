@@ -531,10 +531,8 @@ function RecentGenerations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (categories.length === 0) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Do NOT auto-generate on mount — opening the Dashboard must be instant and
+  // must never trigger an AI request. Ideas load only when the user asks.
 
   function handleSave(idea: GeneratedIdea) {
     addTaste("liked", idea.topic);
@@ -571,6 +569,17 @@ function RecentGenerations() {
         <div className="mt-10 flex flex-col items-center gap-4">
           <LogoLoading />
           <AIThinking label="Your Topic Expert is curating fresh ideas" />
+        </div>
+      )}
+
+      {!loading && categories.length === 0 && (
+        <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/70 px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            Get fresh, high-potential documentary ideas curated for your taste.
+          </p>
+          <Button onClick={load} size="sm">
+            <Sparkles className="mr-2 h-4 w-4" /> Generate ideas
+          </Button>
         </div>
       )}
 
