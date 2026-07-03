@@ -189,6 +189,11 @@
 
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(900px 520px at 100% -8%, color-mix(in oklab, var(--brand) 12%, transparent), transparent 60%),
+      radial-gradient(760px 460px at -6% 4%, color-mix(in oklab, var(--cyan) 12%, transparent), transparent 58%),
+      linear-gradient(180deg, color-mix(in oklab, var(--brand) 4%, var(--background)), var(--background) 40%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
