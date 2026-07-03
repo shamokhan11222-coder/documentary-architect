@@ -24,6 +24,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ScriptAnalyzerRouteImport } from './routes/script-analyzer'
+import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
@@ -35,7 +36,9 @@ import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as CreditsRouteImport } from './routes/credits'
+import { Route as CommunityRouteImport } from './routes/community'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as AudioRouteImport } from './routes/audio'
 import { Route as AssetsRouteImport } from './routes/assets'
@@ -120,6 +123,11 @@ const ScriptAnalyzerRoute = ScriptAnalyzerRouteImport.update({
   path: '/script-analyzer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoadmapRoute = RoadmapRouteImport.update({
+  id: '/roadmap',
+  path: '/roadmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
@@ -175,9 +183,19 @@ const ExportRoute = ExportRouteImport.update({
   path: '/export',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CreditsRoute = CreditsRouteImport.update({
   id: '/credits',
   path: '/credits',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunityRoute = CommunityRouteImport.update({
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChecklistRoute = ChecklistRouteImport.update({
@@ -227,7 +245,9 @@ export interface FileRoutesByFullPath {
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
+  '/community': typeof CommunityRoute
   '/credits': typeof CreditsRoute
+  '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
@@ -239,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/roadmap': typeof RoadmapRoute
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -264,7 +285,9 @@ export interface FileRoutesByTo {
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
+  '/community': typeof CommunityRoute
   '/credits': typeof CreditsRoute
+  '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
@@ -276,6 +299,7 @@ export interface FileRoutesByTo {
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/roadmap': typeof RoadmapRoute
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -302,7 +326,9 @@ export interface FileRoutesById {
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
+  '/community': typeof CommunityRoute
   '/credits': typeof CreditsRoute
+  '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
@@ -314,6 +340,7 @@ export interface FileRoutesById {
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
+  '/roadmap': typeof RoadmapRoute
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -341,7 +368,9 @@ export interface FileRouteTypes {
     | '/assets'
     | '/audio'
     | '/checklist'
+    | '/community'
     | '/credits'
+    | '/docs'
     | '/export'
     | '/faq'
     | '/instructions'
@@ -353,6 +382,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/rating'
     | '/research'
+    | '/roadmap'
     | '/script-analyzer'
     | '/seo'
     | '/settings'
@@ -378,7 +408,9 @@ export interface FileRouteTypes {
     | '/assets'
     | '/audio'
     | '/checklist'
+    | '/community'
     | '/credits'
+    | '/docs'
     | '/export'
     | '/faq'
     | '/instructions'
@@ -390,6 +422,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/rating'
     | '/research'
+    | '/roadmap'
     | '/script-analyzer'
     | '/seo'
     | '/settings'
@@ -415,7 +448,9 @@ export interface FileRouteTypes {
     | '/assets'
     | '/audio'
     | '/checklist'
+    | '/community'
     | '/credits'
+    | '/docs'
     | '/export'
     | '/faq'
     | '/instructions'
@@ -427,6 +462,7 @@ export interface FileRouteTypes {
     | '/queue'
     | '/rating'
     | '/research'
+    | '/roadmap'
     | '/script-analyzer'
     | '/seo'
     | '/settings'
@@ -453,7 +489,9 @@ export interface RootRouteChildren {
   AssetsRoute: typeof AssetsRoute
   AudioRoute: typeof AudioRoute
   ChecklistRoute: typeof ChecklistRoute
+  CommunityRoute: typeof CommunityRoute
   CreditsRoute: typeof CreditsRoute
+  DocsRoute: typeof DocsRoute
   ExportRoute: typeof ExportRoute
   FaqRoute: typeof FaqRoute
   InstructionsRoute: typeof InstructionsRoute
@@ -465,6 +503,7 @@ export interface RootRouteChildren {
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
+  RoadmapRoute: typeof RoadmapRoute
   ScriptAnalyzerRoute: typeof ScriptAnalyzerRoute
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
@@ -592,6 +631,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScriptAnalyzerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/roadmap': {
+      id: '/roadmap'
+      path: '/roadmap'
+      fullPath: '/roadmap'
+      preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/research': {
       id: '/research'
       path: '/research'
@@ -669,11 +715,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/credits': {
       id: '/credits'
       path: '/credits'
       fullPath: '/credits'
       preLoaderRoute: typeof CreditsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checklist': {
@@ -741,7 +801,9 @@ const rootRouteChildren: RootRouteChildren = {
   AssetsRoute: AssetsRoute,
   AudioRoute: AudioRoute,
   ChecklistRoute: ChecklistRoute,
+  CommunityRoute: CommunityRoute,
   CreditsRoute: CreditsRoute,
+  DocsRoute: DocsRoute,
   ExportRoute: ExportRoute,
   FaqRoute: FaqRoute,
   InstructionsRoute: InstructionsRoute,
@@ -753,6 +815,7 @@ const rootRouteChildren: RootRouteChildren = {
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
+  RoadmapRoute: RoadmapRoute,
   ScriptAnalyzerRoute: ScriptAnalyzerRoute,
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
