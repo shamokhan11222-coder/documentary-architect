@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
+import { hasUnlimitedAccess } from "@/lib/account";
 import { PIPELINE, stageDone, completionPercent, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
@@ -185,7 +186,8 @@ function ManagerPage() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      const isCredits = /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
+      const isCredits =
+        !hasUnlimitedAccess() && /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
       patchStage(id, stage, { status: "failed", error: msg, finishedAt: Date.now() });
       const label = PIPELINE.find((p) => p.key === stage)?.label ?? stage;
       if (isCredits) {

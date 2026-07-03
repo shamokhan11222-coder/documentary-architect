@@ -21,6 +21,7 @@ import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
 import { CustomVoice } from "@/components/CustomVoice";
 import { humanizeError } from "@/lib/humanize-error";
+import { hasUnlimitedAccess } from "@/lib/account";
 
 export const Route = createFileRoute("/voice")({
   head: () => ({ meta: [{ title: "Voice Studio — Stickmax Studio" }] }),
@@ -96,7 +97,7 @@ function VoicePage() {
         saveVoice({ ...voice, blocks });
       } catch (e) {
         const msg = humanizeError(e, "failed");
-        if (/credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
+        if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
           creditsOut = true;
           toast.error("Credits exhausted. Your generated voice blocks are saved. Continue later.");
         } else {
