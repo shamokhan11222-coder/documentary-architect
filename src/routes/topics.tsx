@@ -118,6 +118,7 @@ function ProjectsPage() {
       const rating = await doRate({ data: { topic: t.topic, script: story.script } });
       saveRating({ ...rating, topicId: t.id, generatedAt: Date.now() });
 
+      spendCredits(30, `Auto-generated: ${t.topic}`);
       toast.success("Full production generated 🎬");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Auto-generation failed");
