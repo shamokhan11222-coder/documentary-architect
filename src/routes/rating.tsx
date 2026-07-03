@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Score } from "@/components/Score";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Steps } from "@/components/Steps";
+import { StageShell } from "@/components/StageShell";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import type { RatingReport } from "@/lib/types";
 
@@ -117,8 +117,7 @@ function RatingPage() {
     r === "Ready" ? "Completed" : r === "Needs Rewrite" ? "Needs Review" : "In Progress";
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <Steps current="rating" />
+    <StageShell stage="rating" maxWidth="max-w-4xl">
       <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Rating Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Score the video before production and get a recommendation.
@@ -219,7 +218,7 @@ function RatingPage() {
           )}
         </div>
       )}
-    </div>
+    </StageShell>
   );
 }
 
