@@ -33,6 +33,7 @@ import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
+import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as AudioRouteImport } from './routes/audio'
 import { Route as AssetsRouteImport } from './routes/assets'
@@ -162,6 +163,11 @@ const ExportRoute = ExportRouteImport.update({
   path: '/export',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CreditsRoute = CreditsRouteImport.update({
+  id: '/credits',
+  path: '/credits',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChecklistRoute = ChecklistRouteImport.update({
   id: '/checklist',
   path: '/checklist',
@@ -209,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
+  '/credits': typeof CreditsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
+  '/credits': typeof CreditsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
@@ -278,6 +286,7 @@ export interface FileRoutesById {
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
+  '/credits': typeof CreditsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
@@ -314,6 +323,7 @@ export interface FileRouteTypes {
     | '/assets'
     | '/audio'
     | '/checklist'
+    | '/credits'
     | '/export'
     | '/faq'
     | '/instructions'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/assets'
     | '/audio'
     | '/checklist'
+    | '/credits'
     | '/export'
     | '/faq'
     | '/instructions'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/assets'
     | '/audio'
     | '/checklist'
+    | '/credits'
     | '/export'
     | '/faq'
     | '/instructions'
@@ -417,6 +429,7 @@ export interface RootRouteChildren {
   AssetsRoute: typeof AssetsRoute
   AudioRoute: typeof AudioRoute
   ChecklistRoute: typeof ChecklistRoute
+  CreditsRoute: typeof CreditsRoute
   ExportRoute: typeof ExportRoute
   FaqRoute: typeof FaqRoute
   InstructionsRoute: typeof InstructionsRoute
@@ -616,6 +629,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/credits': {
+      id: '/credits'
+      path: '/credits'
+      fullPath: '/credits'
+      preLoaderRoute: typeof CreditsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/checklist': {
       id: '/checklist'
       path: '/checklist'
@@ -681,6 +701,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssetsRoute: AssetsRoute,
   AudioRoute: AudioRoute,
   ChecklistRoute: ChecklistRoute,
+  CreditsRoute: CreditsRoute,
   ExportRoute: ExportRoute,
   FaqRoute: FaqRoute,
   InstructionsRoute: InstructionsRoute,
