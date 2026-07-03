@@ -1,6 +1,7 @@
 // AI Manager — the master orchestrator. Defines the production pipeline, knows
 // which stages are done (smart cache), and decides what to generate next.
 import { readLocal } from "./local";
+import { hasStoredIdWithPrefix } from "./images";
 
 export type StageKey =
   | "research"
@@ -63,16 +64,52 @@ const KEYS: Record<Exclude<StageKey, "images">, string> = {
   rating: "docos.rating",
 };
 
-/** Smart cache: has this stage already been produced for the topic? */
+function isRec(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function arr(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+/**
+ * Smart cache: has this stage produced VALID, non-empty output for the topic?
+ * A stage is never "done" on the strength of an empty/placeholder record —
+ * this prevents fake-completed states across the pipeline.
+ */
 export function stageDone(topicId: string, stage: StageKey): boolean {
+  // Images / voice live in IndexedDB; existence is mirrored in a sync index.
   if (stage === "images") {
-    // images are considered "done" once a storyboard exists AND at least one
-    // image record is present in localStorage image cache index.
-    const visual = readLocal<Record<string, unknown>>(KEYS.storyboard, {});
-    return !!visual[topicId];
+    return hasStoredIdWithPrefix(`scene:${topicId}:`);
   }
-  const map = readLocal<Record<string, unknown>>(KEYS[stage], {});
-  return !!map[topicId];
+  if (stage === "voice") {
+    return hasStoredIdWithPrefix(`voice:${topicId}:`);
+  }
+  const entry = readLocal<Record<string, unknown>>(KEYS[stage], {})[topicId];
+  if (!isRec(entry)) return false;
+  switch (stage) {
+    case "research":
+      return Object.keys(entry).length > 0;
+    case "story":
+      return str(entry.script).trim().length > 0;
+    case "storyboard":
+      return arr(entry.scenes).length > 0;
+    case "thumbnail":
+      // Ideas must exist AND at least one rendered thumbnail image is stored.
+      return arr(entry.ideas).length > 0 && hasStoredIdWithPrefix(`thumb:${topicId}:`);
+    case "seo":
+      return (
+        (str(entry.bestTitle).trim().length > 0 || arr(entry.titleOptions).length > 0) &&
+        str(entry.description).trim().length > 0 &&
+        arr(entry.tags).length > 0
+      );
+    case "rating":
+      return str(entry.recommendation).trim().length > 0;
+    default:
+      return Object.keys(entry).length > 0;
+  }
 }
 
 /** The next stage the manager should generate, or null when complete. */

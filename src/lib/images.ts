@@ -8,6 +8,70 @@ const STORE = "images";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+// ---- synchronous id index (localStorage) ----
+// IndexedDB reads are async, but the pipeline's stageDone() checks need a
+// synchronous "does an image/audio asset exist for this topic?" answer. We
+// mirror the set of stored ids into localStorage so completion can be
+// validated without awaiting IndexedDB.
+const INDEX_KEY = "docos.imageIndex";
+
+function readIndex(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(INDEX_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeIndex(ids: string[]) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(INDEX_KEY, JSON.stringify(Array.from(new Set(ids))));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function addToIndex(id: string) {
+  const ids = readIndex();
+  if (!ids.includes(id)) writeIndex([...ids, id]);
+}
+
+function removeFromIndex(id: string) {
+  writeIndex(readIndex().filter((x) => x !== id));
+}
+
+/** Synchronous check: is any stored asset id present with this prefix? */
+export function hasStoredIdWithPrefix(prefix: string): boolean {
+  return readIndex().some((id) => id.startsWith(prefix));
+}
+
+/** Backfill the sync index from IndexedDB keys (for assets stored before the
+ *  index existed). Safe to call multiple times. */
+export async function syncImageIndex(): Promise<void> {
+  try {
+    const db = await openDb();
+    const keys = await new Promise<string[]>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readonly");
+      const req = tx.objectStore(STORE).getAllKeys();
+      req.onsuccess = () => resolve((req.result as IDBValidKey[]).map(String));
+      req.onerror = () => reject(req.error);
+    });
+    writeIndex(Array.from(new Set([...readIndex(), ...keys])));
+    bump();
+  } catch {
+    /* ignore */
+  }
+}
+
+// Run the backfill once on the client so pre-index assets are recognized.
+if (typeof window !== "undefined") {
+  void syncImageIndex();
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") return Promise.reject(new Error("no idb"));
   if (dbPromise) return dbPromise;
@@ -46,6 +110,7 @@ export async function putImage(id: string, dataUrl: string): Promise<void> {
     tx.onerror = () => reject(tx.error);
   });
   cache.set(id, dataUrl);
+  addToIndex(id);
   bump();
 }
 
@@ -76,6 +141,7 @@ export async function deleteImage(id: string): Promise<void> {
     /* ignore */
   }
   cache.set(id, null);
+  removeFromIndex(id);
   bump();
 }
 
