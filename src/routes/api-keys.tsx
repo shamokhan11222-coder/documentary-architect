@@ -163,7 +163,7 @@ function ApiKeysPage() {
         </div>
       </div>
 
-          {(active || keys.length > 0) && (
+      {(active || keys.length > 0) && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium">Provider routing</div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -271,6 +271,12 @@ function DebugStatus() {
   const lastProvider =
     tele.lastProvider === "gemini"
       ? "Gemini"
+      : tele.lastProvider === "openai"
+        ? "OpenAI Images"
+        : tele.lastProvider === "fal"
+          ? "Fal.ai"
+          : tele.lastProvider === "replicate"
+            ? "Replicate"
       : tele.lastProvider === "builtin"
         ? "Built-in AI"
         : "—";

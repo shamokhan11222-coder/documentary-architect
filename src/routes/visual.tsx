@@ -237,7 +237,7 @@ function VisualPage() {
     // configured, do not start generation and never fall back to built-in AI.
     const ready = imageProviderReady();
     if (!ready.ok) {
-      toast.error(ready.message ?? "Image provider not configured. Connect an image provider in API Settings.");
+      toast.error(ready.message ?? "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.");
       return;
     }
     return withBusy(key, async () => {
