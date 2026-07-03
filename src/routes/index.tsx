@@ -25,6 +25,7 @@ import {
   Rocket,
   Plus,
   FileText,
+  Film,
   Users,
   GraduationCap,
   PlayCircle,
