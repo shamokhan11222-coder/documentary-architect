@@ -166,7 +166,7 @@ export const Route = createFileRoute("/api/generate-image")({
     handlers: {
       POST: async ({ request }) => {
         const body = (await request.json()) as Body;
-        const { prompt, references, provider } = body;
+        const { provider } = body;
         if (!provider?.name || !provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400);
         if (provider.fallback) return jsonError("Built-in AI fallback is disabled for image generation.", 400);
 
@@ -174,7 +174,7 @@ export const Route = createFileRoute("/api/generate-image")({
           body.prompt = "simple clean blue circle icon on white background";
           body.references = [];
         }
-        if (!prompt?.trim()) return new Response("Missing prompt", { status: 400 });
+        if (!body.prompt?.trim()) return jsonError("Missing prompt", 400);
 
         if (provider.name === "gemini") return generateWithGemini(body, provider);
         if (provider.name === "openai") return generateWithOpenAI(body, provider);
