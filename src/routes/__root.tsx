@@ -49,8 +49,10 @@ import {
 import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
-import { CursorGlow } from "../components/CursorGlow";
 import { PageTransition } from "../components/motion";
+import { useAccount, logout, initials, useCredits } from "../lib/account";
+import { toast } from "sonner";
+import { Coins, LogIn, LogOut } from "lucide-react";
 
 function NotFoundComponent() {
   return (
@@ -157,6 +159,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap",
       },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap",
+      },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "apple-touch-icon", href: "/app-icon.svg" },
     ],
@@ -239,7 +245,6 @@ function RootComponent() {
       </div>
       <AIChat />
       <Toaster />
-      <CursorGlow />
     </QueryClientProvider>
   );
 }
@@ -253,6 +258,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "Home", icon: Home },
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
   { to: "/topics", label: "Projects", icon: FolderKanban },
+  { to: "/credits", label: "Credits", icon: Coins },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
   { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
@@ -280,6 +286,9 @@ const NAV: NavItem[] = [
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const theme = useTheme();
+  const account = useAccount();
+  const { balance } = useCredits();
+  const low = balance <= 40;
   return (
     <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-border/70 glass">
       <div className="px-5 py-6">
@@ -310,7 +319,23 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           ),
         )}
       </nav>
-      <div className="mt-auto border-t border-border/60 p-3">
+      <div className="mt-auto space-y-2 border-t border-border/60 p-3">
+        {/* Credits balance */}
+        <Link
+          to="/credits"
+          onClick={onNavigate}
+          className="flex items-center justify-between rounded-xl border border-border/70 bg-card/50 px-3 py-2 text-sm transition-colors hover:border-brand/40"
+        >
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Coins className={`h-4 w-4 ${low ? "text-destructive" : "text-brand"}`} />
+            Credits
+          </span>
+          <span className={`font-semibold ${low ? "text-destructive" : "text-foreground"}`}>
+            {balance}
+          </span>
+        </Link>
+
+        {/* Theme toggle */}
         <button
           onClick={toggleTheme}
           className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground"
@@ -318,6 +343,39 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {theme === "dark" ? "Light mode" : "Dark mode"}
         </button>
+
+        {/* Account / profile area */}
+        {account ? (
+          <div className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-card/50 p-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
+              {initials(account.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-foreground">{account.name}</div>
+              <div className="truncate text-[11px] capitalize text-muted-foreground">
+                {account.plan} plan
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                logout();
+                toast.success("Signed out");
+              }}
+              aria-label="Sign out"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <Link
+            to="/login"
+            onClick={onNavigate}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-brand-foreground shadow-soft transition-transform hover:-translate-y-0.5"
+          >
+            <LogIn className="h-4 w-4" /> Log in
+          </Link>
+        )}
       </div>
     </aside>
   );

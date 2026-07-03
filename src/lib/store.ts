@@ -132,6 +132,29 @@ export function toggleFavorite(id: string) {
   );
 }
 
+export function renameTopic(id: string, name: string) {
+  const clean = name.trim();
+  if (!clean) return;
+  write(
+    KEYS.topics,
+    read<Topic[]>(KEYS.topics, []).map((t) =>
+      t.id === id ? { ...t, topic: clean } : t,
+    ),
+  );
+}
+
+/** Delete every project and all of its generated stages. */
+export function clearAllTopics() {
+  const topics = read<Topic[]>(KEYS.topics, []);
+  topics.forEach((t) => deleteTopic(t.id));
+}
+
+/** Delete only archived projects (handy for clearing old/test projects). */
+export function clearArchivedTopics() {
+  const topics = read<Topic[]>(KEYS.topics, []);
+  topics.filter((t) => t.archived).forEach((t) => deleteTopic(t.id));
+}
+
 export function toggleArchived(id: string) {
   write(
     KEYS.topics,

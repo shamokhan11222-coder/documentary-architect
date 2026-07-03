@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2, Copy, Archive } from "lucide-react";
+import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2, Copy, Archive, Pencil } from "lucide-react";
 
 import {
   deleteTopic,
@@ -22,6 +22,8 @@ import {
   toggleArchived,
   duplicateTopic,
   searchProject,
+  renameTopic,
+  clearArchivedTopics,
 } from "@/lib/store";
 import {
   researchTopic,
@@ -33,6 +35,7 @@ import {
 } from "@/lib/ai.functions";
 import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
+import { spendCredits } from "@/lib/account";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Score, Meta } from "@/components/Score";
@@ -115,6 +118,7 @@ function ProjectsPage() {
       const rating = await doRate({ data: { topic: t.topic, script: story.script } });
       saveRating({ ...rating, topicId: t.id, generatedAt: Date.now() });
 
+      spendCredits(30, `Auto-generated: ${t.topic}`);
       toast.success("Full production generated 🎬");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Auto-generation failed");
@@ -167,6 +171,21 @@ function ProjectsPage() {
           >
             <Archive className="mr-1 h-4 w-4" /> Archived
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (
+                typeof window !== "undefined" &&
+                window.confirm("Delete all archived (old/test) projects? This cannot be undone.")
+              ) {
+                clearArchivedTopics();
+                toast.success("Cleared archived projects");
+              }
+            }}
+          >
+            <Trash2 className="mr-1 h-4 w-4" /> Clear archived
+          </Button>
         </div>
       </div>
 
@@ -196,6 +215,23 @@ function ProjectsPage() {
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    const next =
+                      typeof window !== "undefined"
+                        ? window.prompt("Rename project", t.topic)
+                        : null;
+                    if (next && next.trim()) {
+                      renameTopic(t.id, next);
+                      toast.success("Project renamed");
+                    }
+                  }}
+                  aria-label="Rename"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
                 <Button
                   size="icon"
                   variant="ghost"

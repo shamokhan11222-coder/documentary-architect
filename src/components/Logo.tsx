@@ -1,45 +1,43 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Stickmax brand mark — a sharp, flat double-chevron "ascend / max" symbol.
- * No gradients, sharp edges (miter joins), single-color so it inverts cleanly
- * in light and dark mode. `color` defaults to the brand blue but can be set to
- * "currentColor" to inherit the surrounding text color.
+ * Stickmax brand mark — a friendly stickman inside a rounded blue play button.
+ * Flat, sharp, single accent color so it reads well as a favicon/app icon and
+ * inverts cleanly in light and dark mode.
  */
 export function LogoMark({
   className,
-  color = "var(--brand)",
+  brand = "var(--brand)",
+  figure = "var(--brand-foreground)",
 }: {
   className?: string;
-  color?: string;
+  brand?: string;
+  figure?: string;
 }) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-hidden="true"
     >
-      <path
-        d="M4 12.5 L12 5 L20 12.5"
-        stroke={color}
-        strokeWidth="2.6"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-      />
-      <path
-        d="M4 18.5 L12 11 L20 18.5"
-        stroke={color}
-        strokeWidth="2.6"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-      />
+      {/* rounded play-button tile */}
+      <rect x="1" y="1" width="30" height="30" rx="9" fill={brand} />
+      {/* stickman: head + arms raised + legs (playful "max" energy) */}
+      <g stroke={figure} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <circle cx="16" cy="9.5" r="2.6" fill={figure} stroke="none" />
+        <path d="M16 12.4 V19" />
+        <path d="M16 14 L11 11.5" />
+        <path d="M16 14 L21 11.5" />
+        <path d="M16 19 L12 24" />
+        <path d="M16 19 L20 24" />
+      </g>
     </svg>
   );
 }
 
-/** Full logo lockup: square brand tile + wordmark. */
+/** Full logo lockup: brand tile + friendly bold wordmark. */
 export function Logo({
   className,
   showWordmark = true,
@@ -50,25 +48,23 @@ export function Logo({
   wordmarkClassName?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand">
-        <LogoMark className="h-4 w-4" color="var(--brand-foreground)" />
-      </span>
+    <div className={cn("flex items-center gap-2.5", className)}>
+      <LogoMark className="h-8 w-8 shrink-0 drop-shadow-sm" />
       {showWordmark && (
         <span
           className={cn(
-            "text-sm font-semibold tracking-tight text-foreground",
+            "font-display text-lg font-bold tracking-tight text-foreground",
             wordmarkClassName,
           )}
         >
-          Stickmax Studio
+          Stickmax <span className="text-brand">Studio</span>
         </span>
       )}
     </div>
   );
 }
 
-/** Animated loading logo — the two chevrons draw in and pulse. */
+/** Animated loading logo — the stickman pops and the tile pulses. */
 export function LogoLoading({ className }: { className?: string }) {
   return (
     <div
@@ -76,45 +72,17 @@ export function LogoLoading({ className }: { className?: string }) {
       role="status"
       aria-label="Loading Stickmax Studio"
     >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="h-12 w-12"
-        aria-hidden="true"
-      >
-        <path
-          className="sm-stroke sm-stroke-1"
-          d="M4 12.5 L12 5 L20 12.5"
-          stroke="var(--brand)"
-          strokeWidth="2.6"
-          strokeLinecap="square"
-          strokeLinejoin="miter"
-        />
-        <path
-          className="sm-stroke sm-stroke-2"
-          d="M4 18.5 L12 11 L20 18.5"
-          stroke="var(--brand)"
-          strokeWidth="2.6"
-          strokeLinecap="square"
-          strokeLinejoin="miter"
-        />
-      </svg>
-      <span className="text-xs font-medium tracking-wide text-muted-foreground">
+      <div className="sm-pop">
+        <LogoMark className="h-14 w-14" />
+      </div>
+      <span className="font-display text-sm font-semibold tracking-tight text-muted-foreground">
         Stickmax Studio
       </span>
       <style>{`
-        .sm-stroke {
-          stroke-dasharray: 24;
-          stroke-dashoffset: 24;
-          animation: sm-draw 1.4s ease-in-out infinite;
-        }
-        .sm-stroke-2 { animation-delay: 0.18s; }
-        @keyframes sm-draw {
-          0%   { stroke-dashoffset: 24; opacity: 0.3; }
-          45%  { stroke-dashoffset: 0;  opacity: 1; }
-          75%  { stroke-dashoffset: 0;  opacity: 1; }
-          100% { stroke-dashoffset: -24; opacity: 0.3; }
+        .sm-pop { animation: sm-bounce 1.2s var(--ease-spring) infinite; }
+        @keyframes sm-bounce {
+          0%, 100% { transform: translateY(0) scale(1); }
+          45%      { transform: translateY(-8px) scale(1.05); }
         }
       `}</style>
     </div>

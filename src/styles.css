@@ -65,7 +65,7 @@
   /* Premium typography */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
-  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fredoka", "Inter", ui-sans-serif, system-ui, sans-serif;
 
   /* Soft, layered shadows (Linear / Vercel feel) */
   --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04),
@@ -290,6 +290,34 @@
     box-shadow: var(--shadow-lift);
     border-color: color-mix(in oklab, var(--brand) 35%, var(--border));
   }
+}
+
+/* Premium 3D glass card — soft depth, subtle brand tint, smooth hover only */
+@utility glass-card {
+  background: color-mix(in oklab, var(--card) 82%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, #ffffff 55%, transparent) inset,
+    0 10px 30px -12px rgba(16, 24, 40, 0.22);
+  transition: transform 0.3s var(--ease-out-quint),
+    box-shadow 0.3s var(--ease-out-quint),
+    border-color 0.3s ease;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 1px 0 0 color-mix(in oklab, #ffffff 60%, transparent) inset,
+      0 20px 48px -14px color-mix(in oklab, var(--brand) 30%, rgba(16, 24, 40, 0.28));
+    border-color: color-mix(in oklab, var(--brand) 40%, var(--border));
+  }
+}
+
+/* Light-blue gradient background section */
+@utility brand-gradient {
+  background:
+    radial-gradient(1200px 480px at 85% -10%, color-mix(in oklab, var(--brand) 18%, transparent), transparent 60%),
+    radial-gradient(900px 420px at 0% 0%, color-mix(in oklab, var(--brand) 10%, transparent), transparent 55%),
+    linear-gradient(180deg, color-mix(in oklab, var(--brand) 6%, var(--background)), var(--background));
 }
 
 @utility shimmer {
