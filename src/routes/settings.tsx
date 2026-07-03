@@ -19,7 +19,6 @@ function SettingsPage() {
   const selectedId = useSelectedTopicId();
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const taste = useTaste();
-  const theme = useTheme();
   const credit = useCreditConfig();
 
   function exportData() {
