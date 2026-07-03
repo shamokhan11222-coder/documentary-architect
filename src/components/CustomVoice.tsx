@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Mic, Square, Upload, Trash2, Check } from "lucide-react";
+import { Mic, Square, Upload, Trash2, Check, Star, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { fileToDataUrl } from "@/lib/images";
@@ -8,17 +8,29 @@ import {
   useVoiceProfiles,
   saveVoiceProfile,
   deleteVoiceProfile,
+  renameVoiceProfile,
+  setDefaultVoiceProfile,
 } from "@/lib/production";
-import type { VoiceProfile } from "@/lib/types";
+import { getActiveProvider } from "@/lib/provider";
+import type { VoiceProfile, VoiceSettings } from "@/lib/types";
 
 const CONSENT_TEXT = "I confirm I own this voice or have permission to clone it.";
+
+const STATUS_STYLES: Record<string, string> = {
+  ready: "bg-green-500/15 text-green-600 dark:text-green-400",
+  processing: "bg-amber-500/15 text-amber-600",
+  failed: "bg-red-500/15 text-red-600",
+  "needs-sample": "bg-muted text-muted-foreground",
+};
 
 export function CustomVoice({
   activeProfileId,
   onUse,
+  currentSettings,
 }: {
   activeProfileId?: string;
   onUse: (id: string | undefined) => void;
+  currentSettings?: VoiceSettings;
 }) {
   const profiles = useVoiceProfiles();
   const [name, setName] = useState("");
@@ -85,6 +97,7 @@ export function CustomVoice({
       toast.error("You must confirm you have permission to clone this voice");
       return;
     }
+    const provider = getActiveProvider()?.name ?? "Built-in AI";
     const profile: VoiceProfile = {
       id: crypto.randomUUID(),
       name: name.trim(),
@@ -92,6 +105,12 @@ export function CustomVoice({
       sampleAudio: sample.url,
       consent: true,
       createdAt: Date.now(),
+      updatedAt: Date.now(),
+      provider,
+      cloneStatus: "cloned",
+      status: "ready",
+      isDefault: profiles.length === 0, // first saved profile becomes default
+      settings: currentSettings,
     };
     saveVoiceProfile(profile);
     onUse(profile.id);
@@ -159,45 +178,92 @@ export function CustomVoice({
 
       {profiles.length > 0 && (
         <div className="mt-4 space-y-1.5">
-          <div className="text-xs font-medium text-muted-foreground">Saved voice profiles</div>
-          {profiles.map((p) => (
-            <div
-              key={p.id}
-              className={[
-                "flex items-center justify-between rounded-md border px-3 py-2 text-sm",
-                activeProfileId === p.id ? "border-primary bg-primary/5" : "border-border",
-              ].join(" ")}
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{p.name}</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {p.source === "record" ? "recorded" : "uploaded"}
-                </span>
+          <div className="text-xs font-medium text-muted-foreground">Voice Library</div>
+          {profiles.map((p) => {
+            const status = p.status ?? (p.sampleAudio ? "ready" : "needs-sample");
+            return (
+              <div
+                key={p.id}
+                className={[
+                  "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm",
+                  activeProfileId === p.id ? "border-primary bg-primary/5" : "border-border",
+                ].join(" ")}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{p.name}</span>
+                  {p.isDefault && (
+                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                      Default
+                    </span>
+                  )}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[status] ?? STATUS_STYLES["needs-sample"]}`}
+                  >
+                    {status === "needs-sample" ? "Needs sample" : status[0].toUpperCase() + status.slice(1)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {p.source === "record" ? "recorded" : "uploaded"}
+                    {p.provider ? ` · ${p.provider}` : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Play sample */}
+                  <audio controls src={p.sampleAudio} className="h-7" />
+                  {/* Use Voice */}
+                  <Button
+                    size="sm"
+                    variant={activeProfileId === p.id ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    onClick={() => onUse(activeProfileId === p.id ? undefined : p.id)}
+                  >
+                    {activeProfileId === p.id ? "In use" : "Use Voice"}
+                  </Button>
+                  {/* Set as Default */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    title="Set as default"
+                    onClick={() => {
+                      setDefaultVoiceProfile(p.id);
+                      toast.success(`"${p.name}" is now the default voice`);
+                    }}
+                  >
+                    <Star className={`h-3.5 w-3.5 ${p.isDefault ? "fill-primary text-primary" : ""}`} />
+                  </Button>
+                  {/* Rename */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    title="Rename"
+                    onClick={() => {
+                      const next = window.prompt("Rename voice profile", p.name);
+                      if (next && next.trim()) {
+                        renameVoiceProfile(p.id, next);
+                        toast.success("Voice profile renamed");
+                      }
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  {/* Delete */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    title="Delete"
+                    onClick={() => {
+                      deleteVoiceProfile(p.id);
+                      if (activeProfileId === p.id) onUse(undefined);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <audio controls src={p.sampleAudio} className="h-7" />
-                <Button
-                  size="sm"
-                  variant={activeProfileId === p.id ? "default" : "outline"}
-                  className="h-7 text-xs"
-                  onClick={() => onUse(activeProfileId === p.id ? undefined : p.id)}
-                >
-                  {activeProfileId === p.id ? "In use" : "Use"}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                  onClick={() => {
-                    deleteVoiceProfile(p.id);
-                    if (activeProfileId === p.id) onUse(undefined);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
