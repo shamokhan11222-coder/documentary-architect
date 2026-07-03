@@ -50,9 +50,17 @@ import { AIChat } from "../components/AIChat";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { PageTransition } from "../components/motion";
-import { useAccount, logout, initials, useCredits } from "../lib/account";
+import { useAccount, logout, initials, useCredits, useIsAdmin } from "../lib/account";
 import { toast } from "sonner";
-import { Coins, LogIn, LogOut } from "lucide-react";
+import { Coins, LogIn, LogOut, Infinity as InfinityIcon, ChevronsUpDown, Settings as SettingsIcon, CreditCard } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "../components/ui/dropdown-menu";
 
 function NotFoundComponent() {
   return (
