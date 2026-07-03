@@ -175,6 +175,7 @@ function FeatureRow({ feature }: { feature: Feature }) {
 
 function PricingPage() {
   const [annual, setAnnual] = useState(true);
+  const { reason } = Route.useSearch();
 
   return (
     <div className="brand-gradient relative min-h-screen overflow-hidden">
@@ -182,9 +183,27 @@ function PricingPage() {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="float absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-brand/25 blur-[120px]" />
         <div className="breathe absolute top-1/3 -right-24 h-80 w-80 rounded-full bg-brand/15 blur-[120px]" />
+        <div className="breathe absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-cyan/15 blur-[120px] [animation-delay:3s]" />
       </div>
 
       <div className="relative mx-auto max-w-6xl px-6 py-20 md:py-28">
+        {/* Out-of-credits context banner (arrived via smooth blur redirect) */}
+        {reason === "credits" && (
+          <div className="mx-auto mb-10 flex max-w-3xl items-center gap-4 rounded-2xl glass-card px-5 py-4 animate-[fade-up_0.5s_var(--ease-out-quint)_both]">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-cyan text-brand-foreground shadow-[var(--shadow-glow)]">
+              <Crown className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-display text-sm font-semibold">
+                You're out of credits — your work is safe.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Pick a plan below to keep producing cinematic documentaries without limits.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Hero */}
         <div className="text-center animate-[fade-up_0.6s_var(--ease-out-quint)_both]">
           <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-4 py-1.5 text-xs font-semibold text-brand backdrop-blur">
