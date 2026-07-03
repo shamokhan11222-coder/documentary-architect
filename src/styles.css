@@ -300,6 +300,23 @@
   0% { stroke-dashoffset: 26; }
   100% { stroke-dashoffset: 0; }
 }
+@keyframes sheen {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  40% { opacity: 0.55; }
+  100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+}
+@keyframes progress-fill {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(var(--progress, 1)); }
+}
+@keyframes stagger-in {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes reveal-scale {
+  0% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
 
 /* ---- Premium utilities ---- */
 @utility glass {
@@ -389,6 +406,32 @@
     filter 0.2s ease;
   &:hover { transform: translateY(-1px); filter: brightness(1.04); }
   &:active { transform: translateY(0) scale(0.97); }
+}
+
+/* Glass reflection sweep — an elegant sheen glides across on hover. */
+@utility glass-sheen {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 45%;
+    background: linear-gradient(
+      100deg,
+      transparent,
+      color-mix(in oklab, #ffffff 55%, transparent),
+      transparent
+    );
+    transform: translateX(-120%) skewX(-18deg);
+    opacity: 0;
+    pointer-events: none;
+  }
+  &:hover::after {
+    animation: sheen 0.9s var(--ease-out-quint);
+  }
 }
 
 /* Respect reduced motion globally */
