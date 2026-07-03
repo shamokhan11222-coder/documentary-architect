@@ -732,7 +732,7 @@ function Sidebar({
       }`}
       style={{ transitionTimingFunction: "var(--ease-out-quint)" }}
     >
-      <div className={`relative flex items-center justify-between py-6 after:pointer-events-none after:absolute after:inset-x-4 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-white/25 after:to-transparent ${collapsed ? "px-3" : "px-5"}`}>
+      <div className={`relative flex items-center justify-between py-6 after:pointer-events-none after:absolute after:inset-x-4 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-border after:to-transparent ${collapsed ? "px-3" : "px-5"}`}>
         {collapsed ? (
           <Link to="/" className="mx-auto">
             <Logo showWordmark={false} />
