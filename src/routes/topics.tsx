@@ -477,7 +477,7 @@ function ProjectCard({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                variant="destructive"
+                className="text-destructive focus:text-destructive"
                 onClick={() => {
                   deleteTopic(t.id);
                   toast.success("Project deleted");
