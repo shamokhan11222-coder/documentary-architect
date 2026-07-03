@@ -238,10 +238,10 @@ function PricingPage() {
               <div
                 key={p.name}
                 style={{ animationDelay: `${i * 80}ms` }}
-                className={`glass-card relative flex flex-col rounded-3xl p-7 animate-[spring-in_0.55s_var(--ease-spring)_both] ${
+                className={`group glass-card relative flex flex-col rounded-3xl p-7 transition-all duration-300 ease-out animate-[spring-in_0.55s_var(--ease-spring)_both] hover:shadow-[var(--shadow-glow)] ${
                   p.highlight
-                    ? "ring-2 ring-brand shadow-[var(--shadow-glow)] lg:-translate-y-4"
-                    : ""
+                    ? "ring-2 ring-brand shadow-[var(--shadow-glow)] lg:-translate-y-4 hover:lg:-translate-y-6"
+                    : "hover:-translate-y-2"
                 }`}
               >
                 {p.highlight && (
