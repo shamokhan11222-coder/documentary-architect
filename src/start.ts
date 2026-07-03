@@ -1,7 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { getActiveProvider } from "./lib/provider";
+import { getActiveProvider, getProviderSettings } from "./lib/provider";
 import { recordTelemetry } from "./lib/provider-telemetry";
 import { enqueueAi } from "./lib/ai-queue";
 
@@ -27,9 +27,10 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
   async ({ next }) => {
     const p = getActiveProvider();
     const headers: Record<string, string> = {};
-    // Force Gemini for text tasks whenever a Gemini key is connected. Routing is
-    // never silently downgraded to the built-in AI while a provider is active.
-    const usingGemini = !!p;
+    // Route text tasks to Gemini only when a key is connected AND the user's
+    // Text provider setting selects Gemini. Honors the API Settings choice so a
+    // "built-in" selection is respected instead of silently forced to Gemini.
+    const usingGemini = !!p && getProviderSettings().text === "gemini";
     if (usingGemini && p) {
       headers["x-ai-provider"] = p.name;
       headers["x-ai-key"] = p.apiKey;
