@@ -35,6 +35,7 @@ import {
 } from "@/lib/ai.functions";
 import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
+import { spendCredits } from "@/lib/account";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Score, Meta } from "@/components/Score";
