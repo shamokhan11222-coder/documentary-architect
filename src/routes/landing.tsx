@@ -390,7 +390,7 @@ function LandingPage() {
           <div>
             <div className="flex items-center gap-2.5">
               <LogoMark className="h-8 w-8" />
-              <span className="font-display text-lg font-bold">Stickmax <span className="text-brand">Studio</span></span>
+              <span className="font-display text-lg font-bold">Stickmax</span>
             </div>
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
               The AI command center for documentary YouTube channels.
