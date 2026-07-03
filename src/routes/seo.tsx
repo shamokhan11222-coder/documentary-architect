@@ -18,6 +18,7 @@ import { StageShell } from "@/components/StageShell";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import type { Seo } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { buildInjection } from "@/lib/generation-context";
 
 export const Route = createFileRoute("/seo")({
   head: () => ({ meta: [{ title: "SEO — Stickmax Studio" }] }),
@@ -78,7 +79,7 @@ function SeoPage() {
     if (!selected) return;
     return withBusy("gen", async () => {
       const data = (await gen({
-        data: { topic: selected.topic, script: story?.script },
+        data: { topic: selected.topic, script: story?.script, ...buildInjection(["seo"]) },
       })) as Omit<Seo, "topicId" | "generatedAt">;
       // Never blank existing fields: fall back to the previous SEO (or safe
       // empties) for anything the model left missing.
