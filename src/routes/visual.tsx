@@ -77,7 +77,7 @@ function VisualPage() {
   const [failed, setFailed] = useState<Set<number>>(new Set());
 
   const refreshHave = useCallback(async () => {
-    if (!selected || !map) {
+    if (!selected || !map || !Array.isArray(map.scenes)) {
       setHave(new Set());
       return;
     }
@@ -115,8 +115,9 @@ function VisualPage() {
       const scenes = (await gen({
         data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
       })) as VisualScene[];
-      saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
-      toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
+      const safeScenes = Array.isArray(scenes) ? scenes : [];
+      saveVisualMap({ topicId: selected.id, scenes: safeScenes, generatedAt: Date.now() });
+      toast.success(`Storyboard built — ${safeScenes.length} scenes. Now generate images`);
     });
   }
 
