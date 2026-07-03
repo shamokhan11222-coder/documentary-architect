@@ -135,6 +135,7 @@ function VisualPage() {
   async function genImage(scene: VisualScene) {
     if (!selected) return;
     const dataUrl = await generateSceneImage(scene);
+    if (!isValidImage(dataUrl)) throw new Error("Image generation returned no image");
     await putImage(sceneImageId(selected.id, scene.sceneNumber), dataUrl);
     setHave((prev) => new Set(prev).add(scene.sceneNumber));
     setFailed((prev) => {
