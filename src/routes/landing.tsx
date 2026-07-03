@@ -11,6 +11,15 @@ import {
   Star,
   ShieldCheck,
   Zap,
+  Play,
+  Wand2,
+  MessagesSquare,
+  Github,
+  Twitter,
+  Youtube,
+  Users,
+  Film,
+  Clapperboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/Logo";
@@ -21,6 +30,7 @@ import {
   Stagger,
   Floating,
   AnimatedNumber,
+  Typewriter,
 } from "@/components/motion";
 import {
   Accordion,
@@ -137,18 +147,55 @@ const FAQS = [
   },
 ];
 
+const DEMO_STEPS = [
+  { label: "Topic", text: "The forgotten engineer who wired the first city — and why history erased him." },
+  { label: "Research", text: "12 sourced beats · timeline · 3 contrarian angles · retention hooks mapped." },
+  { label: "Script", text: "Cold open → rising tension → payoff. An 11-minute cut built for watch-time." },
+  { label: "Visuals", text: "Consistent storyboard, cinematic thumbnails and narration — export-ready." },
+];
+
+const VIDEOS = [
+  { img: hero1, title: "The Hidden Origins of the Traffic Light", meta: "11:42 · 1.2M views" },
+  { img: hero3, title: "Who Really Invented the Escalator?", meta: "9:18 · 840K views" },
+  { img: hero2, title: "The City That Ran on Steam", meta: "13:05 · 2.1M views" },
+];
+
+const COMMUNITY = [
+  { icon: MessagesSquare, title: "Creator Discord", desc: "8,000+ documentary makers sharing hooks, prompts and workflows.", stat: "8k members" },
+  { icon: Wand2, title: "Prompt Library", desc: "Battle-tested topic and script recipes, added weekly.", stat: "300+ recipes" },
+  { icon: Users, title: "Live Workshops", desc: "Weekly teardown sessions with 7-figure channel owners.", stat: "Every Friday" },
+];
+
+const SOCIALS = [
+  { icon: Twitter, label: "Twitter" },
+  { icon: Youtube, label: "YouTube" },
+  { icon: Github, label: "GitHub" },
+  { icon: MessagesSquare, label: "Discord" },
+];
+
 function LandingPage() {
   return (
     <div className="min-h-screen overflow-x-hidden">
       {/* ---------------- Hero ---------------- */}
       <section className="relative isolate animated-gradient">
+        {/* Animated background orbs */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="breathe absolute -left-32 top-10 h-96 w-96 rounded-full bg-brand/25 blur-[120px]" />
+          <div className="breathe absolute -right-24 top-40 h-[28rem] w-[28rem] rounded-full bg-cyan/20 blur-[130px] [animation-delay:2s]" />
+          <div className="breathe absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-brand/20 blur-[120px] [animation-delay:4s]" />
+        </div>
+
         <div className="mx-auto grid max-w-6xl items-center gap-14 px-6 pb-24 pt-20 md:grid-cols-[1.05fr_0.95fr] md:pt-28">
           <RevealBlur>
             <span className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
               <Sparkles className="h-3.5 w-3.5" /> AI documentary production
             </span>
             <h1 className="mt-6 font-display text-[clamp(2.75rem,6vw,4.5rem)] font-bold leading-[1.02] tracking-tight">
-              Your entire <span className="text-brand">documentary studio</span>, powered by AI
+              Your entire{" "}
+              <span className="bg-gradient-to-r from-brand via-cyan to-brand bg-clip-text text-transparent">
+                documentary studio
+              </span>
+              , powered by AI
             </h1>
             <p className="mt-6 max-w-md text-lg text-muted-foreground">
               From a curiosity-driven topic to a finished, exportable video — Stickmax Studio runs
@@ -222,7 +269,51 @@ function LandingPage() {
         </Stagger>
       </section>
 
-      {/* ---------------- Alternating feature rows ---------------- */}
+      {/* ---------------- AI Demo ---------------- */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <Reveal>
+          <div className="text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
+              <Wand2 className="h-3.5 w-3.5" /> See it in action
+            </span>
+            <h2 className="mt-5 font-display text-[clamp(2rem,4vw,3rem)] font-bold tracking-tight">
+              One idea in. A whole documentary out.
+            </h2>
+          </div>
+        </Reveal>
+        <RevealScale className="mt-12">
+          <div className="glass-card glass-sheen relative overflow-hidden rounded-[2rem] p-6 md:p-10">
+            {/* prompt bar */}
+            <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/50 px-5 py-4">
+              <Sparkles className="h-5 w-5 shrink-0 text-brand" />
+              <div className="min-w-0 flex-1 text-sm md:text-base">
+                <Typewriter text="Make a documentary about the hidden origins of everyday objects…" />
+              </div>
+              <span className="hidden shrink-0 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground sm:inline-flex">
+                Generate
+              </span>
+            </div>
+            {/* pipeline output */}
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {DEMO_STEPS.map((step, i) => (
+                <div
+                  key={step.label}
+                  className="glass-panel flex flex-col gap-2 rounded-2xl p-5 animate-spring-in"
+                  style={{ animationDelay: `${i * 90}ms` }}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand">
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-brand/15 text-[11px]">{i + 1}</span>
+                    {step.label}
+                  </div>
+                  <p className="text-sm leading-relaxed text-foreground/85">{step.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </RevealScale>
+      </section>
+
+      {/* ---------------- Alternating feature showcase ---------------- */}
       <section className="mx-auto max-w-6xl space-y-24 px-6 py-16">
         <FeatureRow
           image={hero1}
@@ -263,7 +354,7 @@ function LandingPage() {
         </Reveal>
         <Stagger className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
-            <div key={f.title} className="glass-card glass-sheen rounded-2xl p-6">
+            <div key={f.title} className="card-lift glass-card glass-sheen rounded-2xl p-6">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand/12 text-brand">
                 <f.icon className="h-5 w-5" />
               </span>
@@ -274,24 +365,106 @@ function LandingPage() {
         </Stagger>
       </section>
 
+      {/* ---------------- Video showcase ---------------- */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <Reveal>
+          <div className="flex flex-col items-center text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
+              <Clapperboard className="h-3.5 w-3.5" /> Made with Stickmax
+            </span>
+            <h2 className="mt-5 font-display text-[clamp(2rem,4vw,3rem)] font-bold tracking-tight">
+              Documentaries people actually watch
+            </h2>
+          </div>
+        </Reveal>
+        <Stagger className="mt-12 grid gap-6 md:grid-cols-3">
+          {VIDEOS.map((v) => (
+            <div key={v.title} className="card-lift glass-card group overflow-hidden rounded-3xl">
+              <div className="relative aspect-video overflow-hidden">
+                <img src={v.img} alt={v.title} loading="lazy" width={768} height={432}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <span className="absolute inset-0 grid place-items-center">
+                  <span className="grid h-16 w-16 place-items-center rounded-full bg-background/70 text-brand backdrop-blur transition-transform duration-300 group-hover:scale-110">
+                    <Play className="h-7 w-7 fill-brand" />
+                  </span>
+                </span>
+              </div>
+              <div className="p-5">
+                <h3 className="font-display text-base font-bold leading-snug">{v.title}</h3>
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Film className="h-3.5 w-3.5" /> {v.meta}
+                </p>
+              </div>
+            </div>
+          ))}
+        </Stagger>
+      </section>
+
       {/* ---------------- Testimonials ---------------- */}
       <section className="mx-auto max-w-6xl px-6 py-16">
-        <Stagger className="grid gap-5 md:grid-cols-3">
+        <Reveal>
+          <h2 className="text-center font-display text-[clamp(2rem,4vw,3rem)] font-bold tracking-tight">
+            Loved by serious creators
+          </h2>
+        </Reveal>
+        <Stagger className="mt-12 grid gap-5 md:grid-cols-3">
           {TESTIMONIALS.map((t) => (
-            <div key={t.name} className="glass-card flex flex-col rounded-2xl p-6">
+            <div key={t.name} className="card-lift glass-card flex flex-col rounded-2xl p-6">
               <div className="flex gap-0.5 text-brand">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <Star key={i} className="h-4 w-4 fill-brand" />
                 ))}
               </div>
               <p className="mt-4 flex-1 text-sm leading-relaxed text-foreground/90">“{t.quote}”</p>
-              <div className="mt-5">
-                <div className="text-sm font-semibold">{t.name}</div>
-                <div className="text-xs text-muted-foreground">{t.role}</div>
+              <div className="mt-5 flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/15 font-display text-sm font-bold text-brand">
+                  {t.name.charAt(0)}
+                </span>
+                <div>
+                  <div className="text-sm font-semibold">{t.name}</div>
+                  <div className="text-xs text-muted-foreground">{t.role}</div>
+                </div>
               </div>
             </div>
           ))}
         </Stagger>
+      </section>
+
+      {/* ---------------- Community ---------------- */}
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <Reveal>
+          <div className="text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand">
+              <Users className="h-3.5 w-3.5" /> Community
+            </span>
+            <h2 className="mt-5 font-display text-[clamp(2rem,4vw,3rem)] font-bold tracking-tight">
+              You're not creating alone
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
+              Join a movement of documentary makers pushing storytelling forward together.
+            </p>
+          </div>
+        </Reveal>
+        <Stagger className="mt-12 grid gap-5 md:grid-cols-3">
+          {COMMUNITY.map((c) => (
+            <div key={c.title} className="card-lift glass-card flex flex-col gap-3 rounded-3xl p-7">
+              <div className="flex items-center justify-between">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand/12 text-brand">
+                  <c.icon className="h-6 w-6" />
+                </span>
+                <span className="rounded-full bg-brand/12 px-2.5 py-1 text-xs font-semibold text-brand">{c.stat}</span>
+              </div>
+              <h3 className="mt-1 font-display text-lg font-bold">{c.title}</h3>
+              <p className="text-sm text-muted-foreground">{c.desc}</p>
+            </div>
+          ))}
+        </Stagger>
+        <Reveal className="mt-8 text-center">
+          <Button asChild variant="brand" size="lg" className="btn-press">
+            <Link to="/community"><MessagesSquare className="h-4 w-4" /> Join the community</Link>
+          </Button>
+        </Reveal>
       </section>
 
       {/* ---------------- Pricing ---------------- */}
@@ -309,7 +482,7 @@ function LandingPage() {
             {PLANS.map((p) => (
               <div
                 key={p.name}
-                className={`relative flex flex-col rounded-3xl p-7 ${
+                className={`card-lift relative flex flex-col rounded-3xl p-7 ${
                   p.highlight
                     ? "glass-card border-2 border-brand/60 shadow-float"
                     : "glass-card"
@@ -377,6 +550,7 @@ function LandingPage() {
       <section className="mx-auto max-w-5xl px-6 pb-24">
         <RevealScale>
           <div className="glass-card glass-sheen relative overflow-hidden rounded-[2rem] p-12 text-center md:p-16">
+            <div aria-hidden className="breathe pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-brand/25 blur-[100px]" />
             <h2 className="font-display text-[clamp(2rem,4vw,3rem)] font-bold tracking-tight">
               Ready to build your next documentary?
             </h2>
@@ -401,6 +575,17 @@ function LandingPage() {
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
               The AI command center for documentary YouTube channels.
             </p>
+            <div className="mt-5 flex gap-2">
+              {SOCIALS.map((s) => (
+                <span
+                  key={s.label}
+                  aria-label={s.label}
+                  className="grid h-9 w-9 place-items-center rounded-xl border border-border/60 bg-card/40 text-muted-foreground transition-colors hover:border-brand/40 hover:text-brand"
+                >
+                  <s.icon className="h-4 w-4" />
+                </span>
+              ))}
+            </div>
           </div>
           <FooterCol title="Product" links={[["Features", "/landing"], ["Pricing", "/pricing"], ["Docs", "/docs"], ["Roadmap", "/roadmap"]]} />
           <FooterCol title="Company" links={[["Community", "/community"], ["FAQ", "/faq"]]} />
