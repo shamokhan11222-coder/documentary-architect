@@ -10,6 +10,7 @@ import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
 import { generateSceneImage } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/queue")({
   head: () => ({ meta: [{ title: "Image Queue — Stickmax Studio" }] }),
@@ -61,8 +62,8 @@ function QueuePage() {
         await putImage(sceneImageId(selected.id, n), url);
         setQueueItem(selected.id, { sceneNumber: n, status: "completed" });
       } catch (e) {
-        setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: e instanceof Error ? e.message : "failed" });
-        toast.error(`Scene ${n}: ${e instanceof Error ? e.message : "failed"}`);
+        setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: humanizeError(e, "failed") });
+        toast.error(`Scene ${n}: ${humanizeError(e, "generation failed")}`);
       }
       // advance resume cursor
       const q = readQueue(selected.id);

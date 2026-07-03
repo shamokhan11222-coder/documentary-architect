@@ -65,6 +65,7 @@ import {
 import { ShimmerBlock, Reveal } from "@/components/motion";
 import { downloadJson, slugify } from "@/lib/io";
 import type { Research, Story, ThumbnailIdea, VisualScene, Topic } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 const STAGE_ROUTE: Record<StageKey, string> = {
   research: "/research",
@@ -182,7 +183,7 @@ function ProjectsPage() {
       spendCredits(30, `Auto-generated: ${t.topic}`);
       toast.success("Full production generated 🎬");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Auto-generation failed");
+      toast.error(humanizeError(e, "Auto-generation failed"));
     } finally {
       setAutoId(null);
       setAutoStep("");

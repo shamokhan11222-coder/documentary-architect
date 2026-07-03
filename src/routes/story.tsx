@@ -20,6 +20,7 @@ import { copyText, downloadTxt, slugify } from "@/lib/io";
 import { Feedback } from "@/components/Feedback";
 import type { Story, StorySection, StoryReview } from "@/lib/types";
 import { estimateSeconds } from "@/lib/production";
+import { humanizeError } from "@/lib/humanize-error";
 import {
   LENGTH_PRESETS,
   DEFAULT_LENGTH_ID,
@@ -126,7 +127,7 @@ function StoryPageInner() {
       setReview(r);
       toast.success("Story reviewed");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
+      toast.error(humanizeError(e, "Failed"));
     } finally {
       setBusy(null);
     }
@@ -149,7 +150,7 @@ function StoryPageInner() {
         saveStory({ ...data, topicId: selected.id, generatedAt: Date.now() });
         toast.success("Script generated — reviewed by Story Architect");
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed");
+        toast.error(humanizeError(e, "Failed"));
       } finally {
         setBusy(null);
       }
@@ -173,7 +174,7 @@ function StoryPageInner() {
       );
       saveStory({ ...story, sections, script: rebuildScript(sections), generatedAt: Date.now() });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
+      toast.error(humanizeError(e, "Failed"));
     } finally {
       setBusy(null);
     }

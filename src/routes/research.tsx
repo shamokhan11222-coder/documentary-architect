@@ -16,6 +16,7 @@ import { StageShell } from "@/components/StageShell";
 import { EditableCard } from "@/components/EditableCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Research } from "@/lib/types";
+import { humanizeError } from "@/lib/humanize-error";
 
 export const Route = createFileRoute("/research")({
   head: () => ({ meta: [{ title: "Research — Stickmax Studio" }] }),
@@ -56,7 +57,7 @@ function ResearchPage() {
       saveResearch({ ...data, topicId: selected.id, generatedAt: Date.now() });
       toast.success("Research complete — reviewed by Research Expert");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Research failed");
+      toast.error(humanizeError(e, "Research failed"));
     } finally {
       setLoading(false);
     }
