@@ -1,7 +1,6 @@
-// Active AI provider resolution (client side). Reads the keys saved in
-// API Settings (localStorage) and, when a Google Gemini key is present,
-// makes Gemini the active provider for every supported task. When no Gemini
-// key is saved the app falls back to the built-in Lovable AI.
+// Active AI provider resolution (client side). Images are intentionally routed
+// only to a real external image provider. The built-in AI is disabled for image
+// generation and must never be used as a silent fallback.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
 
@@ -18,6 +17,21 @@ export interface ActiveProvider {
   ttsModel: string;
 }
 
+export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate";
+
+export interface ActiveImageProvider {
+  id: string;
+  name: ImageProviderName;
+  label: string;
+  apiKey: string;
+  imageModel: string;
+  testPassed: boolean;
+}
+
+export const IMAGE_PROVIDER_NOT_CONNECTED =
+  "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.";
+export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
+
 export const GEMINI_UNSUPPORTED_MESSAGE =
   "Gemini does not support this task in the current setup. Please connect another provider.";
 
@@ -30,7 +44,7 @@ export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
 };
 
 // ---- Provider routing settings (which provider handles each task) ----
-export type ProviderChoice = "gemini" | "builtin";
+export type ProviderChoice = "gemini" | "builtin" | "openai" | "fal" | "replicate" | "disabled";
 
 export interface ProviderSettings {
   text: ProviderChoice;
@@ -52,7 +66,11 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 };
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
-  return { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
+  const next = { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
+  // Historical projects may have saved "builtin" for image routing. Treat it as
+  // disabled so image generation cannot touch the built-in AI.
+  if (next.image === "builtin") next.image = "disabled";
+  return next;
 }
 
 /** Non-reactive read of routing settings. */
@@ -71,6 +89,50 @@ export function saveProviderSettings(next: Partial<ProviderSettings>) {
 
 function findGemini(list: ApiKeyEntry[]): ApiKeyEntry | null {
   return list.find((e) => e.provider === "Google Gemini" && e.apiKey.trim()) ?? null;
+}
+
+function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry | null {
+  const provider =
+    choice === "gemini"
+      ? "Google Gemini"
+      : choice === "openai"
+        ? "OpenAI"
+        : choice === "fal"
+          ? "Fal.ai"
+          : choice === "replicate"
+            ? "Replicate"
+            : null;
+  if (!provider) return null;
+  return list.find((e) => e.provider === provider && e.apiKey.trim()) ?? null;
+}
+
+function defaultImageModel(choice: ProviderChoice): string {
+  if (choice === "gemini") return "gemini-2.5-flash-image";
+  if (choice === "openai") return "gpt-image-1";
+  if (choice === "fal") return "fal-ai/flux/schnell";
+  if (choice === "replicate") return "black-forest-labs/flux-schnell";
+  return "";
+}
+
+function imageLabel(choice: ProviderChoice): string {
+  if (choice === "gemini") return "Gemini Image";
+  if (choice === "openai") return "OpenAI Images";
+  if (choice === "fal") return "Fal.ai";
+  if (choice === "replicate") return "Replicate";
+  return "Built-in AI disabled";
+}
+
+function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
+  if (!entry) return null;
+  if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate") return null;
+  return {
+    id: entry.id,
+    name: choice,
+    label: imageLabel(choice),
+    apiKey: entry.apiKey.trim(),
+    imageModel: entry.modelName?.trim() || defaultImageModel(choice),
+    testPassed: entry.testResult === IMAGE_PROVIDER_TEST_PASSED,
+  };
 }
 
 function toProvider(e: ApiKeyEntry | null): ActiveProvider | null {
@@ -95,31 +157,81 @@ export function useActiveProvider(): ActiveProvider | null {
   return toProvider(findGemini(list));
 }
 
-/** Body payload passed to the image / tts API routes so the server can route. */
-export function imageProviderPayload() {
-  const p = getActiveProvider();
-  const s = getProviderSettings();
-  if (!p || s.image !== "gemini") return undefined;
-  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: s.fallback };
+export function getActiveImageProvider(options: { requireTest?: boolean } = {}): ActiveImageProvider | null {
+  const choice = getProviderSettings().image;
+  const provider = toImageProvider(choice, findImageKey(choice, readLocal<ApiKeyEntry[]>(KEY, [])));
+  if (!provider) return null;
+  if (options.requireTest !== false && !provider.testPassed) return null;
+  return provider;
+}
+
+export function useActiveImageProvider(options: { requireTest?: boolean } = {}): ActiveImageProvider | null {
+  const settings = useProviderSettings();
+  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  const provider = toImageProvider(settings.image, findImageKey(settings.image, list));
+  if (!provider) return null;
+  if (options.requireTest !== false && !provider.testPassed) return null;
+  return provider;
+}
+
+export function getImageProviderStatus(): {
+  choice: ProviderChoice;
+  label: string;
+  connected: boolean;
+  testPassed: boolean;
+  ok: boolean;
+  message: string;
+} {
+  const choice = getProviderSettings().image;
+  const provider = getActiveImageProvider({ requireTest: false });
+  const connected = !!provider;
+  const testPassed = !!provider?.testPassed;
+  return {
+    choice,
+    label: imageLabel(choice),
+    connected,
+    testPassed,
+    ok: connected && testPassed,
+    message: !connected ? IMAGE_PROVIDER_NOT_CONNECTED : testPassed ? "Ready" : "Test image provider before generating.",
+  };
+}
+
+export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
+  const settings = useProviderSettings();
+  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  const provider = toImageProvider(settings.image, findImageKey(settings.image, list));
+  const connected = !!provider;
+  const testPassed = !!provider?.testPassed;
+  return {
+    choice: settings.image,
+    label: imageLabel(settings.image),
+    connected,
+    testPassed,
+    ok: connected && testPassed,
+    message: !connected ? IMAGE_PROVIDER_NOT_CONNECTED : testPassed ? "Ready" : "Test image provider before generating.",
+  };
+}
+
+/** Body payload passed to the image API route so the server can route. */
+export function imageProviderPayload(options: { requireTest?: boolean } = {}) {
+  const p = getActiveImageProvider(options);
+  if (!p) return undefined;
+  // Image generation never receives fallback:true. Built-in AI is disabled.
+  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
 export function thumbnailProviderPayload() {
-  const p = getActiveProvider();
-  const s = getProviderSettings();
-  if (!p || s.thumbnail !== "gemini") return undefined;
-  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: s.fallback };
+  const p = getActiveImageProvider();
+  if (!p) return undefined;
+  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
 /** Whether image generation can start with the currently selected provider.
  *  When the Image Provider is routed to an external provider that is not
  *  connected, generation must NOT silently fall back to built-in AI. */
 export function imageProviderReady(): { ok: boolean; message?: string } {
-  const s = getProviderSettings();
-  const setupMsg = "Image provider not configured. Connect an image provider in API Settings.";
-  if (s.image === "builtin") return { ok: true };
-  // Routed to Gemini — it must be supported and connected.
-  if (!GEMINI_SUPPORTS.image) return { ok: false, message: setupMsg };
-  if (!getActiveProvider()) return { ok: false, message: setupMsg };
+  const status = getImageProviderStatus();
+  if (!status.ok) return { ok: false, message: status.message };
   return { ok: true };
 }
 

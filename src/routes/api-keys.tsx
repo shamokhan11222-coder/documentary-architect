@@ -15,6 +15,7 @@ import {
 } from "@/lib/apikeys";
 import {
   useActiveProvider,
+  useImageProviderStatus,
   GEMINI_SUPPORTS,
   useProviderSettings,
   saveProviderSettings,
@@ -162,41 +163,46 @@ function ApiKeysPage() {
         </div>
       </div>
 
-      {active && (
+      {(active || keys.length > 0) && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium">Provider routing</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Choose which provider handles each task. Unsupported tasks stay on built-in AI.
+            Choose which provider handles each task. Image generation requires a connected external image provider.
           </p>
           <div className="mt-3 space-y-3">
-            <RouteRow
-              label="Text Provider"
-              hint="Topics, research, story, storyboard, SEO, rating"
-              supported={GEMINI_SUPPORTS.text}
-              value={settings.text}
-              onChange={(v) => saveProviderSettings({ text: v })}
-            />
-            <RouteRow
+            {active && (
+              <RouteRow
+                label="Text Provider"
+                hint="Topics, research, story, storyboard, SEO, rating"
+                supported={GEMINI_SUPPORTS.text}
+                value={settings.text}
+                onChange={(v) => saveProviderSettings({ text: v })}
+              />
+            )}
+            <ImageRouteRow
               label="Image Provider"
-              hint={`Storyboard images · ${active.imageModel}`}
-              supported={GEMINI_SUPPORTS.image}
+              hint="Storyboard images"
               value={settings.image}
               onChange={(v) => saveProviderSettings({ image: v })}
             />
-            <RouteRow
-              label="Thumbnail Provider"
-              hint={`Thumbnails · ${active.imageModel}`}
-              supported={GEMINI_SUPPORTS.image}
-              value={settings.thumbnail}
-              onChange={(v) => saveProviderSettings({ thumbnail: v })}
-            />
-            <RouteRow
-              label="Voice Provider"
-              hint={`Voiceover · ${active.ttsModel}`}
-              supported={GEMINI_SUPPORTS.tts}
-              value={settings.voice}
-              onChange={(v) => saveProviderSettings({ voice: v })}
-            />
+            {active && (
+              <>
+                <RouteRow
+                  label="Thumbnail Provider"
+                  hint={`Thumbnails · ${active.imageModel}`}
+                  supported={GEMINI_SUPPORTS.image}
+                  value={settings.thumbnail}
+                  onChange={(v) => saveProviderSettings({ thumbnail: v })}
+                />
+                <RouteRow
+                  label="Voice Provider"
+                  hint={`Voiceover · ${active.ttsModel}`}
+                  supported={GEMINI_SUPPORTS.tts}
+                  value={settings.voice}
+                  onChange={(v) => saveProviderSettings({ voice: v })}
+                />
+              </>
+            )}
           </div>
           <label className="mt-4 flex items-center gap-2 text-sm">
             <input
@@ -205,7 +211,7 @@ function ApiKeysPage() {
               checked={settings.fallback}
               onChange={(e) => saveProviderSettings({ fallback: e.target.checked })}
             />
-            Use built-in AI if the external provider fails
+            Use built-in AI if the external text or voice provider fails
           </label>
         </div>
       )}
@@ -249,6 +255,7 @@ function ApiKeysPage() {
 function DebugStatus() {
   const active = useActiveProvider();
   const settings = useProviderSettings();
+  const imageStatus = useImageProviderStatus();
   const admin = useIsAdmin();
   const unlimited = useHasUnlimitedAccess();
   const allowed = useCanGenerate();
@@ -264,6 +271,12 @@ function DebugStatus() {
   const lastProvider =
     tele.lastProvider === "gemini"
       ? "Gemini"
+      : tele.lastProvider === "openai"
+        ? "OpenAI Images"
+        : tele.lastProvider === "fal"
+          ? "Fal.ai"
+          : tele.lastProvider === "replicate"
+            ? "Replicate"
       : tele.lastProvider === "builtin"
         ? "Built-in AI"
         : "—";
@@ -275,7 +288,8 @@ function DebugStatus() {
       <div className="mb-2 font-sans text-sm font-medium">Diagnostics</div>
       <div className="grid gap-1">
         <div>Active Text Provider: {label(settings.text)}</div>
-        <div>Active Image Provider: {label(settings.image)}</div>
+        <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
+        <div>Image Provider Status: {imageStatus.message}</div>
         <div>Active Voice Provider: {label(settings.voice)}</div>
         <div>Fallback to Built-in: {settings.fallback ? "On" : "Off"}</div>
         <div>Credit Mode: {creditMode}</div>
@@ -284,6 +298,38 @@ function DebugStatus() {
         <div>Last Request Status: {lastStatus}</div>
         <div>Last Error Message: {tele.lastError ?? "—"}</div>
       </div>
+    </div>
+  );
+}
+
+function ImageRouteRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: ProviderChoice;
+  onChange: (v: ProviderChoice) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">{hint}</div>
+      </div>
+      <select
+        className="h-8 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value as ProviderChoice)}
+      >
+        <option value="gemini">Gemini Image</option>
+        <option value="openai">OpenAI Images</option>
+        <option value="fal">Fal.ai</option>
+        <option value="replicate">Replicate</option>
+        <option value="disabled">Built-in AI disabled</option>
+      </select>
     </div>
   );
 }

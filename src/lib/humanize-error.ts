@@ -34,7 +34,7 @@ export function humanizeError(err: unknown, fallback = "Something went wrong. Pl
   // "out of credits" upsell — they see the real, actionable cause instead.
   if (CREDIT_TEST.test(raw)) {
     if (hasUnlimitedAccess()) {
-      return "The built-in AI is temporarily unavailable — check your Gemini API key in API Settings to keep generating.";
+      return "The connected provider returned a billing or credit error. Check your image provider account and try again.";
     }
     return "You're out of credits — upgrade to keep generating.";
   }
