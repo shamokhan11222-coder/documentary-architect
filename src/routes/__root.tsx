@@ -51,7 +51,7 @@ import { CreditGate } from "../components/CreditGate";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { PageTransition } from "../components/motion";
-import { useAccount, logout, initials, useCredits, useIsAdmin } from "../lib/account";
+import { useAccount, logout, initials, useCredits, useIsAdmin, useHasUnlimitedAccess } from "../lib/account";
 import { toast } from "sonner";
 import { Coins, LogIn, LogOut, Infinity as InfinityIcon, ChevronsUpDown, Settings as SettingsIcon, CreditCard, PanelLeftClose, PanelLeftOpen, ChevronDown, Bell } from "lucide-react";
 import {
@@ -312,9 +312,10 @@ const NOTIFICATIONS = [
 function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const account = useAccount();
   const admin = useIsAdmin();
+  const unlimited = useHasUnlimitedAccess();
   const { balance } = useCredits();
   const theme = useTheme();
-  const low = !admin && balance <= 10;
+  const low = !unlimited && balance <= 10;
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/60 glass px-4 py-3 md:px-6">
@@ -378,13 +379,14 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
 
         <TopSeparator />
 
-        {/* Credits */}
+        {/* Credits — hidden entirely for admin/developer accounts */}
+        {!admin && (
         <Link
           to="/credits"
           className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-3 py-1.5 text-sm font-medium transition-colors hover:border-brand/40"
         >
           <Coins className={`h-4 w-4 ${low ? "text-destructive" : "text-brand"}`} />
-          {admin ? (
+          {unlimited ? (
             <span className="flex items-center gap-1 font-semibold text-brand">
               <InfinityIcon className="h-3.5 w-3.5" />
             </span>
@@ -392,8 +394,9 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
             <span className={`font-semibold ${low ? "text-destructive" : "text-foreground"}`}>{balance}</span>
           )}
         </Link>
+        )}
 
-        <TopSeparator />
+        {!admin && <TopSeparator />}
 
         {/* Profile / Settings / Logout */}
         {account ? (
