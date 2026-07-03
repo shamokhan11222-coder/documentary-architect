@@ -99,6 +99,35 @@ export function deleteVoiceProfile(id: string) {
   );
 }
 
+/** Non-reactive read — safe inside event handlers / generation helpers. */
+export function readVoiceProfiles(): VoiceProfile[] {
+  return read<VoiceProfile[]>(KEYS.voiceProfiles, []);
+}
+export function getVoiceProfile(id: string | null | undefined): VoiceProfile | null {
+  if (!id) return null;
+  return read<VoiceProfile[]>(KEYS.voiceProfiles, []).find((x) => x.id === id) ?? null;
+}
+export function updateVoiceProfile(id: string, patch: Partial<VoiceProfile>) {
+  const all = read<VoiceProfile[]>(KEYS.voiceProfiles, []);
+  write(
+    KEYS.voiceProfiles,
+    all.map((x) => (x.id === id ? { ...x, ...patch, updatedAt: Date.now() } : x)),
+  );
+}
+export function renameVoiceProfile(id: string, name: string) {
+  const clean = name.trim();
+  if (!clean) return;
+  updateVoiceProfile(id, { name: clean });
+}
+/** Mark one profile as the default and clear the flag on every other one. */
+export function setDefaultVoiceProfile(id: string) {
+  const all = read<VoiceProfile[]>(KEYS.voiceProfiles, []);
+  write(
+    KEYS.voiceProfiles,
+    all.map((x) => ({ ...x, isDefault: x.id === id })),
+  );
+}
+
 // ---------------- Subtitles ----------------
 
 export function useSubtitles(topicId: string | null): SubtitlePack | null {
