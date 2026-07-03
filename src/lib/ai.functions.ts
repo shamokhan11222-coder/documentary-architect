@@ -609,14 +609,14 @@ const SEO_SHAPE = `{
 }`;
 
 export const generateSeo = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script?: string }) => {
+  .inputValidator((data: { topic: string; script?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
   .handler(async ({ data }) => {
     const user = `Documentary topic: "${data.topic}"
 ${data.script ? `SCRIPT:\n${data.script.slice(0, 8000)}` : ""}
-
+${injectionBlock(data)}
 Generate complete upload-ready YouTube metadata.
 
 Return a JSON object with this exact shape: ${SEO_SHAPE}`;
