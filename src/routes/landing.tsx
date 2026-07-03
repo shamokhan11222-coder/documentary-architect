@@ -11,6 +11,15 @@ import {
   Star,
   ShieldCheck,
   Zap,
+  Play,
+  Wand2,
+  MessagesSquare,
+  Github,
+  Twitter,
+  Youtube,
+  Users,
+  Film,
+  Clapperboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogoMark } from "@/components/Logo";
@@ -21,6 +30,7 @@ import {
   Stagger,
   Floating,
   AnimatedNumber,
+  Typewriter,
 } from "@/components/motion";
 import {
   Accordion,
