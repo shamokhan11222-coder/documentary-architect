@@ -314,7 +314,8 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const low = !unlimited && balance <= 10;
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/60 glass px-4 py-3 md:px-6">
+    <header className="sticky top-0 z-30 border-b border-border/60 glass">
+      <div className="flex items-center gap-3 px-4 py-2.5 md:px-6">
       {/* Mobile menu toggle */}
       <button
         onClick={onOpenMobileNav}
@@ -324,8 +325,13 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
         <Menu className="h-5 w-5" />
       </button>
 
+      {/* Logo */}
+      <Link to="/" className="mr-1 hidden shrink-0 md:block">
+        <Logo studio />
+      </Link>
+
       {/* Search */}
-      <label className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2 transition-all duration-300 focus-within:border-brand/50 focus-within:bg-card focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] md:max-w-md">
+      <label className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2 transition-all duration-300 focus-within:border-brand/50 focus-within:bg-card focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] md:max-w-sm">
         <Search className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-focus-within:text-brand" />
         <input
           type="search"
