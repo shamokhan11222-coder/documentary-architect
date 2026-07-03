@@ -186,6 +186,44 @@ function VisualPage() {
     return runBatch("retry", scenes.filter((s) => failed.has(s.sceneNumber)));
   }
 
+  // Repair: drop any stored image that is missing/invalid so those scenes
+  // become pending again, then re-scan. Fixes "status completed but no image".
+  function repairMissing() {
+    if (!selected || scenes.length === 0) return;
+    return withBusy("repair", async () => {
+      let repaired = 0;
+      for (const sc of scenes) {
+        const id = sceneImageId(selected.id, sc.sceneNumber);
+        const img = await loadImage(id);
+        if (!isValidImage(img)) {
+          if (img != null) await deleteImage(id);
+          repaired++;
+        }
+      }
+      await refreshHave();
+      setFailed(new Set());
+      toast.success(
+        repaired > 0
+          ? `${repaired} scene(s) marked pending — use Next 5/10/20 to generate.`
+          : "All images present and valid.",
+      );
+    });
+  }
+
+  // Reset: clear every generated image for this project so the whole
+  // storyboard can be regenerated from scratch. Scenes are preserved.
+  function resetImages() {
+    if (!selected || scenes.length === 0) return;
+    return withBusy("reset", async () => {
+      for (const sc of scenes) {
+        await deleteImage(sceneImageId(selected.id, sc.sceneNumber));
+      }
+      setHave(new Set());
+      setFailed(new Set());
+      toast.success("Image status reset — all scenes are pending.");
+    });
+  }
+
   // Stable, per-scene card callbacks (read latest state via refs). Keeping these
   // referentially stable lets React.memo skip re-rendering every SceneCard when
   // unrelated page state (progress, report) changes.
