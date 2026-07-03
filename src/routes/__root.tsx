@@ -588,10 +588,9 @@ const STUDIO_TOP_NAV: NavLink[] = [
 
 // Secondary navigation — lives in the collapsible left sidebar.
 const SECONDARY_NAV: NavLink[] = [
-  { to: "/", label: "Studio", icon: Home },
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
   { to: "/export", label: "Export", icon: Download },
-  { to: "/knowledge", label: "Knowledge", icon: BookOpen },
+  { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
   { to: "/rating", label: "Rating", icon: Star },
   { to: "/subtitles", label: "Subtitles", icon: Captions },
@@ -604,6 +603,7 @@ const SECONDARY_NAV: NavLink[] = [
   { to: "/instructions", label: "AI Instructions", icon: Sparkles },
   { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
   { to: "/api-keys", label: "API Settings", icon: KeyRound },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 function SidebarLink({
