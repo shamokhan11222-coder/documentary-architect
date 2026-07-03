@@ -20,7 +20,6 @@ import {
   Sun,
   Menu,
   X,
-  Home,
   LayoutDashboard,
   FolderKanban,
   Search,
