@@ -115,7 +115,6 @@ function Workspace() {
   // them only after mount, with deterministic fallbacks for the first paint.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const headline = mounted ? HEADLINES[new Date().getDay() % HEADLINES.length] : HEADLINES[0];
   const greetingText = mounted ? greeting() : "Welcome back";
 
   const filtered = useMemo(() => {
@@ -154,45 +153,63 @@ function Workspace() {
           <Sparkles className="h-3.5 w-3.5" /> {greetingText}
         </div>
         <h1 className="mt-4 max-w-4xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">
-          {headline}
+          Create Stories Millions Will Watch.
         </h1>
         <p className="mt-4 max-w-2xl text-base text-muted-foreground md:text-lg">
-          Turn a spark of curiosity into a cinematic documentary — research, script, visuals and voice, all in one studio.
+          Research, script, visuals, voice, thumbnails and SEO — all inside one AI studio.
         </p>
 
         <form
           onSubmit={(e) => e.preventDefault()}
-          className="group mt-8 flex max-w-2xl items-center gap-3 rounded-2xl glass-card px-5 py-4"
+          className="group mt-8 flex max-w-3xl items-center gap-3 rounded-2xl glass-card px-5 py-4 md:py-5"
         >
           <Search className="h-5 w-5 shrink-0 text-muted-foreground transition-colors group-focus-within:text-brand" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search your projects, ideas and scripts…"
+            placeholder="Search tools, projects, ideas and scripts…"
             className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
-          <Button asChild className="btn-press shrink-0">
-            <Link to="/topics"><Wand2 className="mr-1.5 h-4 w-4" /> New Idea</Link>
-          </Button>
         </form>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button asChild size="lg" className="btn-press">
+            <Link to="/topics"><Wand2 className="mr-2 h-4 w-4" /> New Idea</Link>
+          </Button>
+          <Button onClick={continueWorking} size="lg" variant="secondary" className="btn-press" disabled={!activeId}>
+            <Play className="mr-2 h-4 w-4" /> Continue Project
+          </Button>
+        </div>
       </Reveal>
 
-      {/* QUICK CREATE */}
+      {/* TOOLS GRID — the creative studio home */}
       <Reveal delay={40}>
-        <SectionHeader icon={<Plus className="h-4 w-4" />} title="Quick Create" subtitle="Jump straight into any part of the studio." />
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {QUICK_CREATE.map((q, i) => (
+        <SectionHeader
+          icon={<Wand2 className="h-4 w-4" />}
+          title="AI Studio Tools"
+          subtitle="Everything you need to make a documentary, end to end."
+        />
+        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {TOOLS.map((tool, i) => (
             <Link
-              key={q.to}
-              to={q.to}
+              key={tool.title}
+              to={tool.to}
               onClick={() => activeId && setSelectedTopicId(activeId)}
-              className="card-lift group flex flex-col gap-4 rounded-3xl glass-card p-6 animate-spring-in"
-              style={{ animationDelay: `${i * 40}ms` }}
+              className="card-lift group flex flex-col overflow-hidden rounded-3xl glass-card animate-spring-in"
+              style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
             >
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand/12 text-brand transition-transform group-hover:scale-110">
-                <q.icon className="h-6 w-6" />
-              </span>
-              <span className="text-sm font-semibold tracking-tight">{q.label}</span>
+              <div className={`relative flex aspect-[16/9] items-center justify-center bg-gradient-to-br ${tool.gradient}`}>
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-background/70 text-brand backdrop-blur transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3">
+                  <tool.icon className="h-8 w-8" />
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-2 p-5">
+                <span className="text-base font-semibold leading-snug tracking-tight">{tool.title}</span>
+                <span className="text-sm text-muted-foreground line-clamp-2">{tool.desc}</span>
+                <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-medium text-brand">
+                  Try now <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                </span>
+              </div>
             </Link>
           ))}
         </div>
@@ -692,13 +709,17 @@ function EmptyCard({ children }: { children: React.ReactNode }) {
 
 /* ---------------------------- static data ---------------------------- */
 
-const QUICK_CREATE = [
-  { to: "/topics", label: "New Project", icon: Wand2 },
-  { to: "/research", label: "Research", icon: Search },
-  { to: "/story", label: "Story", icon: BookText },
-  { to: "/visual", label: "Images", icon: ImageIcon },
-  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
-  { to: "/voice", label: "Voice", icon: Mic },
+const TOOLS = [
+  { to: "/topics", title: "AI Documentary Generator", desc: "Go from a single idea to a full documentary pipeline.", icon: Wand2, gradient: "from-brand/30 via-brand/10 to-transparent" },
+  { to: "/topics", title: "Topic Finder", desc: "Discover high-potential, click-worthy story ideas.", icon: Compass, gradient: "from-sky-400/25 via-brand/10 to-transparent" },
+  { to: "/story", title: "Script Writer", desc: "Turn research into a cinematic, retention-first script.", icon: BookText, gradient: "from-indigo-400/25 via-brand/10 to-transparent" },
+  { to: "/visual", title: "Storyboard Builder", desc: "Break your script into ordered, visual scenes.", icon: Film, gradient: "from-violet-400/25 via-brand/10 to-transparent" },
+  { to: "/visual", title: "Image Generator", desc: "Generate consistent scene images with your Visual DNA.", icon: ImageIcon, gradient: "from-cyan-400/25 via-brand/10 to-transparent" },
+  { to: "/thumbnail", title: "Thumbnail Generator", desc: "Design scroll-stopping, high-CTR thumbnails.", icon: ImagePlus, gradient: "from-rose-400/25 via-brand/10 to-transparent" },
+  { to: "/voice", title: "Voice Studio", desc: "Natural AI narration with pacing and emotion control.", icon: Mic, gradient: "from-emerald-400/25 via-brand/10 to-transparent" },
+  { to: "/seo", title: "SEO Generator", desc: "Titles, descriptions and tags built to rank.", icon: TrendingUp, gradient: "from-teal-400/25 via-brand/10 to-transparent" },
+  { to: "/script-analyzer", title: "Script Analyzer", desc: "Score hooks, pacing and retention before you publish.", icon: FlaskConical, gradient: "from-amber-400/25 via-brand/10 to-transparent" },
+  { to: "/export", title: "Export Manager", desc: "Package scripts, visuals and voice for production.", icon: Download, gradient: "from-blue-400/25 via-brand/10 to-transparent" },
 ] as const;
 
 const TEMPLATES = [
