@@ -39,6 +39,7 @@ import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as CreditsRouteImport } from './routes/credits'
+import { Route as ComponentsRouteImport } from './routes/components'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as AudioRouteImport } from './routes/audio'
@@ -199,6 +200,11 @@ const CreditsRoute = CreditsRouteImport.update({
   path: '/credits',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComponentsRoute = ComponentsRouteImport.update({
+  id: '/components',
+  path: '/components',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CommunityRoute = CommunityRouteImport.update({
   id: '/community',
   path: '/community',
@@ -252,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/community': typeof CommunityRoute
+  '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
   '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/community': typeof CommunityRoute
+  '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
   '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
@@ -335,6 +343,7 @@ export interface FileRoutesById {
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/community': typeof CommunityRoute
+  '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
   '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/audio'
     | '/checklist'
     | '/community'
+    | '/components'
     | '/credits'
     | '/docs'
     | '/export'
@@ -419,6 +429,7 @@ export interface FileRouteTypes {
     | '/audio'
     | '/checklist'
     | '/community'
+    | '/components'
     | '/credits'
     | '/docs'
     | '/export'
@@ -460,6 +471,7 @@ export interface FileRouteTypes {
     | '/audio'
     | '/checklist'
     | '/community'
+    | '/components'
     | '/credits'
     | '/docs'
     | '/export'
@@ -502,6 +514,7 @@ export interface RootRouteChildren {
   AudioRoute: typeof AudioRoute
   ChecklistRoute: typeof ChecklistRoute
   CommunityRoute: typeof CommunityRoute
+  ComponentsRoute: typeof ComponentsRoute
   CreditsRoute: typeof CreditsRoute
   DocsRoute: typeof DocsRoute
   ExportRoute: typeof ExportRoute
@@ -749,6 +762,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreditsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/components': {
+      id: '/components'
+      path: '/components'
+      fullPath: '/components'
+      preLoaderRoute: typeof ComponentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/community': {
       id: '/community'
       path: '/community'
@@ -822,6 +842,7 @@ const rootRouteChildren: RootRouteChildren = {
   AudioRoute: AudioRoute,
   ChecklistRoute: ChecklistRoute,
   CommunityRoute: CommunityRoute,
+  ComponentsRoute: ComponentsRoute,
   CreditsRoute: CreditsRoute,
   DocsRoute: DocsRoute,
   ExportRoute: ExportRoute,
