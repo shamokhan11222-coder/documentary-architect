@@ -22,6 +22,7 @@ import {
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
 import type { ApiProvider } from "@/lib/types";
+import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
@@ -129,6 +130,8 @@ function ApiKeysPage() {
         onTest={testConnection}
         testing={status === "testing"}
       />
+
+      <DebugStatus />
 
       <div className="mt-6 rounded-lg border border-border bg-card p-4">
         <div className="text-sm font-medium">Add provider</div>
