@@ -169,6 +169,21 @@ function ProjectsPage() {
           >
             <Archive className="mr-1 h-4 w-4" /> Archived
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (
+                typeof window !== "undefined" &&
+                window.confirm("Delete all archived (old/test) projects? This cannot be undone.")
+              ) {
+                clearArchivedTopics();
+                toast.success("Cleared archived projects");
+              }
+            }}
+          >
+            <Trash2 className="mr-1 h-4 w-4" /> Clear archived
+          </Button>
         </div>
       </div>
 
