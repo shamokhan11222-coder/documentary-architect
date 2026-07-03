@@ -584,7 +584,7 @@ function SidebarLink({
       onClick={onNavigate}
       title={collapsed ? item.label : undefined}
       style={{ animation: "var(--animate-slide-in-left)", animationDelay: `${delay}ms` }}
-      className={`group flex items-center gap-2.5 rounded-xl py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/10 [&.active]:font-medium [&.active]:text-brand ${
+      className={`group relative flex items-center gap-2.5 rounded-xl py-2 text-sm text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground [&.active]:bg-brand/12 [&.active]:font-medium [&.active]:text-brand [&.active]:shadow-[0_0_22px_-4px_color-mix(in_oklab,var(--brand)_65%,transparent)] [&.active]:ring-1 [&.active]:ring-brand/25 ${
         collapsed ? "justify-center px-2" : "px-3 hover:translate-x-0.5"
       }`}
     >
