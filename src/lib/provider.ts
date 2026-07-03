@@ -44,7 +44,9 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
   image: "gemini",
   voice: "gemini",
-  fallback: true,
+  // Never silently fall back to the built-in AI. When Gemini is connected we
+  // route to Gemini only and surface its real errors. Fallback is opt-in.
+  fallback: false,
 };
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {

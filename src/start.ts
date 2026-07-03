@@ -2,6 +2,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { getActiveProvider, getProviderSettings } from "./lib/provider";
+import { recordTelemetry } from "./lib/provider-telemetry";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -26,13 +27,29 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
     const p = getActiveProvider();
     const s = getProviderSettings();
     const headers: Record<string, string> = {};
-    if (p && s.text === "gemini") {
+    const usingGemini = !!p && s.text === "gemini";
+    if (usingGemini && p) {
       headers["x-ai-provider"] = p.name;
       headers["x-ai-key"] = p.apiKey;
       headers["x-ai-text-model"] = p.textModel;
       headers["x-ai-fallback"] = s.fallback ? "1" : "0";
     }
-    return next({ headers });
+    try {
+      const res = await next({ headers });
+      recordTelemetry({
+        lastProvider: usingGemini ? "gemini" : "builtin",
+        lastStatus: "success",
+        lastError: null,
+      });
+      return res;
+    } catch (e) {
+      recordTelemetry({
+        lastProvider: usingGemini ? "gemini" : "builtin",
+        lastStatus: "error",
+        lastError: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    }
   },
 );
 
