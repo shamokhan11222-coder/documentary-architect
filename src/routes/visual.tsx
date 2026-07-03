@@ -22,10 +22,15 @@ import { StageShell } from "@/components/StageShell";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 import { hasUnlimitedAccess } from "@/lib/account";
+import { StageErrorBoundary } from "@/components/StageErrorBoundary";
 
 export const Route = createFileRoute("/visual")({
   head: () => ({ meta: [{ title: "Images — Stickmax Studio" }] }),
-  component: VisualPage,
+  component: () => (
+    <StageErrorBoundary>
+      <VisualPage />
+    </StageErrorBoundary>
+  ),
 });
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
@@ -37,6 +42,11 @@ function VisualPage() {
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const story = useStory(selectedId);
   const map = useVisualMap(selectedId);
+
+  // A story object can exist without a usable script. Only a non-empty string
+  // script is valid — everything downstream (scene counting) depends on it.
+  const scriptText = typeof story?.script === "string" ? story.script : "";
+  const hasValidScript = scriptText.trim().length > 0;
 
   const gen = useServerFn(generateVisualMap);
   const doCheck = useServerFn(checkImageConsistency);
@@ -77,16 +87,16 @@ function VisualPage() {
   }
 
   function handleBuildBoard() {
-    if (!selected || !story) return;
+    if (!selected || !hasValidScript) return;
     return withBusy("gen", async () => {
       // Derive a scene-count target from the actual script length so long
       // videos get many scenes (≈1 scene per sentence). A 9–11 min / ~1500
       // word script yields roughly 120–180 scenes.
-      const words = (story.script.match(/\S+/g) ?? []).length;
+      const words = (scriptText.match(/\S+/g) ?? []).length;
       const minScenes = Math.max(8, Math.round(words / 12));
       const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
       const scenes = (await gen({
-        data: { topic: selected.topic, script: story.script, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
+        data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
       })) as VisualScene[];
       saveVisualMap({ topicId: selected.id, scenes, generatedAt: Date.now() });
       toast.success(`Storyboard built — ${scenes.length} scenes. Now generate images`);
@@ -208,7 +218,7 @@ function VisualPage() {
             </option>
           ))}
         </select>
-        <Button onClick={handleBuildBoard} disabled={!selected || !story || !!busy}>
+        <Button onClick={handleBuildBoard} disabled={!selected || !hasValidScript || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {map ? "Rebuild Storyboard" : "Build Storyboard"}
         </Button>
@@ -296,9 +306,9 @@ function VisualPage() {
         </div>
       )}
 
-      {selected && !story && (
+      {selected && !hasValidScript && (
         <p className="mt-3 text-xs text-amber-600">
-          No script found for this project yet. Run the Story Engine first.
+          Script is missing. Generate or paste a script first.
         </p>
       )}
 

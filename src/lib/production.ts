@@ -151,12 +151,13 @@ export function saveAudioPack(a: AudioPack) {
 const WORDS_PER_SECOND = 2.5;
 
 export function estimateSeconds(text: string): number {
-  const words = (text.match(/\S+/g) ?? []).length;
+  const words = (typeof text === "string" ? text.match(/\S+/g) ?? [] : []).length;
   return Math.max(1, Math.round(words / WORDS_PER_SECOND));
 }
 
 /** Split a story script into narration paragraphs, dropping "## Title" headings. */
 export function scriptToParagraphs(script: string): string[] {
+  if (typeof script !== "string") return [];
   return script
     .split(/\n{2,}/)
     .map((p) => p.replace(/^#+\s*/gm, "").trim())

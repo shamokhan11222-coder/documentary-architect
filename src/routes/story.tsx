@@ -67,10 +67,10 @@ function StatBox({ label, value, tone }: { label: string; value: string | number
 }
 
 function ScriptStats({ story }: { story: Story }) {
-  const bodyWords = story.sections
-    .map((s) => (s.content.match(/\S+/g) ?? []).length)
+  const bodyWords = (story.sections ?? [])
+    .map((s) => (typeof s?.content === "string" ? s.content.match(/\S+/g) ?? [] : []).length)
     .reduce((a, b) => a + b, 0);
-  const duration = estimateSeconds(story.sections.map((s) => s.content).join(" "));
+  const duration = estimateSeconds((story.sections ?? []).map((s) => s?.content ?? "").join(" "));
   const min = story.minWords ?? 0;
   const tooShort = min > 0 && bodyWords < min;
   return (

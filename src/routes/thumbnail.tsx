@@ -23,10 +23,15 @@ import { StageShell } from "@/components/StageShell";
 import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { StageErrorBoundary } from "@/components/StageErrorBoundary";
 
 export const Route = createFileRoute("/thumbnail")({
   head: () => ({ meta: [{ title: "Thumbnail — Stickmax Studio" }] }),
-  component: ThumbnailPage,
+  component: () => (
+    <StageErrorBoundary message="Something didn't load. Generate or paste a script first, then try again.">
+      <ThumbnailPage />
+    </StageErrorBoundary>
+  ),
 });
 
 const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
