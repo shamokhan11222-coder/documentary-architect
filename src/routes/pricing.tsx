@@ -284,7 +284,10 @@ function PricingPage() {
                 <h3 className="font-display text-xl font-bold">{p.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{p.tagline}</p>
                 <div className="mt-5 flex items-end gap-1">
-                  <span className="text-5xl font-bold tracking-tight">
+                  <span
+                    key={`${p.name}-${annual}`}
+                    className="text-5xl font-bold tracking-tight animate-[fade-up_0.35s_var(--ease-out-quint)_both]"
+                  >
                     ${price}
                   </span>
                   <span className="pb-1.5 text-sm text-muted-foreground">
