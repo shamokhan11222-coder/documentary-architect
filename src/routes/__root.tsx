@@ -603,11 +603,6 @@ function Sidebar({
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
-  const theme = useTheme();
-  const account = useAccount();
-  const { balance } = useCredits();
-  const admin = useIsAdmin();
-  const low = !admin && balance <= 10;
   const [moreOpen, setMoreOpen] = useState(false);
   return (
     <aside
