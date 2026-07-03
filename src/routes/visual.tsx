@@ -14,9 +14,19 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage } from "@/lib/generate-image";
+import { generateSceneImage, testImageProvider } from "@/lib/generate-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
-import { imageProviderReady } from "@/lib/provider";
+import {
+  imageProviderPayload,
+  imageProviderReady,
+  saveProviderSettings,
+  useActiveImageProvider,
+  useImageProviderStatus,
+  IMAGE_PROVIDER_TEST_PASSED,
+  type ProviderChoice,
+} from "@/lib/provider";
+import { markTested } from "@/lib/apikeys";
+import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { StageShell } from "@/components/StageShell";
@@ -123,6 +133,10 @@ function VisualPage() {
   const gen = useServerFn(generateVisualMap);
   const doCheck = useServerFn(checkImageConsistency);
   const credit = useCreditConfig();
+  const imageProviderStatus = useImageProviderStatus();
+  const activeImageProvider = useActiveImageProvider({ requireTest: false });
+  const telemetry = useTelemetry();
+  const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
@@ -199,6 +213,8 @@ function VisualPage() {
 
   async function genImage(scene: VisualScene) {
     if (!selected) return;
+    const ready = imageProviderReady();
+    if (!ready.ok) throw new Error(ready.message);
     const dataUrl = await generateSceneImage(scene);
     if (!isValidImage(dataUrl)) throw new Error("Image generation returned no image");
     await putImage(sceneImageId(selected.id, scene.sceneNumber), dataUrl);
@@ -272,6 +288,23 @@ function VisualPage() {
     return runBatch("retry", scenes.filter((s) => failed.has(s.sceneNumber)));
   }
 
+  function handleImageProviderChange(choice: ProviderChoice) {
+    saveProviderSettings({ image: choice });
+  }
+
+  function handleTestImageProvider() {
+    return withBusy("test-provider", async () => {
+      const provider = imageProviderPayload({ requireTest: false });
+      if (!provider || !activeImageProvider) {
+        toast.error("Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.");
+        return;
+      }
+      await testImageProvider(provider);
+      markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
+      toast.success("Image provider test passed");
+    });
+  }
+
   // Repair: drop any stored image that is missing/invalid so those scenes
   // become pending again, then re-scan. Fixes "status completed but no image".
   function repairMissing() {
@@ -319,6 +352,8 @@ function VisualPage() {
       try {
         const sel = selectedRef.current;
         if (!sel) return;
+        const ready = imageProviderReady();
+        if (!ready.ok) throw new Error(ready.message);
         const dataUrl = await generateSceneImage(scene);
         await putImage(sceneImageId(sel.id, scene.sceneNumber), dataUrl);
         setHave((prev) => new Set(prev).add(scene.sceneNumber));
@@ -400,29 +435,29 @@ function VisualPage() {
         </Button>
         {hasMap && (
           <>
-            <Button onClick={generateAll} disabled={!!busy}>
+            <Button onClick={generateAll} disabled={!!busy || !canGenerateImages}>
               {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Images className="mr-2 h-4 w-4" /> Generate All Images
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
+            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <ImagePlus className="mr-2 h-4 w-4" /> Next 5
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy}>
+            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy || !canGenerateImages}>
               {busy === "next-10" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next 10
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy}>
+            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy || !canGenerateImages}>
               {busy === "next-20" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next 20
             </Button>
             {failed.size > 0 && (
               <>
-                <Button variant="outline" onClick={retryFailed} disabled={!!busy}>
+                <Button variant="outline" onClick={retryFailed} disabled={!!busy || !canGenerateImages}>
                   {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
                 </Button>
-                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy}>
+                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy || !canGenerateImages}>
                   {busy === "continue" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <PlayCircle className="mr-2 h-4 w-4" /> Continue From Failed Scene
                 </Button>
@@ -449,6 +484,44 @@ function VisualPage() {
           </>
         )}
       </div>
+
+      {hasMap && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Image Provider</span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={imageProviderStatus.choice}
+                onChange={(e) => handleImageProviderChange(e.target.value as ProviderChoice)}
+              >
+                <option value="gemini">Gemini Image</option>
+                <option value="openai">OpenAI Images</option>
+                <option value="fal">Fal.ai</option>
+                <option value="replicate">Replicate</option>
+                <option value="disabled">Built-in AI disabled</option>
+              </select>
+            </label>
+            <Button variant="outline" onClick={handleTestImageProvider} disabled={!!busy || !activeImageProvider}>
+              {busy === "test-provider" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Test Image Provider
+            </Button>
+          </div>
+          {!imageProviderStatus.connected && (
+            <p className="mt-3 text-xs text-amber-600">
+              Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.
+            </p>
+          )}
+          {imageProviderStatus.connected && !imageProviderStatus.testPassed && (
+            <p className="mt-3 text-xs text-amber-600">Test image provider before generating.</p>
+          )}
+          <div className="mt-3 grid gap-1 font-mono text-xs text-muted-foreground">
+            <div>Active Image Provider: {imageProviderStatus.connected ? imageProviderStatus.label : "Built-in AI disabled"}</div>
+            <div>Provider Status: {imageProviderStatus.message}</div>
+            <div>Last Image Error: {telemetry.lastError ?? "—"}</div>
+          </div>
+        </div>
+      )}
 
       {report && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-xs">
@@ -571,6 +644,7 @@ function VisualPage() {
               scene={s}
               topicId={selected.id}
               busy={busy}
+              providerReady={imageProviderStatus.ok}
               onRegen={onCardRegen}
               onReplace={onCardReplace}
               onDelete={onCardDelete}
@@ -586,6 +660,7 @@ const SceneCard = memo(function SceneCard({
   scene,
   topicId,
   busy,
+  providerReady,
   onRegen,
   onReplace,
   onDelete,
@@ -593,6 +668,7 @@ const SceneCard = memo(function SceneCard({
   scene: VisualScene;
   topicId: string;
   busy: string | null;
+  providerReady: boolean;
   onRegen: (scene: VisualScene) => void;
   onReplace: (scene: VisualScene, file: File | null) => void;
   onDelete: (sceneNumber: number) => void;
@@ -600,14 +676,16 @@ const SceneCard = memo(function SceneCard({
   const img = useImage(sceneImageId(topicId, scene.sceneNumber));
   const inputId = `replace-${topicId}-${scene.sceneNumber}`;
   const generating = busy === `img-${scene.sceneNumber}`;
-  const status = generating ? "Generating…" : img ? "Ready" : "No image";
+  const status = generating ? "Generating…" : img ? "Ready" : providerReady ? "No image" : "Pending image provider setup";
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="relative flex aspect-video items-center justify-center bg-muted/30">
         {img ? (
           <img src={img} alt={`Scene ${scene.sceneNumber}`} className="h-full w-full object-cover" />
         ) : (
-          <span className="text-xs text-muted-foreground">No image yet</span>
+          <span className="px-3 text-center text-xs text-muted-foreground">
+            {providerReady ? "No image yet" : "Pending image provider setup"}
+          </span>
         )}
         {generating && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/60">
@@ -640,7 +718,7 @@ const SceneCard = memo(function SceneCard({
         )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <Button size="sm" variant="secondary" onClick={() => onRegen(scene)} disabled={!!busy}>
+          <Button size="sm" variant="secondary" onClick={() => onRegen(scene)} disabled={!!busy || !providerReady}>
             <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate
           </Button>
           <input id={inputId} type="file" accept="image/*" className="hidden" onChange={(e) => onReplace(scene, e.target.files?.[0] ?? null)} />
