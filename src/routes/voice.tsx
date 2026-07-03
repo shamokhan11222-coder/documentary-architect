@@ -12,6 +12,8 @@ import {
   DEFAULT_VOICE_SETTINGS,
   useVoice,
   saveVoice,
+  useVoiceProfiles,
+  getVoiceProfile,
   scriptToParagraphs,
   estimateSeconds,
   fmtClock,
@@ -41,7 +43,34 @@ function VoicePage() {
   const story = useStory(selected?.id ?? null);
   const voice = useVoice(selected?.id ?? null);
   const settings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
+  const profiles = useVoiceProfiles();
   const [busy, setBusy] = useState<string | null>(null);
+
+  // The cloned voice selected for this project (persisted per project via
+  // settings.clonedProfileId). When profiles exist, one must be selected
+  // before any voiceover can be generated.
+  const selectedProfile = profiles.find((p) => p.id === settings.clonedProfileId) ?? null;
+
+  /** Settings actually used for generation — a selected cloned profile's saved
+   *  settings take over, but the project's pronunciation dictionary is kept. */
+  function genSettings(): VoiceSettings {
+    if (selectedProfile?.settings) {
+      return { ...selectedProfile.settings, dictionary: settings.dictionary, clonedProfileId: selectedProfile.id };
+    }
+    return settings;
+  }
+
+  /** Returns an error message if voiceover generation is not allowed yet. */
+  function voiceGuard(): string | null {
+    if (profiles.length > 0 && !settings.clonedProfileId) return "Select a voice profile first.";
+    if (settings.clonedProfileId) {
+      const p = getVoiceProfile(settings.clonedProfileId);
+      if (!p) return "Select a voice profile first.";
+      if (!p.sampleAudio) return "Voice sample missing. Upload or record a sample for this profile.";
+      if (!p.consent) return "Permission not confirmed for this voice profile.";
+    }
+    return null;
+  }
 
   function update(patch: Partial<VoiceSettings>) {
     if (!selected) return;
@@ -63,16 +92,21 @@ function VoicePage() {
 
   async function genBlock(block: VoiceBlock) {
     if (!selected || !voice) return;
+    const guard = voiceGuard();
+    if (guard) {
+      toast.error(guard);
+      return;
+    }
     setBusy(`b-${block.index}`);
     try {
-      const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
+      const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
       const blocks = voice.blocks.map((b) =>
         b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b,
       );
       saveVoice({ ...voice, blocks });
       toast.success(`Block ${block.index + 1} narrated`);
     } catch (e) {
-      toast.error(humanizeError(e, "Voice failed"));
+      toast.error(humanizeError(e, "Voice generation failed"));
     } finally {
       setBusy(null);
     }
@@ -80,6 +114,11 @@ function VoicePage() {
 
   async function genAll() {
     if (!selected || !voice) return;
+    const guard = voiceGuard();
+    if (guard) {
+      toast.error(guard);
+      return;
+    }
     setBusy("all");
     let blocks = [...voice.blocks];
     let creditsOut = false;
@@ -92,11 +131,11 @@ function VoicePage() {
     }
     for (const block of pending) {
       try {
-        const real = await generateVoiceBlock(selected.id, block.index, block.text, settings);
+        const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
         blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
         saveVoice({ ...voice, blocks });
       } catch (e) {
-        const msg = humanizeError(e, "failed");
+        const msg = humanizeError(e, "voice generation failed");
         if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
           creditsOut = true;
           toast.error("Credits exhausted. Your generated voice blocks are saved. Continue later.");
@@ -177,10 +216,28 @@ function VoicePage() {
             <CustomVoice
               activeProfileId={settings.clonedProfileId}
               onUse={(id) => update({ clonedProfileId: id })}
+              currentSettings={settings}
             />
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
+            {/* Select Voice Profile — drives which cloned voice narration uses. */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Voice profile</label>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={settings.clonedProfileId ?? ""}
+                onChange={(e) => update({ clonedProfileId: e.target.value || undefined })}
+              >
+                <option value="">Select a voice profile…</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button onClick={buildBlocks}>
               <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
@@ -191,6 +248,10 @@ function VoicePage() {
               </Button>
             ) : null}
           </div>
+
+          {profiles.length > 0 && !settings.clonedProfileId && (
+            <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
+          )}
 
           {voice?.blocks.length ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
