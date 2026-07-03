@@ -2,7 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2, Copy, Archive } from "lucide-react";
+import { Star, Trash2, Search as SearchIcon, CheckCircle2, Zap, Loader2, Copy, Archive, Pencil } from "lucide-react";
 
 import {
   deleteTopic,
