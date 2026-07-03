@@ -6,7 +6,16 @@
 import { readLocal, writeLocal, useLocal } from "./local";
 import { PIPELINE, stageDone, type StageKey } from "./manager";
 
-export type TaskStatus = "pending" | "running" | "completed" | "failed";
+// Persisted statuses are the base four; "locked" / "ready" / "retry" are
+// derived/transient display states the orchestrator sets during a run.
+export type TaskStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "locked"
+  | "ready"
+  | "retry";
 
 export interface StageState {
   status: TaskStatus;

@@ -19,7 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { hasUnlimitedAccess } from "@/lib/account";
-import { PIPELINE, stageDone, completionPercent, type StageKey } from "@/lib/manager";
+import { PIPELINE, stageDone, completionPercent, prereqsMet, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
   getPipeline,
@@ -89,6 +89,35 @@ function ManagerPage() {
   const [busy, setBusy] = useState(false);
   const cancelled = useRef(false);
 
+  // Automatic retry with exponential backoff for transient AI outages.
+  const RETRY_BACKOFFS_MS = [10000, 30000, 60000];
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  function isTransient(msg: string): boolean {
+    return /unavailable|temporarily|overloaded|timeout|timed out|try again|\b(429|502|503|504)\b|rate.?limit/i.test(
+      msg,
+    );
+  }
+  // Run an AI call, retrying on transient failures (10s → 30s → 60s). After the
+  // final attempt the error propagates so ONLY this stage is marked failed —
+  // earlier completed stages (Research, Story) stay saved.
+  async function withRetry<T>(id: string, stage: StageKey, fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!isTransient(msg) || attempt >= RETRY_BACKOFFS_MS.length) throw e;
+        const wait = RETRY_BACKOFFS_MS[attempt];
+        patchStage(id, stage, { status: "retry" });
+        setTask(id, stage, `Waiting before retry… (${wait / 1000}s)`);
+        logActivity(id, `${stage} paused — AI briefly unavailable, retrying in ${wait / 1000}s`, "info");
+        await sleep(wait);
+        if (cancelled.current) throw new Error("Stopped");
+        patchStage(id, stage, { status: "running" });
+      }
+    }
+  }
+
   const doResearch = useServerFn(researchTopic);
   const doStory = useServerFn(generateStory);
   const doVisual = useServerFn(generateVisualMap);
@@ -98,6 +127,13 @@ function ManagerPage() {
 
   // Run a single stage. Returns true on success, false on failure.
   async function runStage(id: string, topic: string, explanation: string, stage: StageKey): Promise<boolean> {
+    // Locking: never run a stage before its prerequisites are completed.
+    if (!prereqsMet(id, stage)) {
+      patchStage(id, stage, { status: "failed", error: "Complete the previous stage first." });
+      logActivity(id, `${stage} locked — complete the previous stage first`, "error");
+      toast.error("Complete the previous stage first.");
+      return false;
+    }
     patchStage(id, stage, { status: "running", startedAt: Date.now(), error: undefined });
     setTask(id, stage, `${PIPELINE.find((p) => p.key === stage)?.expert} working…`);
     try {
@@ -114,7 +150,9 @@ function ManagerPage() {
         const story = readLS<Story>("docos.story", id);
         if (!story) throw new Error("Story required before storyboard");
         setTask(id, stage, "Visual Director → building storyboard…");
-        const scenes = (await doVisual({ data: { topic, script: story.script } })) as VisualScene[];
+        const scenes = (await withRetry(id, stage, () =>
+          doVisual({ data: { topic, script: story.script } }),
+        )) as VisualScene[];
         saveVisualMap({ topicId: id, scenes, generatedAt: Date.now() });
       } else if (stage === "images") {
         const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
@@ -241,6 +279,10 @@ function ManagerPage() {
 
   async function retryStage(stage: StageKey) {
     if (!selected) return;
+    if (!prereqsMet(selected.id, stage)) {
+      toast.error("Complete the previous stage first.");
+      return;
+    }
     cancelled.current = false;
     setBusy(true);
     setRunning(selected.id, true, stage);
@@ -251,14 +293,52 @@ function ManagerPage() {
     }
   }
 
+  // Recovery: run ONLY the given stage (does not continue to later stages).
+  async function runSingleStage(stage: StageKey) {
+    if (!selected) return;
+    if (!prereqsMet(selected.id, stage)) {
+      toast.error("Complete the previous stage first.");
+      return;
+    }
+    cancelled.current = false;
+    setBusy(true);
+    setRunning(selected.id, true, stage);
+    try {
+      await runStage(selected.id, selected.topic, selected.explanation, stage);
+    } finally {
+      setRunning(selected.id, false);
+      setBusy(false);
+    }
+  }
+
+  // Recovery: clear a stage's failed/error marker so it returns to the queue,
+  // without touching any completed earlier stages or their saved output.
+  function resetStage(stage: StageKey) {
+    if (!selected) return;
+    patchStage(selected.id, stage, { status: "pending", error: undefined, finishedAt: undefined });
+    logActivity(selected.id, `${stage} reset`, "info");
+    toast.success("Stage reset.");
+  }
+
   const pct = selectedId ? completionPercent(selectedId) : 0;
   const styleProfile = getStyleProfile();
 
-  const counts = { completed: 0, pending: 0, failed: 0, running: 0 };
+  // Derived per-stage status: a not-yet-run stage is "locked" until its
+  // prerequisites are complete, then "ready". Persisted running/completed/
+  // failed/retry states win.
+  function derivedStatus(stage: StageKey): TaskStatus {
+    const raw: TaskStatus = pipeline?.stages[stage]?.status ?? "pending";
+    if (raw === "completed" || raw === "running" || raw === "failed" || raw === "retry") return raw;
+    if (selectedId && !prereqsMet(selectedId, stage)) return "locked";
+    return "ready";
+  }
+
+  const counts: Record<TaskStatus, number> = {
+    completed: 0, pending: 0, failed: 0, running: 0, locked: 0, ready: 0, retry: 0,
+  };
   if (pipeline) {
     for (const s of PIPELINE) {
-      const st = pipeline.stages[s.key]?.status ?? "pending";
-      counts[st] += 1;
+      counts[derivedStatus(s.key)] += 1;
     }
   }
   const failedStage = PIPELINE.find((s) => pipeline?.stages[s.key]?.status === "failed");
@@ -292,7 +372,7 @@ function ManagerPage() {
             <Progress value={pct} className="mt-2" />
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
               <Stat label="Completed" value={counts.completed} tone="text-green-600" />
-              <Stat label="Pending" value={counts.pending} tone="text-muted-foreground" />
+              <Stat label="Pending" value={counts.pending + counts.ready + counts.locked + counts.retry} tone="text-muted-foreground" />
               <Stat label="Failed" value={counts.failed} tone="text-red-600" />
               <Stat label="Est. remaining" value={busy ? fmtDuration(eta) : "—"} tone="text-foreground" />
             </div>
@@ -314,9 +394,17 @@ function ManagerPage() {
                 </Button>
               )}
               {failedStage && !busy && (
-                <Button variant="secondary" onClick={() => retryStage(failedStage.key)}>
-                  <RefreshCw className="mr-1 h-4 w-4" /> Retry {failedStage.label}
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={() => runSingleStage(failedStage.key)}>
+                    <RefreshCw className="mr-1 h-4 w-4" /> Retry Current Stage
+                  </Button>
+                  <Button variant="secondary" onClick={() => retryStage(failedStage.key)}>
+                    <Play className="mr-1 h-4 w-4" /> Continue From Failed Stage
+                  </Button>
+                  <Button variant="ghost" onClick={() => resetStage(failedStage.key)}>
+                    <RotateCw className="mr-1 h-4 w-4" /> Reset Current Stage Only
+                  </Button>
+                </>
               )}
               <Button variant="ghost" disabled={busy} onClick={() => runPipeline(true)}>
                 <RotateCw className="mr-1 h-4 w-4" /> Regenerate all
@@ -329,7 +417,7 @@ function ManagerPage() {
             <div className="text-sm font-medium">Production timeline</div>
             <div className="mt-3 space-y-1.5">
               {PIPELINE.map((s) => {
-                const st: TaskStatus = pipeline?.stages[s.key]?.status ?? "pending";
+                const st: TaskStatus = derivedStatus(s.key);
                 const err = pipeline?.stages[s.key]?.error;
                 return (
                   <div
@@ -354,7 +442,17 @@ function ManagerPage() {
                         </Button>
                       ) : (
                         <span className="text-[11px] text-muted-foreground">
-                          {st === "completed" ? "done" : st === "running" ? "running" : s.expert}
+                          {st === "completed"
+                            ? "done"
+                            : st === "running"
+                              ? "running"
+                              : st === "retry"
+                                ? "waiting to retry…"
+                                : st === "locked"
+                                  ? "locked"
+                                  : st === "ready"
+                                    ? "ready"
+                                    : s.expert}
                         </span>
                       )}
                     </div>
@@ -421,7 +519,8 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 function StageIcon({ status }: { status: TaskStatus }) {
   if (status === "completed") return <CheckCircle2 className="h-4 w-4 text-green-600" />;
   if (status === "failed") return <XCircle className="h-4 w-4 text-red-600" />;
-  if (status === "running") return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+  if (status === "running" || status === "retry") return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+  if (status === "locked") return <Circle className="h-4 w-4 text-muted-foreground/30" />;
   return <Circle className="h-4 w-4 text-muted-foreground/40" />;
 }
 

@@ -23,11 +23,35 @@ export const PIPELINE: StageDef[] = [
   { key: "story", label: "Story", expert: "Story Architect" },
   { key: "storyboard", label: "Storyboard", expert: "Visual Director" },
   { key: "images", label: "Images", expert: "Visual Director" },
+  { key: "voice", label: "Voice", expert: "Voice Director" },
   { key: "thumbnail", label: "Thumbnail", expert: "Thumbnail Designer" },
   { key: "seo", label: "SEO", expert: "SEO Specialist" },
-  { key: "voice", label: "Voice", expert: "Voice Director" },
   { key: "rating", label: "Rating", expert: "Quality Reviewer" },
 ];
+
+// Hard prerequisites for each stage. A stage may only run once every stage it
+// depends on is completed. Enforced by the orchestrator so the pipeline stays
+// strictly sequential and no stage is generated ahead of its inputs.
+// - Storyboard needs Story.
+// - Images need Storyboard.
+// - Voiceover needs Images (and therefore Storyboard).
+// - Thumbnail needs Voiceover AND Images.
+// - SEO and Rating need Story (final Rating is re-run last, after Voice/Thumbnail).
+export const STAGE_DEPS: Record<StageKey, StageKey[]> = {
+  research: [],
+  story: ["research"],
+  storyboard: ["story"],
+  images: ["storyboard"],
+  voice: ["images"],
+  thumbnail: ["voice", "images"],
+  seo: ["story"],
+  rating: ["story"],
+};
+
+/** Are all hard prerequisites for a stage already completed? */
+export function prereqsMet(topicId: string, stage: StageKey): boolean {
+  return STAGE_DEPS[stage].every((dep) => stageDone(topicId, dep));
+}
 
 const KEYS: Record<Exclude<StageKey, "images">, string> = {
   research: "docos.research",
