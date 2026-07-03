@@ -258,6 +258,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "Home", icon: Home },
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
   { to: "/topics", label: "Projects", icon: FolderKanban },
+  { to: "/credits", label: "Credits", icon: Coins },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
   { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
