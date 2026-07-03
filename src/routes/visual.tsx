@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { StageShell } from "@/components/StageShell";
 import type { VisualScene, ConsistencyReport } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { hasUnlimitedAccess } from "@/lib/account";
 
 export const Route = createFileRoute("/visual")({
   head: () => ({ meta: [{ title: "Images — Stickmax Studio" }] }),
