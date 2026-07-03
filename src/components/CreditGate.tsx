@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import {
   useCredits,
-  useIsAdmin,
+  useHasUnlimitedAccess,
   ensureRenewal,
   addCredits,
 } from "@/lib/account";
@@ -21,7 +21,7 @@ const PERKS = [
 
 export function CreditGate() {
   const { balance } = useCredits();
-  const admin = useIsAdmin();
+  const unlimited = useHasUnlimitedAccess();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [dismissed, setDismissed] = useState(false);
 
@@ -43,7 +43,7 @@ export function CreditGate() {
   }, [balance]);
 
   const show =
-    !admin && balance <= 0 && !dismissed && !HIDDEN_ON.includes(pathname);
+    !unlimited && balance <= 0 && !dismissed && !HIDDEN_ON.includes(pathname);
 
   if (!show) return null;
 
