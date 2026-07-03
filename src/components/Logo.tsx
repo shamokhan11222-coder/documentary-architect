@@ -1,50 +1,78 @@
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Stickmax brand mark — a friendly stickman inside a rounded blue play button.
- * Flat, sharp, single accent color so it reads well as a favicon/app icon and
- * inverts cleanly in light and dark mode.
+ * Stickmax brand mark — "Max", a friendly minimal stick-figure mascot who
+ * waves from inside a rounded blue-gradient tile. Designed to stay crisp and
+ * recognizable from 512px down to 16px (favicon) with a distinct silhouette.
  */
-export function LogoMark({
-  className,
-  brand = "var(--brand)",
-  figure = "var(--brand-foreground)",
-}: {
-  className?: string;
-  brand?: string;
-  figure?: string;
-}) {
+export function LogoMark({ className }: { className?: string }) {
+  const uid = useId().replace(/:/g, "");
+  const tileGrad = `sm-tile-${uid}`;
+  const figGrad = `sm-fig-${uid}`;
   return (
     <svg
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-hidden="true"
+      role="img"
+      aria-label="Stickmax"
     >
-      {/* rounded play-button tile */}
-      <rect x="1" y="1" width="30" height="30" rx="9" fill={brand} />
-      {/* stickman: head + arms raised + legs (playful "max" energy) */}
-      <g stroke={figure} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <circle cx="16" cy="9.5" r="2.6" fill={figure} stroke="none" />
-        <path d="M16 12.4 V19" />
-        <path d="M16 14 L11 11.5" />
-        <path d="M16 14 L21 11.5" />
-        <path d="M16 19 L12 24" />
-        <path d="M16 19 L20 24" />
+      <defs>
+        <linearGradient id={tileGrad} x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#5B9DFF" />
+          <stop offset="0.55" stopColor="#2F6BFF" />
+          <stop offset="1" stopColor="#1E4BD8" />
+        </linearGradient>
+        <linearGradient id={figGrad} x1="16" y1="6" x2="16" y2="26" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFFFFF" />
+          <stop offset="1" stopColor="#E4EEFF" />
+        </linearGradient>
+      </defs>
+
+      {/* rounded gradient tile */}
+      <rect x="1" y="1" width="30" height="30" rx="9" fill={`url(#${tileGrad})`} />
+      {/* soft top-light highlight */}
+      <rect x="1" y="1" width="30" height="15" rx="9" fill="#FFFFFF" opacity="0.10" />
+
+      {/* Max — friendly waving stick figure */}
+      <g
+        stroke={`url(#${figGrad})`}
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      >
+        {/* head */}
+        <circle cx="15.4" cy="9.6" r="3.5" fill={`url(#${figGrad})`} stroke="none" />
+        {/* body */}
+        <path d="M15.4 13.4 V19.4" />
+        {/* resting arm */}
+        <path d="M15.4 15.2 L11.4 17.6" />
+        {/* waving arm, raised */}
+        <path d="M15.4 14.4 L20.4 10.6" />
+        {/* legs */}
+        <path d="M15.4 19.4 L11.7 24.6" />
+        <path d="M15.4 19.4 L19.6 24.4" />
       </g>
+      {/* friendly greeting spark by the raised hand */}
+      <circle cx="23.2" cy="8.6" r="1.15" fill="#FFFFFF" opacity="0.95" />
     </svg>
   );
 }
 
-/** Full logo lockup: brand tile + friendly bold wordmark. */
+/** Full logo lockup: mascot tile + bold wordmark. */
 export function Logo({
   className,
   showWordmark = true,
+  studio = false,
   wordmarkClassName,
 }: {
   className?: string;
   showWordmark?: boolean;
+  /** Append the "Studio" sub-label (used inside the app / dashboard). */
+  studio?: boolean;
   wordmarkClassName?: string;
 }) {
   return (
@@ -57,14 +85,14 @@ export function Logo({
             wordmarkClassName,
           )}
         >
-          Stickmax <span className="text-brand">Studio</span>
+          Stickmax{studio && <span className="text-brand"> Studio</span>}
         </span>
       )}
     </div>
   );
 }
 
-/** Animated loading logo — the stickman pops and the tile pulses. */
+/** Animated loading logo — Max bounces and waves. */
 export function LogoLoading({ className }: { className?: string }) {
   return (
     <div
@@ -76,7 +104,7 @@ export function LogoLoading({ className }: { className?: string }) {
         <LogoMark className="h-14 w-14" />
       </div>
       <span className="font-display text-sm font-semibold tracking-tight text-muted-foreground">
-        Stickmax Studio
+        Stickmax <span className="text-brand">Studio</span>
       </span>
       <style>{`
         .sm-pop { animation: sm-bounce 1.2s var(--ease-spring) infinite; }
