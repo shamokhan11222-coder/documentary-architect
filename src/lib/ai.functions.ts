@@ -33,6 +33,23 @@ ${content.slice(0, 8000)}`;
   }
 }
 
+// ---------------- Shared injection (Instructions + Knowledge Base) ----------------
+// AI Instructions and the Knowledge Base are gathered client-side (localStorage)
+// and passed into every generation call so they don't just save — they actively
+// steer every AI request. Empty strings are ignored.
+export interface InjectionContext {
+  instructions?: string;
+  knowledge?: string;
+}
+
+function injectionBlock(ctx?: InjectionContext): string {
+  const parts: string[] = [];
+  if (ctx?.instructions?.trim())
+    parts.push(`PERMANENT AI INSTRUCTIONS (always obey these across every stage):\n${ctx.instructions.trim()}`);
+  if (ctx?.knowledge?.trim()) parts.push(ctx.knowledge.trim());
+  return parts.length ? `\n\n${parts.join("\n\n")}\n` : "";
+}
+
 const CATEGORIES = [
   "Today's Best Documentary Ideas",
   "Trending Evergreen Ideas",
