@@ -120,7 +120,7 @@ function VisualPage() {
         } catch (e) {
           const msg = humanizeError(e, "failed");
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
-          if (/credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
+          if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
             toast.error("Credits exhausted. Completed images are saved — resume later.");
             break;
           }
