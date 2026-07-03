@@ -340,6 +340,18 @@ function VisualPage() {
             Check Consistency
           </Button>
         )}
+        {hasMap && (
+          <>
+            <Button variant="outline" onClick={repairMissing} disabled={!!busy}>
+              {busy === "repair" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Repair Missing Images
+            </Button>
+            <Button variant="ghost" onClick={resetImages} disabled={!!busy}>
+              {busy === "reset" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reset Image Status
+            </Button>
+          </>
+        )}
       </div>
 
       {report && (
