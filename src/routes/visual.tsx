@@ -347,23 +347,37 @@ function VisualPage() {
       )}
 
       {selected && !hasValidScript && (
-        <p className="mt-3 text-xs text-amber-600">
-          Script is missing. Generate or paste a script first.
-        </p>
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-amber-600">
+            Script is missing. Generate or paste a script first.
+          </p>
+          <textarea
+            className="min-h-[120px] w-full resize-y rounded-md border border-input bg-background p-2 text-sm leading-relaxed"
+            placeholder="Paste your script here to build a storyboard…"
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+          />
+        </div>
       )}
 
       {!selected && (
         <p className="mt-6 text-sm text-muted-foreground">Select a project to build a storyboard.</p>
       )}
 
-      {map && selected && (
+      {selected && hasValidScript && !hasMap && (
+        <p className="mt-6 text-sm text-muted-foreground">
+          No storyboard yet. Click “Build Storyboard” to turn your script into scenes.
+        </p>
+      )}
+
+      {hasMap && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="col-span-full text-xs text-muted-foreground">
-            {map.scenes.length} scenes · numbered {pad3(1)}–{pad3(map.scenes.length)} · {have.size}/
-            {map.scenes.length} images done · {credit.label} mode (recommended batch{" "}
+            {scenes.length} scenes · numbered {pad3(1)}–{pad3(scenes.length)} · {have.size}/
+            {scenes.length} images done · {credit.label} mode (recommended batch{" "}
             {credit.defaultImageBatch})
           </div>
-          {[...map.scenes]
+          {[...scenes]
             .sort((a, b) => a.sceneNumber - b.sceneNumber)
             .map((s) => (
             <SceneCard
