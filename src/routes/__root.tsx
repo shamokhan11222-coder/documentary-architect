@@ -296,6 +296,153 @@ const TOP_LINKS = [
   { to: "/roadmap", label: "Roadmap" },
 ] as const;
 
+function TopSeparator() {
+  return <span className="mx-1 hidden h-6 w-px bg-border/70 sm:block" aria-hidden />;
+}
+
+const NOTIFICATIONS = [
+  { title: "Storyboard render finished", detail: "8 scene images are ready to review.", time: "2m" },
+  { title: "Voiceover generated", detail: "Your narration track is available.", time: "1h" },
+  { title: "SEO pack ready", detail: "Titles, tags and description drafted.", time: "3h" },
+];
+
+function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
+  const account = useAccount();
+  const admin = useIsAdmin();
+  const { balance } = useCredits();
+  const theme = useTheme();
+  const low = !admin && balance <= 10;
+
+  return (
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/60 glass px-4 py-3 md:px-6">
+      {/* Mobile menu toggle */}
+      <button
+        onClick={onOpenMobileNav}
+        aria-label="Toggle navigation"
+        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Search */}
+      <label className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-card/50 px-3 py-2 transition-all duration-300 focus-within:border-brand/50 focus-within:bg-card focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] md:max-w-md">
+        <Search className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-focus-within:text-brand" />
+        <input
+          type="search"
+          placeholder="Search projects, tools, docs…"
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+        />
+        <kbd className="hidden shrink-0 rounded-md border border-border/70 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:block">
+          ⌘K
+        </kbd>
+      </label>
+
+      <div className="ml-auto flex items-center gap-2">
+        {/* Notifications */}
+        <DropdownMenu>
+          <DropdownMenuTrigger className="relative rounded-xl p-2 text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground focus:outline-none">
+            <Bell className="h-[18px] w-[18px]" />
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand ring-2 ring-background" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              Notifications
+              <span className="rounded-full bg-brand/12 px-2 py-0.5 text-[10px] font-semibold text-brand">
+                {NOTIFICATIONS.length} new
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {NOTIFICATIONS.map((n) => (
+              <div key={n.title} className="flex flex-col gap-0.5 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/60">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-foreground">{n.title}</span>
+                  <span className="text-[11px] text-muted-foreground">{n.time}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{n.detail}</span>
+              </div>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Theme */}
+        <button
+          onClick={toggleTheme}
+          aria-label="Toggle theme"
+          className="rounded-xl p-2 text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground"
+        >
+          {theme === "dark" ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+        </button>
+
+        <TopSeparator />
+
+        {/* Credits */}
+        <Link
+          to="/credits"
+          className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-3 py-1.5 text-sm font-medium transition-colors hover:border-brand/40"
+        >
+          <Coins className={`h-4 w-4 ${low ? "text-destructive" : "text-brand"}`} />
+          {admin ? (
+            <span className="flex items-center gap-1 font-semibold text-brand">
+              <InfinityIcon className="h-3.5 w-3.5" />
+            </span>
+          ) : (
+            <span className={`font-semibold ${low ? "text-destructive" : "text-foreground"}`}>{balance}</span>
+          )}
+        </Link>
+
+        <TopSeparator />
+
+        {/* Profile / Settings / Logout */}
+        {account ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 rounded-xl border border-transparent p-1 pr-2 text-left transition-colors hover:bg-accent/60 focus:outline-none">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
+                {initials(account.name)}
+              </span>
+              <span className="hidden min-w-0 sm:block">
+                <span className="block max-w-[9rem] truncate text-sm font-medium text-foreground">{account.name}</span>
+                <span className="block text-[11px] capitalize text-muted-foreground">
+                  {admin ? "Owner · Admin" : `${account.plan} plan`}
+                </span>
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="truncate">{account.email}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/credits">
+                  <CreditCard className="h-4 w-4" /> Credits
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings">
+                  <SettingsIcon className="h-4 w-4" /> Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  logout();
+                  toast.success("Signed out");
+                }}
+              >
+                <LogOut className="h-4 w-4" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Link
+            to="/login"
+            className="flex items-center gap-2 rounded-xl bg-brand px-3 py-1.5 text-sm font-semibold text-brand-foreground shadow-soft transition-transform hover:-translate-y-0.5"
+          >
+            <LogIn className="h-4 w-4" /> Log in
+          </Link>
+        )}
+      </div>
+    </header>
+  );
+}
+
 function TopNavbar() {
   const account = useAccount();
   const [open, setOpen] = useState(false);
