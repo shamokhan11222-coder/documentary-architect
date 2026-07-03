@@ -285,7 +285,7 @@ Key Takeaways: ${j(r.keyTakeaways)}`;
 }
 
 export const generateStory = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; research?: Research; minWords?: number; maxWords?: number; targetLabel?: string }) => {
+  .inputValidator((data: { topic: string; research?: Research; minWords?: number; maxWords?: number; targetLabel?: string; instructions?: string; knowledge?: string; scriptPattern?: ScriptPattern }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
@@ -295,11 +295,23 @@ export const generateStory = createServerFn({ method: "POST" })
     const targetLabel = data.targetLabel ?? "9–11 minutes";
     const system = `${EXPERTS.story} ${STORY_RULES}
 Return ONLY valid JSON.`;
+    const patternBlock = data.scriptPattern
+      ? `\nREFERENCE STORY STRUCTURE TO FOLLOW (reuse the structure only, never copy wording):
+- Hook: ${data.scriptPattern.hookStructure}
+- Pacing: ${data.scriptPattern.pacing}
+- Section flow: ${data.scriptPattern.sectionFlow}
+- Curiosity loops: ${data.scriptPattern.curiosityLoops}
+- Transitions: ${data.scriptPattern.transitionStyle}
+- Evidence placement: ${data.scriptPattern.evidencePlacement}
+- Ending: ${data.scriptPattern.endingStyle}
+- Tone: ${data.scriptPattern.tone}
+- Rhythm: ${data.scriptPattern.storyRhythm}\n`
+      : "";
     const user = `Write a full documentary narration script for: "${data.topic}"
 
 TARGET LENGTH: ${targetLabel} of finished video.
 REQUIRED WORD COUNT: between ${minWords} and ${maxWords} words of spoken narration (excluding section titles). This is a hard requirement — do NOT produce a shorter script. Expand each section with real substance (never filler) until the total lands inside this range. A ${targetLabel} video must NOT be a 3–4 minute script.
-
+${injectionBlock(data)}${patternBlock}
 ${buildResearchContext(data.research)}
 
 Write the narration as SEPARATE sections. Never merge them into one giant block.
