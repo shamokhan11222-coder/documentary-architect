@@ -36,6 +36,16 @@ export const Route = createFileRoute("/visual")({
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
+/** A stored image only counts as "generated" if it's a real, non-empty
+ *  data/http image URL. Empty strings or junk left over from a failed run
+ *  must NOT be treated as done, or scenes get skipped forever. */
+function isValidImage(url: string | null | undefined): boolean {
+  if (typeof url !== "string") return false;
+  const v = url.trim();
+  if (v.length < 16) return false;
+  return v.startsWith("data:image") || v.startsWith("http://") || v.startsWith("https://") || v.startsWith("blob:");
+}
+
 function VisualPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
