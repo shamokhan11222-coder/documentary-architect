@@ -122,6 +122,8 @@ export function getBalance(): number {
 }
 
 export function spendCredits(amount: number, label: string) {
+  // Owner/admin accounts have unlimited internal credits.
+  if (isAdmin()) return;
   const s = readState();
   const entry: CreditEntry = {
     id: crypto.randomUUID(),
