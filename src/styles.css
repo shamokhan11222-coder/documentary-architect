@@ -99,6 +99,9 @@
   --animate-pulse-ring: pulse-ring 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   --animate-caret: caret 1s steps(1) infinite;
   --animate-progress-indeterminate: progress-indeterminate 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  --animate-stagger-in: stagger-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-reveal-scale: reveal-scale 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-progress-fill: progress-fill 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 
   /* Tuned easings */
   --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);
