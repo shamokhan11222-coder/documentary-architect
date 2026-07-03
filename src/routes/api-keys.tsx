@@ -211,7 +211,7 @@ function ApiKeysPage() {
               checked={settings.fallback}
               onChange={(e) => saveProviderSettings({ fallback: e.target.checked })}
             />
-            Use built-in AI if the external provider fails
+            Use built-in AI if the external text or voice provider fails
           </label>
         </div>
       )}
