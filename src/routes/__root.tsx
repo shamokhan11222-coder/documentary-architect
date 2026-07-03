@@ -149,6 +149,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Private AI documentary production assistant.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://stickmax.io" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
     ],

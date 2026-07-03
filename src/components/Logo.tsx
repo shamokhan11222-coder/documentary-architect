@@ -10,6 +10,7 @@ export function LogoMark({ className }: { className?: string }) {
   const uid = useId().replace(/:/g, "");
   const tileGrad = `sm-tile-${uid}`;
   const figGrad = `sm-fig-${uid}`;
+  const glow = `sm-glow-${uid}`;
   return (
     <svg
       viewBox="0 0 32 32"
@@ -20,44 +21,45 @@ export function LogoMark({ className }: { className?: string }) {
       aria-label="Stickmax"
     >
       <defs>
-        <linearGradient id={tileGrad} x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#5B9DFF" />
-          <stop offset="0.55" stopColor="#2F6BFF" />
-          <stop offset="1" stopColor="#1E4BD8" />
+        <linearGradient id={tileGrad} x1="3" y1="2" x2="29" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#63A4FF" />
+          <stop offset="0.52" stopColor="#3568FF" />
+          <stop offset="1" stopColor="#4B45E6" />
         </linearGradient>
         <linearGradient id={figGrad} x1="16" y1="6" x2="16" y2="26" gradientUnits="userSpaceOnUse">
           <stop stopColor="#FFFFFF" />
-          <stop offset="1" stopColor="#E4EEFF" />
+          <stop offset="1" stopColor="#DCE9FF" />
         </linearGradient>
+        <radialGradient id={glow} cx="0.5" cy="0.32" r="0.75">
+          <stop stopColor="#FFFFFF" stopOpacity="0.35" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
       {/* rounded gradient tile */}
-      <rect x="1" y="1" width="30" height="30" rx="9" fill={`url(#${tileGrad})`} />
-      {/* soft top-light highlight */}
-      <rect x="1" y="1" width="30" height="15" rx="9" fill="#FFFFFF" opacity="0.10" />
+      <rect x="1" y="1" width="30" height="30" rx="9.5" fill={`url(#${tileGrad})`} />
+      {/* soft radial top-light */}
+      <rect x="1" y="1" width="30" height="30" rx="9.5" fill={`url(#${glow})`} />
 
-      {/* Max — friendly waving stick figure */}
+      {/* Max — bold minimal stickman in a confident victory stance */}
       <g
         stroke={`url(#${figGrad})`}
-        strokeWidth="2.6"
+        strokeWidth="2.9"
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
       >
         {/* head */}
-        <circle cx="15.4" cy="9.6" r="3.5" fill={`url(#${figGrad})`} stroke="none" />
-        {/* body */}
-        <path d="M15.4 13.4 V19.4" />
-        {/* resting arm */}
-        <path d="M15.4 15.2 L11.4 17.6" />
-        {/* waving arm, raised */}
-        <path d="M15.4 14.4 L20.4 10.6" />
-        {/* legs */}
-        <path d="M15.4 19.4 L11.7 24.6" />
-        <path d="M15.4 19.4 L19.6 24.4" />
+        <circle cx="16" cy="8.4" r="3.3" fill={`url(#${figGrad})`} stroke="none" />
+        {/* spine */}
+        <path d="M16 11.6 V18.7" />
+        {/* arms raised in a V */}
+        <path d="M16 13.5 L10.8 9.4" />
+        <path d="M16 13.5 L21.2 9.4" />
+        {/* wide stable stance */}
+        <path d="M16 18.7 L11 24.7" />
+        <path d="M16 18.7 L21 24.7" />
       </g>
-      {/* friendly greeting spark by the raised hand */}
-      <circle cx="23.2" cy="8.6" r="1.15" fill="#FFFFFF" opacity="0.95" />
     </svg>
   );
 }
@@ -81,7 +83,7 @@ export function Logo({
       {showWordmark && (
         <span
           className={cn(
-            "font-display text-lg font-bold tracking-tight text-foreground",
+            "font-display text-lg font-semibold tracking-tight text-foreground",
             wordmarkClassName,
           )}
         >
