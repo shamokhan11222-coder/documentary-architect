@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw } from "lucide-react";
 
@@ -47,6 +47,14 @@ function VisualPage() {
   // script is valid — everything downstream (scene counting) depends on it.
   const scriptText = typeof story?.script === "string" ? story.script : "";
   const hasValidScript = scriptText.trim().length > 0;
+
+  // Refs let per-scene card callbacks stay referentially stable (so memoized
+  // SceneCards don't re-render on every progress tick) while still reading the
+  // latest selected project / storyboard.
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const mapRef = useRef(map);
+  mapRef.current = map;
 
   const gen = useServerFn(generateVisualMap);
   const doCheck = useServerFn(checkImageConsistency);
@@ -157,29 +165,52 @@ function VisualPage() {
     return runBatch("retry", scenes);
   }
 
-  function handleRegenImage(scene: VisualScene) {
-    return withBusy(`img-${scene.sceneNumber}`, async () => {
-      await genImage(scene);
-      toast.success(`Scene ${scene.sceneNumber} image regenerated`);
-    });
-  }
+  // Stable, per-scene card callbacks (read latest state via refs). Keeping these
+  // referentially stable lets React.memo skip re-rendering every SceneCard when
+  // unrelated page state (progress, report) changes.
+  const onCardRegen = useCallback((scene: VisualScene) => {
+    setBusy(`img-${scene.sceneNumber}`);
+    void (async () => {
+      try {
+        const sel = selectedRef.current;
+        if (!sel) return;
+        const dataUrl = await generateSceneImage(scene);
+        await putImage(sceneImageId(sel.id, scene.sceneNumber), dataUrl);
+        setHave((prev) => new Set(prev).add(scene.sceneNumber));
+        setFailed((prev) => {
+          const n = new Set(prev);
+          n.delete(scene.sceneNumber);
+          return n;
+        });
+        toast.success(`Scene ${scene.sceneNumber} image regenerated`);
+      } catch (e) {
+        toast.error(humanizeError(e, "Something went wrong"));
+      } finally {
+        setBusy(null);
+      }
+    })();
+  }, []);
 
-  async function handleReplace(scene: VisualScene, file: File | null) {
-    if (!file || !selected) return;
+  const onCardReplace = useCallback(async (scene: VisualScene, file: File | null) => {
+    const sel = selectedRef.current;
+    if (!file || !sel) return;
     try {
       const dataUrl = await fileToDataUrl(file);
-      await putImage(sceneImageId(selected.id, scene.sceneNumber), dataUrl);
+      await putImage(sceneImageId(sel.id, scene.sceneNumber), dataUrl);
+      setHave((prev) => new Set(prev).add(scene.sceneNumber));
       toast.success("Image replaced");
     } catch {
       toast.error("Could not load that image");
     }
-  }
+  }, []);
 
-  function deleteScene(sceneNumber: number) {
-    if (!map || !selected) return;
-    deleteImage(sceneImageId(selected.id, sceneNumber));
-    saveVisualMap({ ...map, scenes: map.scenes.filter((s) => s.sceneNumber !== sceneNumber) });
-  }
+  const onCardDelete = useCallback((sceneNumber: number) => {
+    const m = mapRef.current;
+    const sel = selectedRef.current;
+    if (!m || !sel) return;
+    deleteImage(sceneImageId(sel.id, sceneNumber));
+    saveVisualMap({ ...m, scenes: m.scenes.filter((s) => s.sceneNumber !== sceneNumber) });
+  }, []);
 
   function handleConsistency() {
     if (!selected || !map) return;
@@ -331,9 +362,9 @@ function VisualPage() {
               scene={s}
               topicId={selected.id}
               busy={busy}
-              onRegen={() => handleRegenImage(s)}
-              onReplace={(f) => handleReplace(s, f)}
-              onDelete={() => deleteScene(s.sceneNumber)}
+              onRegen={onCardRegen}
+              onReplace={onCardReplace}
+              onDelete={onCardDelete}
             />
           ))}
         </div>

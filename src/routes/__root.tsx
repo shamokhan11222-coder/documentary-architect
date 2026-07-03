@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
 import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
+import { applyPerfProfile } from "../lib/perf";
 import {
   Moon,
   Sun,
@@ -238,6 +239,7 @@ function RootComponent() {
 
   useEffect(() => {
     applyTheme();
+    applyPerfProfile();
   }, []);
 
   // Public layout: top navbar + full-width content.

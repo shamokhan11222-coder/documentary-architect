@@ -76,6 +76,7 @@ import { ShimmerBlock, Reveal } from "@/components/motion";
 import { downloadJson, slugify } from "@/lib/io";
 import type { Research, Story, ThumbnailIdea, VisualScene, Topic } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const STAGE_ROUTE: Record<StageKey, string> = {
   research: "/research",
@@ -124,6 +125,9 @@ function ProjectsPage() {
   const modelName = provider?.name ? "Gemini" : "Lovable AI";
 
   const [query, setQuery] = useState("");
+  // Debounce the query used for filtering so typing stays responsive and the
+  // expensive full-text project search only runs after the user pauses.
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("recent");
   const [folder, setFolder] = useState<string>(UNFILED);
@@ -132,7 +136,9 @@ function ProjectsPage() {
   const [autoStep, setAutoStep] = useState("");
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 550);
+    // Data is read synchronously from local storage, so keep this minimal — just
+    // one frame to avoid an SSR/hydration flash. Navigation stays instant.
+    const t = setTimeout(() => setLoading(false), 80);
     return () => clearTimeout(t);
   }, []);
 
@@ -234,7 +240,7 @@ function ProjectsPage() {
   }
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     let list = topics.filter((t) => (filter === "archived" ? t.archived : !t.archived));
     if (folder === FAVORITES) list = list.filter((t) => t.favorite);
     else if (folder !== UNFILED) list = list.filter((t) => t.folder === folder);
@@ -253,7 +259,7 @@ function ProjectsPage() {
       return (b.savedAt ?? 0) - (a.savedAt ?? 0);
     });
     return list;
-  }, [topics, query, filter, sort, folder]);
+  }, [topics, debouncedQuery, filter, sort, folder]);
 
   const FILTERS: { key: Filter; label: string }[] = [
     { key: "all", label: "All" },

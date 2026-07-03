@@ -64,8 +64,23 @@ function useStored<T>(key: string, fallback: T): T {
     () => "",
   );
   if (!snapshot) return fallback;
+  return parseCached(key, snapshot, fallback);
+}
+
+// Parse cache: JSON.parse runs on every render otherwise, and each call returns
+// a brand-new object reference — which defeats React.memo/useMemo downstream and
+// causes needless re-renders. Caching by (key, raw string) means an unchanged
+// snapshot always yields the SAME object identity, so consumers only re-render
+// when the stored value actually changes.
+const parseCache = new Map<string, { raw: string; value: unknown }>();
+
+function parseCached<T>(key: string, raw: string, fallback: T): T {
+  const hit = parseCache.get(key);
+  if (hit && hit.raw === raw) return hit.value as T;
   try {
-    return JSON.parse(snapshot) as T;
+    const value = JSON.parse(raw) as T;
+    parseCache.set(key, { raw, value });
+    return value;
   } catch {
     return fallback;
   }
