@@ -251,7 +251,8 @@ export interface VoiceProfile {
   id: string;
   name: string;
   source: "upload" | "record";
-  sampleAudio: string; // data URL of the sample
+  sampleAudio?: string; // legacy inline data URL (older profiles)
+  sampleAudioId?: string; // IndexedDB key for the sample audio (current)
   consent: boolean;
   createdAt: number;
   updatedAt?: number;
