@@ -65,21 +65,21 @@
   --color-cyan-foreground: var(--cyan-foreground);
 
   /* Premium typography — Linear / Framer / Apple feel */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-display: "Syne", "Plus Jakarta Sans", ui-sans-serif, system-ui,
     sans-serif;
-  --font-display: "Satoshi", "General Sans", "Inter", ui-sans-serif, system-ui,
-    sans-serif;
-  --font-geist: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-geist: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
   /* Soft, floating, faintly-blue shadows ($100M AI startup feel) */
-  --shadow-soft: 0 1px 2px rgba(37, 99, 235, 0.04),
-    0 2px 10px -3px rgba(37, 99, 235, 0.05);
-  --shadow-card: 0 1px 3px -1px rgba(37, 99, 235, 0.04),
-    0 14px 34px -12px rgba(37, 99, 235, 0.12);
-  --shadow-lift: 0 4px 12px -6px rgba(37, 99, 235, 0.10),
-    0 28px 64px -20px rgba(37, 99, 235, 0.22);
-  --shadow-float: 0 10px 24px -10px rgba(37, 99, 235, 0.12),
-    0 40px 88px -28px rgba(37, 99, 235, 0.24);
+  --shadow-soft: 0 1px 2px rgba(3, 3, 15, 0.28),
+    0 2px 12px -3px rgba(79, 70, 229, 0.14);
+  --shadow-card: 0 1px 3px -1px rgba(3, 3, 15, 0.35),
+    0 18px 40px -16px rgba(79, 70, 229, 0.26);
+  --shadow-lift: 0 6px 16px -8px rgba(3, 3, 15, 0.4),
+    0 32px 72px -24px rgba(79, 70, 229, 0.4);
+  --shadow-float: 0 12px 30px -12px rgba(3, 3, 15, 0.5),
+    0 48px 100px -30px rgba(79, 70, 229, 0.45);
   --shadow-glow: 0 10px 40px -8px color-mix(in oklab, var(--brand) 50%, transparent);
   --shadow-cyan-glow: 0 10px 40px -10px color-mix(in oklab, var(--cyan) 60%, transparent);
 
