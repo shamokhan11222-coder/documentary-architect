@@ -75,7 +75,7 @@ interface CreditState {
 }
 
 const CREDITS_KEY = "stickmax.credits";
-const DEFAULT_CREDITS = 10;
+export const DEFAULT_CREDITS = 10;
 
 /** Rough per-action credit estimates (used for warnings/estimates). */
 export const CREDIT_COSTS = {

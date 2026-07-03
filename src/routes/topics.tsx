@@ -36,7 +36,7 @@ import {
 } from "@/lib/ai.functions";
 import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
-import { spendCredits } from "@/lib/account";
+import { spendCredits, getBalance, isAdmin } from "@/lib/account";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Score, Meta } from "@/components/Score";
@@ -72,6 +72,11 @@ function ProjectsPage() {
   }
 
   async function autoGenerate(t: Topic) {
+    // Out of credits → route to the premium upgrade experience (no ugly popup).
+    if (!isAdmin() && getBalance() <= 0) {
+      router.navigate({ to: "/upgrade" });
+      return;
+    }
     setAutoId(t.id);
     setSelectedTopicId(t.id);
     try {
