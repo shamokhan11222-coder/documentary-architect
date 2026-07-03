@@ -49,6 +49,29 @@ export function hasStoredIdWithPrefix(prefix: string): boolean {
   return readIndex().some((id) => id.startsWith(prefix));
 }
 
+/** Backfill the sync index from IndexedDB keys (for assets stored before the
+ *  index existed). Safe to call multiple times. */
+export async function syncImageIndex(): Promise<void> {
+  try {
+    const db = await openDb();
+    const keys = await new Promise<string[]>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readonly");
+      const req = tx.objectStore(STORE).getAllKeys();
+      req.onsuccess = () => resolve((req.result as IDBValidKey[]).map(String));
+      req.onerror = () => reject(req.error);
+    });
+    writeIndex(Array.from(new Set([...readIndex(), ...keys])));
+    bump();
+  } catch {
+    /* ignore */
+  }
+}
+
+// Run the backfill once on the client so pre-index assets are recognized.
+if (typeof window !== "undefined") {
+  void syncImageIndex();
+}
+
 function openDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") return Promise.reject(new Error("no idb"));
   if (dbPromise) return dbPromise;
