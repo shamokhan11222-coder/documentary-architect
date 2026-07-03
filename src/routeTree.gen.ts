@@ -26,10 +26,12 @@ import { Route as ScriptAnalyzerRouteImport } from './routes/script-analyzer'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as AudioRouteImport } from './routes/audio'
@@ -125,6 +127,11 @@ const QueueRoute = QueueRouteImport.update({
   path: '/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ManagerRoute = ManagerRouteImport.update({
   id: '/manager',
   path: '/manager',
@@ -143,6 +150,11 @@ const KnowledgeRoute = KnowledgeRouteImport.update({
 const InstructionsRoute = InstructionsRouteImport.update({
   id: '/instructions',
   path: '/instructions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExportRoute = ExportRouteImport.update({
@@ -198,10 +210,12 @@ export interface FileRoutesByFullPath {
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
+  '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
+  '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -230,10 +244,12 @@ export interface FileRoutesByTo {
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
+  '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
+  '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -263,10 +279,12 @@ export interface FileRoutesById {
   '/audio': typeof AudioRoute
   '/checklist': typeof ChecklistRoute
   '/export': typeof ExportRoute
+  '/faq': typeof FaqRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
+  '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
@@ -297,10 +315,12 @@ export interface FileRouteTypes {
     | '/audio'
     | '/checklist'
     | '/export'
+    | '/faq'
     | '/instructions'
     | '/knowledge'
     | '/login'
     | '/manager'
+    | '/pricing'
     | '/queue'
     | '/rating'
     | '/research'
@@ -329,10 +349,12 @@ export interface FileRouteTypes {
     | '/audio'
     | '/checklist'
     | '/export'
+    | '/faq'
     | '/instructions'
     | '/knowledge'
     | '/login'
     | '/manager'
+    | '/pricing'
     | '/queue'
     | '/rating'
     | '/research'
@@ -361,10 +383,12 @@ export interface FileRouteTypes {
     | '/audio'
     | '/checklist'
     | '/export'
+    | '/faq'
     | '/instructions'
     | '/knowledge'
     | '/login'
     | '/manager'
+    | '/pricing'
     | '/queue'
     | '/rating'
     | '/research'
@@ -394,10 +418,12 @@ export interface RootRouteChildren {
   AudioRoute: typeof AudioRoute
   ChecklistRoute: typeof ChecklistRoute
   ExportRoute: typeof ExportRoute
+  FaqRoute: typeof FaqRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRoute
+  PricingRoute: typeof PricingRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
@@ -541,6 +567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/manager': {
       id: '/manager'
       path: '/manager'
@@ -567,6 +600,13 @@ declare module '@tanstack/react-router' {
       path: '/instructions'
       fullPath: '/instructions'
       preLoaderRoute: typeof InstructionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/export': {
@@ -642,10 +682,12 @@ const rootRouteChildren: RootRouteChildren = {
   AudioRoute: AudioRoute,
   ChecklistRoute: ChecklistRoute,
   ExportRoute: ExportRoute,
+  FaqRoute: FaqRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LoginRoute: LoginRoute,
   ManagerRoute: ManagerRoute,
+  PricingRoute: PricingRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
