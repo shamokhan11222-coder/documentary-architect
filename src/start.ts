@@ -27,15 +27,22 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
     const p = getActiveProvider();
     const s = getProviderSettings();
     const headers: Record<string, string> = {};
-    const usingGemini = !!p && s.text === "gemini";
+    // Force Gemini for text tasks whenever a Gemini key is connected. Routing is
+    // never silently downgraded to the built-in AI while a provider is active.
+    const usingGemini = !!p;
     if (usingGemini && p) {
       headers["x-ai-provider"] = p.name;
       headers["x-ai-key"] = p.apiKey;
       headers["x-ai-text-model"] = p.textModel;
-      headers["x-ai-fallback"] = s.fallback ? "1" : "0";
+      // Fallback removed: never trigger built-in AI before/after Gemini.
+      headers["x-ai-fallback"] = "0";
+      console.log("[AI] selected provider=gemini model=%s (request started)", p.textModel);
+    } else {
+      console.log("[AI] selected provider=builtin (no Gemini key connected)");
     }
     try {
       const res = await next({ headers });
+      console.log("[AI] response received (status=success)");
       recordTelemetry({
         lastProvider: usingGemini ? "gemini" : "builtin",
         lastStatus: "success",
@@ -43,6 +50,7 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
       });
       return res;
     } catch (e) {
+      console.error("[AI] error details:", e instanceof Error ? e.message : e);
       recordTelemetry({
         lastProvider: usingGemini ? "gemini" : "builtin",
         lastStatus: "error",
