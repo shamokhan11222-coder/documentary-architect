@@ -3,12 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 // Silent, internal image generation. Images are routed only through the user's
 // selected external image provider. Built-in AI is intentionally disabled here.
 const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
+const LOVABLE_IMAGE = "https://ai.gateway.lovable.dev/v1/images/generations";
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
 const PROVIDER_REQUIRED = "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.";
 
-type Provider = { name?: "gemini" | "openai" | "fal" | "replicate"; apiKey?: string; imageModel?: string; fallback?: boolean };
+type Provider = { name?: "gemini" | "openai" | "fal" | "replicate" | "builtin"; apiKey?: string; imageModel?: string; fallback?: boolean };
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
 
 function jsonError(error: string, status = 400) {
@@ -33,6 +34,38 @@ function toInlineData(ref: string) {
   const m = /^data:([^;]+);base64,(.*)$/.exec(ref);
   if (!m) return null;
   return { inlineData: { mimeType: m[1], data: m[2] } };
+}
+
+// Generate through the studio's built-in AI (Lovable AI Gateway). Used when no
+// external image provider is connected so image generation is never disabled.
+async function generateWithBuiltin(body: Body): Promise<Response> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) return jsonError("Built-in AI is not configured (missing LOVABLE_API_KEY).", 500);
+  const upstream = await fetch(LOVABLE_IMAGE, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash-image",
+      prompt: body.prompt,
+    }),
+  });
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => "");
+    const status = upstream.status;
+    const msg =
+      status === 429
+        ? "Built-in AI rate limit reached. Please wait and try again."
+        : status === 402
+          ? "AI credits exhausted. Add credits in workspace settings."
+          : `Built-in AI image generation failed (${status}): ${text.slice(0, 200)}`;
+    return jsonError(msg, status);
+  }
+  const data = await upstream.json();
+  const b64 = data?.data?.[0]?.b64_json;
+  const url = firstUrl(data?.data) ?? firstUrl(data);
+  if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
+  if (url) return Response.json({ image: url });
+  return jsonError("Built-in AI returned no image.", 502);
 }
 
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
@@ -171,8 +204,7 @@ export const Route = createFileRoute("/api/generate-image")({
       POST: async ({ request }) => {
         const body = (await request.json()) as Body;
         const { provider } = body;
-        if (!provider?.name || !provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400);
-        if (provider.fallback) return jsonError("Built-in AI fallback is disabled for image generation.", 400);
+        if (!provider?.name) return jsonError(PROVIDER_REQUIRED, 400);
 
         if (body.test) {
           body.prompt = "simple clean blue circle icon on white background";
@@ -180,6 +212,8 @@ export const Route = createFileRoute("/api/generate-image")({
         }
         if (!body.prompt?.trim()) return jsonError("Missing prompt", 400);
 
+        if (provider.name === "builtin") return generateWithBuiltin(body);
+        if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400);
         if (provider.name === "gemini") return generateWithGemini(body, provider);
         if (provider.name === "openai") return generateWithOpenAI(body, provider);
         if (provider.name === "fal") return generateWithFal(body, provider);
