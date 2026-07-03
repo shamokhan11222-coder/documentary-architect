@@ -228,6 +228,14 @@ function PricingPage() {
               </span>
             </span>
           </div>
+
+          {/* Money-back guarantee badge */}
+          <div className="mt-8 flex justify-center">
+            <span className="inline-flex items-center gap-2.5 rounded-full border border-brand/30 bg-brand/10 px-5 py-2 text-sm font-semibold text-brand shadow-[var(--shadow-glow)] backdrop-blur animate-[float_6s_ease-in-out_infinite]">
+              <BadgeCheck className="h-4 w-4" />
+              14-day money-back guarantee — no questions asked
+            </span>
+          </div>
         </div>
 
         {/* Cards */}
