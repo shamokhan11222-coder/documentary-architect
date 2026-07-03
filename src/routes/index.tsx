@@ -126,7 +126,8 @@ function HomePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10">
+    <div className="brand-gradient min-h-screen">
+      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10">
       <CommandCenter activeProviderName={activeProvider?.name ?? null} />
 
       {/* Idea feed */}
@@ -243,6 +244,7 @@ function HomePage() {
             </section>
           );
         })}
+      </div>
       </div>
     </div>
   );
