@@ -266,6 +266,10 @@ export function saveStory(s: Story) {
   write(KEYS.story, all);
 }
 
+export function useAllStories(): Record<string, Story> {
+  return useStored<Record<string, Story>>(KEYS.story, {});
+}
+
 // ---------------- Visual Map ----------------
 
 export function useVisualMap(topicId: string | null): VisualMap | null {
@@ -277,6 +281,10 @@ export function saveVisualMap(v: VisualMap) {
   const all = read<Record<string, VisualMap>>(KEYS.visual, {});
   all[v.topicId] = v;
   write(KEYS.visual, all);
+}
+
+export function useAllVisuals(): Record<string, VisualMap> {
+  return useStored<Record<string, VisualMap>>(KEYS.visual, {});
 }
 
 // ---------------- Prompt Pack ----------------
