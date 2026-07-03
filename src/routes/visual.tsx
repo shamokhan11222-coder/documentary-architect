@@ -260,9 +260,9 @@ function VisualPage() {
         </select>
         <Button onClick={handleBuildBoard} disabled={!selected || !hasValidScript || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {map ? "Rebuild Storyboard" : "Build Storyboard"}
+          {hasMap ? "Rebuild Storyboard" : "Build Storyboard"}
         </Button>
-        {map && (
+        {hasMap && (
           <>
             <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -284,7 +284,7 @@ function VisualPage() {
             )}
           </>
         )}
-        {map && (
+        {hasMap && (
           <Button variant="outline" onClick={handleConsistency} disabled={!!busy}>
             {busy === "check" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Check Consistency
