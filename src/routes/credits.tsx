@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CreditsUsageChart } from "@/components/CreditsUsageChart";
+import { CreditMeter } from "@/components/CreditMeter";
 import {
   useCredits,
   addCredits,
@@ -67,17 +68,13 @@ function CreditsPage() {
         )}
 
         <div className="mt-6 grid gap-5 md:grid-cols-3">
-          <Card className="glass-card p-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Coins className="h-4 w-4 text-brand" /> Credits remaining
-            </div>
-            <div
-              className={`mt-2 text-4xl font-bold tracking-tight ${
-                low ? "text-destructive" : "text-foreground"
-              }`}
-            >
-              {admin ? "∞" : balance}
-            </div>
+          <Card className="glass-card flex flex-col items-center justify-center gap-4 p-6">
+            <CreditMeter balance={balance} admin={admin} />
+            <Button asChild variant={admin ? "outline" : "brand"} size="sm" className="btn-press">
+              <Link to="/upgrade">
+                <Crown className="h-4 w-4" /> Upgrade
+              </Link>
+            </Button>
           </Card>
           <Card className="glass-card p-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
