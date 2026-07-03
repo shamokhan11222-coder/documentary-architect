@@ -131,7 +131,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   let imageModel = entry.modelName?.trim() || "";
   if (choice === "gemini") {
     // Force an image-capable model. Ignore text model names.
-    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.0-flash-exp-image-generation";
+    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.5-flash-image";
   } else if (!imageModel) {
     imageModel = defaultImageModel(choice);
   }
