@@ -24,6 +24,7 @@ import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 import { StageErrorBoundary } from "@/components/StageErrorBoundary";
+import { buildInjection } from "@/lib/generation-context";
 
 export const Route = createFileRoute("/thumbnail")({
   head: () => ({ meta: [{ title: "Thumbnail — Stickmax Studio" }] }),
@@ -104,6 +105,7 @@ function ThumbnailPage() {
     return withBusy("gen", async () => {
       const ideas = (await gen({
         data: { topic: selected.topic, script: story?.script, angle: research?.storyAngles?.[0] },
+        // instructions + best-thumbnail knowledge injected below
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
       await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
