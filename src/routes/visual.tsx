@@ -46,6 +46,48 @@ function isValidImage(url: string | null | undefined): boolean {
   return v.startsWith("data:image") || v.startsWith("http://") || v.startsWith("https://") || v.startsWith("blob:");
 }
 
+/** Deterministic local fallback: turn a saved script into storyboard scenes
+ *  when the AI returns an empty/invalid map. One sentence = one image; a
+ *  sentence with multiple visual ideas is split into 2–3 scenes so a
+ *  9–11 minute (~1500 word) script yields roughly 120–180 scenes. */
+function scenesFromScript(script: string): VisualScene[] {
+  const clean = (script || "").replace(/\s+/g, " ").trim();
+  if (!clean) return [];
+  // Split into sentences.
+  const sentences = clean
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const chunks: string[] = [];
+  for (const sentence of sentences) {
+    // A sentence with multiple visual ideas (clauses) becomes 2–3 scenes.
+    const parts = sentence
+      .split(/,|;|:| — | – | and | then | while | but /i)
+      .map((p) => p.trim())
+      .filter((p) => p.split(/\s+/).length >= 3);
+    if (parts.length >= 2) {
+      for (const p of parts.slice(0, 3)) chunks.push(p);
+    } else {
+      chunks.push(sentence);
+    }
+  }
+
+  return chunks.map((line, i) => ({
+    sceneNumber: i + 1,
+    voiceoverLine: line,
+    visualDescription: line,
+    mainSubject: "",
+    background: "",
+    cameraShot: "medium shot",
+    emotion: "neutral",
+    objectsNeeded: [],
+    sceneType: "abstract concept" as const,
+    visualDifficulty: "medium",
+    notes: "Auto-generated from script.",
+  }));
+}
+
 function VisualPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
@@ -66,6 +108,8 @@ function VisualPage() {
   // Always work off a guaranteed array so `.length`/`.filter` never crash.
   const scenes: VisualScene[] = Array.isArray(map?.scenes) ? map!.scenes : [];
   const hasMap = !!map && scenes.length > 0;
+  // A saved map with an empty scenes array is a failed/invalid storyboard.
+  const emptyMap = !!map && scenes.length === 0;
 
   // Refs let per-scene card callbacks stay referentially stable (so memoized
   // SceneCards don't re-render on every progress tick) while still reading the
@@ -123,10 +167,30 @@ function VisualPage() {
       const words = (scriptText.match(/\S+/g) ?? []).length;
       const minScenes = Math.max(8, Math.round(words / 12));
       const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
-      const scenes = (await gen({
-        data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
-      })) as VisualScene[];
-      const safeScenes = Array.isArray(scenes) ? scenes : [];
+      let safeScenes: VisualScene[] = [];
+      try {
+        const scenes = (await gen({
+          data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
+        })) as VisualScene[];
+        safeScenes = Array.isArray(scenes) ? scenes.filter(Boolean) : [];
+      } catch (e) {
+        // fall through to local rebuild below
+        safeScenes = [];
+      }
+
+      // If the AI produced no usable scenes, rebuild locally from the script so
+      // the storyboard is never empty when a valid script exists.
+      if (safeScenes.length === 0) {
+        safeScenes = scenesFromScript(scriptText);
+      }
+
+      // A storyboard is only "built" when it actually has scenes. An empty map
+      // must be treated as Failed — never saved and never shown as completed.
+      if (safeScenes.length === 0) {
+        toast.error("No storyboard scenes found. Generate Story first, then rebuild storyboard.");
+        return;
+      }
+
       saveVisualMap({ topicId: selected.id, scenes: safeScenes, generatedAt: Date.now() });
       toast.success(`Storyboard built — ${safeScenes.length} scenes. Now generate images`);
     });
@@ -427,9 +491,21 @@ function VisualPage() {
       )}
 
       {selected && hasValidScript && !hasMap && (
-        <p className="mt-6 text-sm text-muted-foreground">
-          Build storyboard first.
-        </p>
+        <div className="mt-6 space-y-3">
+          {emptyMap ? (
+            <>
+              <p className="text-sm text-amber-600">
+                No storyboard scenes found. Generate Story first, then rebuild storyboard.
+              </p>
+              <Button onClick={handleBuildBoard} disabled={!!busy}>
+                {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <RefreshCw className="mr-2 h-4 w-4" /> Rebuild Storyboard
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Build storyboard first.</p>
+          )}
+        </div>
       )}
 
       {hasMap && selected && (
