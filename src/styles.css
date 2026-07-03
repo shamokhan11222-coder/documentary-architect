@@ -641,47 +641,23 @@ html.perf-lite .breathe {
 @utility sidebar-glass {
   position: relative;
   isolation: isolate;
-  /* Scoped dark palette so children (nav text, icons, buttons) stay readable
-     on the dark glass without touching the rest of the light-themed app. */
-  --foreground: oklch(0.97 0.01 265);
-  --muted-foreground: oklch(0.72 0.03 268);
-  --border: color-mix(in oklab, #ffffff 12%, transparent);
-  --accent: color-mix(in oklab, #ffffff 10%, transparent);
-  --accent-foreground: oklch(0.98 0.01 265);
-  --brand: #7d7bff;
-  color: var(--foreground);
+  /* Light premium glass — white with a soft blue tint, thin border, gentle
+     blur kept low for performance. */
   background:
-    linear-gradient(180deg, color-mix(in oklab, #ffffff 12%, transparent), transparent 30%),
-    linear-gradient(165deg, color-mix(in oklab, #4f4dd6 42%, transparent), transparent 52%),
-    radial-gradient(150% 62% at 50% -10%, color-mix(in oklab, #6f6cff 34%, transparent), transparent 60%),
-    linear-gradient(180deg, oklch(0.26 0.07 274 / 0.72), oklch(0.19 0.055 272 / 0.78));
-  backdrop-filter: blur(32px) saturate(200%);
-  border: 1px solid color-mix(in oklab, #ffffff 22%, transparent);
-  box-shadow:
-    0 1px 0 0 color-mix(in oklab, #ffffff 40%, transparent) inset,
-    0 0 0 1px color-mix(in oklab, #6f6cff 16%, transparent) inset,
-    0 24px 70px -24px color-mix(in oklab, #000 82%, transparent) inset,
-    0 34px 80px -30px color-mix(in oklab, #2a2870 60%, transparent);
-  /* Glossy light reflection sweeping the top edge */
+    linear-gradient(180deg, color-mix(in oklab, var(--brand) 5%, transparent), transparent 40%),
+    color-mix(in oklab, #ffffff 82%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid color-mix(in oklab, #ffffff 70%, var(--border));
+  box-shadow: 0 8px 28px -18px color-mix(in oklab, var(--brand) 30%, transparent);
+  /* Subtle glossy top highlight (static, no animation) */
   &::before {
     content: "";
     position: absolute;
     inset: 0 0 auto 0;
-    height: 38%;
+    height: 30%;
     border-radius: inherit;
-    background: linear-gradient(180deg, color-mix(in oklab, #ffffff 26%, transparent), transparent);
-    opacity: 0.65;
-    pointer-events: none;
-    z-index: -1;
-  }
-  /* Faint vertical inner highlight along the right edge for 3D depth */
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(90deg, transparent 82%, color-mix(in oklab, #ffffff 10%, transparent));
-    opacity: 0.6;
+    background: linear-gradient(180deg, color-mix(in oklab, #ffffff 60%, transparent), transparent);
+    opacity: 0.5;
     pointer-events: none;
     z-index: -1;
   }
@@ -690,30 +666,20 @@ html.perf-lite .breathe {
 /* Glass pill nav item — translucent capsule that lights up on hover. */
 @utility nav-pill {
   position: relative;
-  transition: transform 0.2s var(--ease-out-quint), color 0.2s ease, background 0.25s ease, box-shadow 0.25s ease;
+  transition: color 0.15s ease, background 0.15s ease;
   &:hover {
-    background:
-      linear-gradient(180deg, color-mix(in oklab, #ffffff 16%, transparent), transparent 60%),
-      color-mix(in oklab, #7d7bff 20%, transparent);
-    box-shadow:
-      0 1px 0 0 color-mix(in oklab, #ffffff 34%, transparent) inset,
-      0 6px 20px -10px color-mix(in oklab, #4f4dd6 65%, transparent);
+    background: color-mix(in oklab, var(--brand) 10%, transparent);
   }
 }
 
 /* Softly glowing active nav item. */
 @utility nav-pill-active {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, #ffffff 20%, transparent), transparent 62%),
-    color-mix(in oklab, #7d7bff 30%, transparent);
-  box-shadow:
-    0 1px 0 0 color-mix(in oklab, #ffffff 42%, transparent) inset,
-    0 0 0 1px color-mix(in oklab, #8f8bff 45%, transparent) inset,
-    0 8px 30px -8px color-mix(in oklab, #6f6cff 75%, transparent);
+  background: color-mix(in oklab, var(--brand) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 25%, transparent);
 }
 
 /* Low-perf: drop sidebar backdrop blur, keep a solid readable surface. */
 html.perf-lite .sidebar-glass {
   backdrop-filter: none !important;
-  background: linear-gradient(180deg, oklch(0.24 0.065 274), oklch(0.18 0.05 272));
+  background: color-mix(in oklab, #ffffff 96%, var(--brand));
 }
