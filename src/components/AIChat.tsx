@@ -29,6 +29,12 @@ export function AIChat() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
 
+  useEffect(() => {
+    const openChat = () => setOpen(true);
+    window.addEventListener("open-ai-chat", openChat);
+    return () => window.removeEventListener("open-ai-chat", openChat);
+  }, []);
+
   function buildContext(): string {
     const parts: string[] = [];
     if (selected) parts.push(`Project: ${selected.topic}\nAngle: ${selected.explanation}`);

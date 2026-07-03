@@ -19,7 +19,7 @@ import { generateThumbnailImage } from "@/lib/generate-image";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
-import { Steps } from "@/components/Steps";
+import { StageShell } from "@/components/StageShell";
 import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 
@@ -133,8 +133,7 @@ function ThumbnailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      <Steps current="thumbnail" />
+    <StageShell stage="thumbnail" maxWidth="max-w-5xl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Thumbnail Engine</h1>
         <Button size="sm" variant="ghost" onClick={() => setDev((v) => !v)}>
@@ -214,7 +213,7 @@ function ThumbnailPage() {
           ))}
         </div>
       )}
-    </div>
+    </StageShell>
   );
 }
 

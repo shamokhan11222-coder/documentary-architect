@@ -5,7 +5,8 @@ import { Loader2, Play, RefreshCw, Plus, X, Mic } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
+import { useSelectedProject } from "@/components/ProjectPicker";
+import { StageShell } from "@/components/StageShell";
 import { useStory } from "@/lib/store";
 import {
   DEFAULT_VOICE_SETTINGS,
@@ -119,13 +120,11 @@ function VoicePage() {
   const generatedCount = (voice?.blocks ?? []).filter((b) => b.realSeconds != null).length;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-8">
+    <StageShell stage="voice" maxWidth="max-w-5xl">
       <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Voice Studio</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Generate natural documentary narration. Each paragraph is its own voice block you can preview and regenerate.
       </p>
-
-      <div className="mt-4"><ProjectPicker /></div>
 
       {!selected && <p className="mt-6 text-sm text-muted-foreground">Select a project to begin.</p>}
       {selected && !story && (
@@ -214,7 +213,7 @@ function VoicePage() {
           </div>
         </>
       )}
-    </div>
+    </StageShell>
   );
 }
 

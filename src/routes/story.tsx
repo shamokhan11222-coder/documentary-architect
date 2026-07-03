@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Score } from "@/components/Score";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ProjectHeader } from "@/components/ProjectHeader";
+import { StageShell } from "@/components/StageShell";
 import { copyText, downloadTxt, slugify } from "@/lib/io";
 import { Feedback } from "@/components/Feedback";
 import type { Story, StorySection, StoryReview } from "@/lib/types";
@@ -188,8 +188,7 @@ function StoryPageInner() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8">
-      <ProjectHeader topics={topics} selectedId={selectedId} />
+    <StageShell stage="story" maxWidth="max-w-4xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Story Engine</h1>
@@ -371,6 +370,6 @@ function StoryPageInner() {
           ))}
         </div>
       )}
-    </div>
+    </StageShell>
   );
 }
