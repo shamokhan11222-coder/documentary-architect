@@ -188,15 +188,20 @@ Return a JSON object with this exact shape:
 // ---------------- Research Engine ----------------
 
 export const researchTopic = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; explanation?: string }) => {
+  .inputValidator((data: { topic: string; explanation?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
-    return { topic: data.topic.trim(), explanation: data.explanation ?? "" };
+    return {
+      topic: data.topic.trim(),
+      explanation: data.explanation ?? "",
+      instructions: data.instructions ?? "",
+      knowledge: data.knowledge ?? "",
+    };
   })
   .handler(async ({ data }) => {
     const system = `${EXPERTS.research} Return ONLY valid JSON.`;
     const user = `Documentary topic: "${data.topic}"
 ${data.explanation ? `Angle: ${data.explanation}` : ""}
-
+${injectionBlock(data)}
 Perform deep documentary research. Be specific and concrete (real names, real dates, real facts). Return a JSON object with this exact shape (arrays of concise strings):
 {
   "mainConflict": "string - the single central conflict/tension of the story",
