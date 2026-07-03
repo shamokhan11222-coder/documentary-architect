@@ -32,8 +32,8 @@ export function CreditsUsageChart({
                   {d.spent}
                 </span>
                 <div
-                  className="w-full max-w-[2.25rem] rounded-t-lg bg-gradient-to-t from-brand/50 to-brand transition-[height] duration-700 ease-out group-hover:from-brand group-hover:to-brand"
-                  style={{ height: `${Math.max(d.spent > 0 ? 8 : 2, h)}%` }}
+                  className="chart-rise w-full max-w-[2.25rem] rounded-t-lg bg-gradient-to-t from-brand/50 to-brand transition-[height] duration-700 ease-out group-hover:from-brand group-hover:to-brand"
+                  style={{ height: `${Math.max(d.spent > 0 ? 8 : 2, h)}%`, animationDelay: `${i * 60}ms` }}
                 />
               </div>
               <span className="text-[11px] font-medium text-muted-foreground">{d.label}</span>
