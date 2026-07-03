@@ -34,6 +34,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as DocsRouteImport } from './routes/docs'
@@ -173,6 +174,11 @@ const InstructionsRoute = InstructionsRouteImport.update({
   path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FaqRoute = FaqRouteImport.update({
   id: '/faq',
   path: '/faq',
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -290,6 +297,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/export'
     | '/faq'
+    | '/forgot-password'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -413,6 +423,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/export'
     | '/faq'
+    | '/forgot-password'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/export'
     | '/faq'
+    | '/forgot-password'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -494,6 +506,7 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute
   ExportRoute: typeof ExportRoute
   FaqRoute: typeof FaqRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LandingRoute: typeof LandingRoute
@@ -701,6 +714,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/faq': {
       id: '/faq'
       path: '/faq'
@@ -806,6 +826,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   ExportRoute: ExportRoute,
   FaqRoute: FaqRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LandingRoute: LandingRoute,

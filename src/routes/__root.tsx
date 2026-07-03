@@ -216,6 +216,7 @@ const PUBLIC_PREFIXES = [
   "/roadmap",
   "/login",
   "/signup",
+  "/forgot-password",
   "/upgrade",
   "/unlock",
 ];
