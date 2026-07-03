@@ -440,6 +440,33 @@ function PricingPage() {
           </div>
         </div>
 
+        {/* Beautiful conversion CTA */}
+        <div className="relative mt-24 overflow-hidden rounded-[2rem] glass-card glass-sheen p-10 text-center md:p-16">
+          <div className="breathe pointer-events-none absolute -left-16 -top-16 h-64 w-64 rounded-full bg-brand/25 blur-[100px]" />
+          <div className="breathe pointer-events-none absolute -right-16 bottom-0 h-64 w-64 rounded-full bg-cyan/20 blur-[100px] [animation-delay:2s]" />
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand/10 px-4 py-1.5 text-xs font-semibold text-brand">
+              <Sparkles className="h-3.5 w-3.5" /> Join 1,200+ creators
+            </span>
+            <h2 className="mx-auto mt-6 max-w-2xl font-display text-3xl font-bold tracking-tight md:text-5xl">
+              Produce your next documentary today
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
+              Start free, upgrade the moment you feel the momentum. No lock-in, cancel anytime.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button asChild size="lg" variant="brand" className="btn-press">
+                <Link to="/signup">
+                  Start creating free <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="btn-press">
+                <Link to="/credits">Buy more credits</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {/* FAQ */}
         <div className="mt-24">
           <h2 className="text-center font-display text-3xl font-bold tracking-tight md:text-4xl">
