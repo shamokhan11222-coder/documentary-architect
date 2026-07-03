@@ -198,13 +198,24 @@
     background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 17px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+
+  /* Navigation + buttons use Geist for a crisp, modern UI voice */
+  nav {
+    font-family: var(--font-geist);
+  }
+  button {
+    font-family: var(--font-geist);
+    font-weight: 600;
   }
 
   /* Premium native dropdowns everywhere */
