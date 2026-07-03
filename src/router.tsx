@@ -34,6 +34,22 @@ function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void 
   );
 }
 
+// Lightweight skeleton shown instantly while a route's code chunk / loader is
+// resolving. Prevents the previous page from lingering during navigation.
+function RoutePendingSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-7xl px-6 py-10 md:px-10 md:py-12">
+      <div className="h-8 w-56 animate-pulse rounded-lg bg-muted/60" />
+      <div className="mt-3 h-4 w-80 max-w-full animate-pulse rounded bg-muted/40" />
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted/40" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const getRouter = () => {
   const queryClient = new QueryClient();
 
@@ -42,7 +58,12 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
+    defaultPreload: "intent",
     defaultErrorComponent: RouteErrorFallback,
+    defaultPendingComponent: RoutePendingSkeleton,
+    // Show the skeleton immediately instead of holding the old page.
+    defaultPendingMs: 0,
+    defaultPendingMinMs: 0,
   });
 
   return router;
