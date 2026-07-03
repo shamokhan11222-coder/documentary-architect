@@ -97,7 +97,7 @@ export const FULL_RUN_ESTIMATE =
   CREDIT_COSTS.seo +
   CREDIT_COSTS.rating;
 
-export const LOW_CREDIT_THRESHOLD = 40;
+export const LOW_CREDIT_THRESHOLD = 5;
 
 function readState(): CreditState {
   return readLocal<CreditState>(CREDITS_KEY, {
