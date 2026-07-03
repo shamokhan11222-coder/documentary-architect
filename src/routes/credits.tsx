@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Coins, TrendingUp, AlertTriangle, Plus, Zap, Crown, CalendarClock } from "lucide-react";
+import { TrendingUp, AlertTriangle, Plus, Zap, Crown, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
