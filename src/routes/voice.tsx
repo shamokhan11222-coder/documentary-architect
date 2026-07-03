@@ -12,6 +12,8 @@ import {
   DEFAULT_VOICE_SETTINGS,
   useVoice,
   saveVoice,
+  useVoiceProfiles,
+  getVoiceProfile,
   scriptToParagraphs,
   estimateSeconds,
   fmtClock,
@@ -41,7 +43,34 @@ function VoicePage() {
   const story = useStory(selected?.id ?? null);
   const voice = useVoice(selected?.id ?? null);
   const settings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
+  const profiles = useVoiceProfiles();
   const [busy, setBusy] = useState<string | null>(null);
+
+  // The cloned voice selected for this project (persisted per project via
+  // settings.clonedProfileId). When profiles exist, one must be selected
+  // before any voiceover can be generated.
+  const selectedProfile = profiles.find((p) => p.id === settings.clonedProfileId) ?? null;
+
+  /** Settings actually used for generation — a selected cloned profile's saved
+   *  settings take over, but the project's pronunciation dictionary is kept. */
+  function genSettings(): VoiceSettings {
+    if (selectedProfile?.settings) {
+      return { ...selectedProfile.settings, dictionary: settings.dictionary, clonedProfileId: selectedProfile.id };
+    }
+    return settings;
+  }
+
+  /** Returns an error message if voiceover generation is not allowed yet. */
+  function voiceGuard(): string | null {
+    if (profiles.length > 0 && !settings.clonedProfileId) return "Select a voice profile first.";
+    if (settings.clonedProfileId) {
+      const p = getVoiceProfile(settings.clonedProfileId);
+      if (!p) return "Select a voice profile first.";
+      if (!p.sampleAudio) return "Voice sample missing. Upload or record a sample for this profile.";
+      if (!p.consent) return "Permission not confirmed for this voice profile.";
+    }
+    return null;
+  }
 
   function update(patch: Partial<VoiceSettings>) {
     if (!selected) return;
