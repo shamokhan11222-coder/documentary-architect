@@ -611,8 +611,8 @@ function Sidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   return (
     <aside
-      className={`sticky top-0 flex h-screen shrink-0 flex-col border-r border-border/70 glass shadow-[8px_0_40px_-24px_rgba(16,24,40,0.35)] transition-[width] duration-300 ${
-        collapsed ? "w-[4.5rem]" : "w-60"
+      className={`sticky top-4 my-4 ml-4 flex h-[calc(100vh-2rem)] shrink-0 flex-col rounded-2xl border border-border/60 glass shadow-[0_24px_60px_-24px_color-mix(in_oklab,var(--brand)_28%,transparent)] transition-[width] duration-300 ${
+        collapsed ? "w-[4.75rem]" : "w-60"
       }`}
       style={{ transitionTimingFunction: "var(--ease-out-quint)" }}
     >
