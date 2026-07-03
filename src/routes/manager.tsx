@@ -127,6 +127,13 @@ function ManagerPage() {
 
   // Run a single stage. Returns true on success, false on failure.
   async function runStage(id: string, topic: string, explanation: string, stage: StageKey): Promise<boolean> {
+    // Locking: never run a stage before its prerequisites are completed.
+    if (!prereqsMet(id, stage)) {
+      patchStage(id, stage, { status: "failed", error: "Complete the previous stage first." });
+      logActivity(id, `${stage} locked — complete the previous stage first`, "error");
+      toast.error("Complete the previous stage first.");
+      return false;
+    }
     patchStage(id, stage, { status: "running", startedAt: Date.now(), error: undefined });
     setTask(id, stage, `${PIPELINE.find((p) => p.key === stage)?.expert} working…`);
     try {
