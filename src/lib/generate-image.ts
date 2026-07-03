@@ -5,7 +5,7 @@ import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
 import { getCreditConfig } from "./credit-mode";
-import { imageProviderPayload } from "./provider";
+import { imageProviderPayload, thumbnailProviderPayload } from "./provider";
 import { enqueueAi } from "./ai-queue";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
@@ -16,12 +16,12 @@ function combinedArtDirection(): string {
     .join(" ");
 }
 
-async function generate(prompt: string, references: string[]): Promise<string> {
+async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
   return enqueueAi(async () => {
     const res = await fetch("/api/generate-image", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, references, provider: imageProviderPayload() }),
+      body: JSON.stringify({ prompt, references, provider }),
     });
     if (!res.ok) {
       let msg = `Image generation failed (${res.status})`;
@@ -48,5 +48,5 @@ export async function generateSceneImage(scene: VisualScene): Promise<string> {
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
   const { images } = await collectDnaReferences();
   const prompt = buildThumbnailPrompt(idea, combinedArtDirection());
-  return generate(prompt, images.slice(0, getCreditConfig().dnaReferences));
+  return generate(prompt, images.slice(0, getCreditConfig().dnaReferences), thumbnailProviderPayload());
 }
