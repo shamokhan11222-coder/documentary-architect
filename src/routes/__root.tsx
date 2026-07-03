@@ -14,11 +14,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
-import { applyTheme, toggleTheme, useTheme } from "../lib/theme";
+import { applyTheme } from "../lib/theme";
 import { applyPerfProfile } from "../lib/perf";
 import {
-  Moon,
-  Sun,
   Menu,
   X,
   LayoutDashboard,
@@ -318,7 +316,6 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const admin = useIsAdmin();
   const unlimited = useHasUnlimitedAccess();
   const { balance } = useCredits();
-  const theme = useTheme();
   const low = !unlimited && balance <= 10;
 
   return (
@@ -377,15 +374,6 @@ function DashboardTopbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* Theme */}
-        <button
-          onClick={toggleTheme}
-          aria-label="Toggle theme"
-          className="rounded-xl p-2 text-muted-foreground transition-all duration-200 hover:bg-accent/70 hover:text-foreground"
-        >
-          {theme === "dark" ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
-        </button>
 
         <TopSeparator />
 
