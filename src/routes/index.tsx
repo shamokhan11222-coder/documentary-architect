@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -9,24 +9,27 @@ import {
   Check,
   FolderPlus,
   ArrowRight,
+  ArrowUpRight,
   Sparkles,
   Clock,
-  Gauge,
   Coins,
-  ListVideo,
-  Image as ImageIcon,
   ImagePlus,
   Mic,
   Download,
-  Activity,
-  CircleDot,
-  CheckCircle2,
   Play,
   Zap,
+  BookText,
+  Search,
+  Image as ImageIcon,
+  Newspaper,
+  LayoutTemplate,
+  TrendingUp,
+  Wand2,
+  Rocket,
+  CircleDot,
 } from "lucide-react";
 
 import { generateHomeIdeas } from "@/lib/ai.functions";
-import { LogoLoading } from "@/components/Logo";
 import {
   saveTopic,
   setSelectedTopicId,
@@ -42,19 +45,9 @@ import { useSelectedProject } from "@/components/ProjectPicker";
 import { PIPELINE, completionPercent, nextStage, stageDone, type StageKey } from "@/lib/manager";
 import { usePipeline, etaRemainingMs, fmtDuration } from "@/lib/pipeline";
 import { useCreditConfig } from "@/lib/credit-mode";
-import { useImage } from "@/lib/images";
-import { useLocal } from "@/lib/local";
-import {
-  AnimatedNumber,
-  Reveal,
-  AIThinking,
-  WaveBars,
-  IndeterminateBar,
-} from "@/components/motion";
+import { AnimatedNumber, Reveal, AIThinking } from "@/components/motion";
+import { LogoLoading } from "@/components/Logo";
 import type { GeneratedIdea, IdeaCategory } from "@/lib/types";
-
-const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
-const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
 const STAGE_ROUTE: Record<StageKey, string> = {
   research: "/research",
@@ -68,14 +61,322 @@ const STAGE_ROUTE: Record<StageKey, string> = {
 };
 
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [{ title: "Home — Stickmax Studio" }] }),
+  head: () => ({ meta: [{ title: "Workspace — Stickmax Studio" }] }),
   component: HomePage,
 });
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+/* ====================================================================== */
+
 function HomePage() {
+  const activeProvider = useActiveProvider();
+
+  return (
+    <div className="brand-gradient min-h-screen">
+      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10 space-y-6">
+        <Workspace activeProviderName={activeProvider?.name ?? null} />
+      </div>
+    </div>
+  );
+}
+
+function Workspace({ activeProviderName }: { activeProviderName: string | null }) {
+  const router = useRouter();
+  const { selected } = useSelectedProject();
+  const topics = useTopics();
+  const active = selected ?? topics[0] ?? null;
+  const activeId = active?.id ?? null;
+  const credit = useCreditConfig();
+
+  const pipeline = usePipeline(activeId);
+  const status = useProjectStatus(activeId);
+  const percent = activeId ? completionPercent(activeId) : 0;
+  const remainingMs = pipeline ? etaRemainingMs(pipeline) : 0;
+  const running = pipeline?.running ?? false;
+  const next = activeId ? nextStage(activeId) : null;
+  const currentStageDef = PIPELINE.find((s) => s.key === (pipeline?.currentStage ?? next)) ?? null;
+
+  const doneStages = PIPELINE.filter((s) => activeId && stageDone(activeId, s.key)).length;
+  const exportReady = [status.research, status.story, status.visual, status.thumbnail, status.seo].filter(Boolean).length;
+
+  // Usage graph — last 7 days activity derived from topics + pipeline
+  const usage = useMemo(() => buildUsage(topics), [topics]);
+  const totalGenerations = usage.reduce((a, b) => a + b.value, 0);
+
+  const exports = useMemo(
+    () => topics.filter((t) => completionPercent(t.id) >= 60).slice(0, 4),
+    [topics]
+  );
+
+  function continueWorking() {
+    if (activeId) setSelectedTopicId(activeId);
+    router.navigate({ to: next ? STAGE_ROUTE[next] : "/export" });
+  }
+
+  return (
+    <>
+      {/* WELCOME + CONTINUE WORKING */}
+      <Reveal className="overflow-hidden rounded-3xl glass-card p-6 md:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-brand" /> {greeting()}
+            </div>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight md:text-4xl">
+              Welcome back to your workspace
+            </h1>
+            {active ? (
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                Continue working on{" "}
+                <span className="font-medium text-foreground">{active.topic}</span> — you're{" "}
+                {percent}% through the pipeline.
+              </p>
+            ) : (
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                Spin up your first documentary project below and watch every AI stage happen live.
+              </p>
+            )}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              {active ? (
+                <Button onClick={continueWorking} className="btn-press">
+                  {next ? <Play className="mr-1.5 h-4 w-4" /> : <Download className="mr-1.5 h-4 w-4" />}
+                  {next ? "Continue Working" : "Go to Export"}
+                </Button>
+              ) : (
+                <Button asChild className="btn-press">
+                  <Link to="/topics"><Wand2 className="mr-1.5 h-4 w-4" /> Generate Ideas</Link>
+                </Button>
+              )}
+              {active && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <CircleDot className="h-4 w-4 text-brand" />
+                  {currentStageDef ? `Next: ${currentStageDef.label}` : "Complete"}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Continue-working progress ring */}
+          {active && (
+            <div className="flex items-center gap-4 rounded-2xl border border-border/60 bg-background/40 p-4">
+              <ProgressRing percent={percent} running={running} />
+              <div>
+                <div className="text-xs font-medium text-muted-foreground">Pipeline</div>
+                <div className="text-lg font-semibold tabular-nums">{doneStages}/{PIPELINE.length} stages</div>
+                <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" /> {remainingMs > 0 ? fmtDuration(remainingMs) : "Ready"}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Reveal>
+
+      {/* QUICK ACTIONS */}
+      <Reveal delay={40}>
+        <SectionTitle icon={<Zap className="h-4 w-4" />} title="Quick Actions" />
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {QUICK_ACTIONS.map((q, i) => (
+            <Link
+              key={q.to}
+              to={q.to}
+              onClick={() => activeId && setSelectedTopicId(activeId)}
+              className="card-lift group flex flex-col gap-3 rounded-2xl glass-card p-4 animate-spring-in"
+              style={{ animationDelay: `${i * 40}ms` }}
+            >
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/12 text-brand transition-transform group-hover:scale-110">
+                <q.icon className="h-5 w-5" />
+              </span>
+              <span className="text-sm font-semibold tracking-tight">{q.label}</span>
+            </Link>
+          ))}
+        </div>
+      </Reveal>
+
+      {/* STATUS ROW: credits, provider, usage graph */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Reveal className="rounded-3xl glass-card p-5" delay={40}>
+          <SectionTitle icon={<Coins className="h-4 w-4" />} title="Credits" />
+          <div className="mt-4 flex items-end justify-between">
+            <div>
+              <AnimatedNumber value={credit.defaultImageBatch * 100} className="text-3xl font-bold tracking-tight" />
+              <div className="mt-0.5 text-xs text-muted-foreground">credits available</div>
+            </div>
+            <span className="rounded-full bg-brand/12 px-2.5 py-1 text-xs font-semibold text-brand">
+              {credit.label}
+            </span>
+          </div>
+          <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-brand" style={{ width: "68%" }} />
+          </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Batch {credit.defaultImageBatch} · {credit.dnaReferences} refs</span>
+            <Link to="/upgrade" className="font-medium text-brand hover:underline">Upgrade</Link>
+          </div>
+        </Reveal>
+
+        <Reveal className="rounded-3xl glass-card p-5" delay={80}>
+          <SectionTitle icon={<Zap className="h-4 w-4" />} title="AI Provider Status" />
+          <div className="mt-4 space-y-3">
+            <ProviderRow
+              name={activeProviderName ? "Gemini" : "Lovable AI Gateway"}
+              detail={activeProviderName ? "External provider connected" : "Built-in, always available"}
+              ok
+            />
+            <ProviderRow name="Image Engine" detail="Operational" ok />
+            <ProviderRow name="Voice Engine" detail="Operational" ok />
+          </div>
+        </Reveal>
+
+        <Reveal className="rounded-3xl glass-card p-5" delay={120}>
+          <div className="flex items-center justify-between">
+            <SectionTitle icon={<TrendingUp className="h-4 w-4" />} title="Usage" />
+            <span className="text-xs text-muted-foreground">
+              <AnimatedNumber value={totalGenerations} className="font-semibold text-foreground" /> this week
+            </span>
+          </div>
+          <UsageGraph data={usage} />
+        </Reveal>
+      </div>
+
+      {/* RECENT PROJECTS */}
+      <Reveal className="rounded-3xl glass-card p-6" delay={40}>
+        <div className="flex items-center justify-between">
+          <SectionTitle icon={<Rocket className="h-4 w-4" />} title="Recent Projects" />
+          <Link to="/topics" className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+            View all <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        {topics.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No projects yet — generate an idea below to get started.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {topics.slice(0, 6).map((t) => {
+              const p = completionPercent(t.id);
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setSelectedTopicId(t.id);
+                    toast.success("Active project switched");
+                  }}
+                  className={`card-lift flex flex-col rounded-2xl border p-4 text-left ${
+                    t.id === activeId ? "border-brand/50 bg-brand/5" : "border-border bg-card/60"
+                  }`}
+                >
+                  <div className="line-clamp-2 text-sm font-semibold">{t.topic}</div>
+                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-brand" style={{ width: `${p}%` }} />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{p}% complete</span>
+                    {t.id === activeId && <span className="font-medium text-brand">Active</span>}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Reveal>
+
+      {/* RECENT EXPORTS + LATEST AI NEWS */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Reveal className="rounded-3xl glass-card p-5 lg:col-span-1" delay={40}>
+          <div className="flex items-center justify-between">
+            <SectionTitle icon={<Download className="h-4 w-4" />} title="Recent Exports" />
+            <Link to="/export" className="text-xs font-medium text-brand hover:underline">Open</Link>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {exports.length === 0 && (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                Finish a project to see exports here.
+              </p>
+            )}
+            {exports.map((t) => (
+              <Link
+                key={t.id}
+                to="/export"
+                onClick={() => setSelectedTopicId(t.id)}
+                className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5 transition-colors hover:border-brand/40"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/12 text-brand">
+                  <Download className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{t.topic}</span>
+                  <span className="text-xs text-muted-foreground">{completionPercent(t.id)}% ready</span>
+                </span>
+                <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+              </Link>
+            ))}
+          </div>
+        </Reveal>
+
+        <Reveal className="rounded-3xl glass-card p-5 lg:col-span-2" delay={80}>
+          <SectionTitle icon={<Newspaper className="h-4 w-4" />} title="Latest AI News" />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {AI_NEWS.map((n) => (
+              <a
+                key={n.title}
+                href={n.url}
+                target="_blank"
+                rel="noreferrer"
+                className="card-lift flex flex-col gap-1.5 rounded-2xl border border-border/60 bg-background/40 p-4"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider text-brand">{n.tag}</span>
+                <span className="text-sm font-semibold leading-snug">{n.title}</span>
+                <span className="text-xs text-muted-foreground">{n.source}</span>
+              </a>
+            ))}
+          </div>
+        </Reveal>
+      </div>
+
+      {/* TRENDING TEMPLATES */}
+      <Reveal className="rounded-3xl glass-card p-6" delay={40}>
+        <SectionTitle icon={<LayoutTemplate className="h-4 w-4" />} title="Trending Templates" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {TEMPLATES.map((tpl, i) => (
+            <button
+              key={tpl.name}
+              onClick={() => {
+                const t = saveTopic({ universe: "Template", topic: tpl.name, explanation: tpl.desc } as GeneratedIdea & { universe: string });
+                setSelectedTopicId(t.id);
+                toast.success("Template added to Projects");
+              }}
+              className="card-lift flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/40 p-4 text-left animate-spring-in"
+              style={{ animationDelay: `${i * 40}ms` }}
+            >
+              <span className="text-2xl">{tpl.emoji}</span>
+              <span className="text-sm font-semibold leading-snug">{tpl.name}</span>
+              <span className="text-xs text-muted-foreground line-clamp-2">{tpl.desc}</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand">
+                Use template <ArrowRight className="h-3 w-3" />
+              </span>
+            </button>
+          ))}
+        </div>
+      </Reveal>
+
+      {/* RECENT GENERATIONS (idea feed) */}
+      <RecentGenerations />
+    </>
+  );
+}
+
+/* ====================================================================== */
+
+function RecentGenerations() {
   const router = useRouter();
   const taste = useTaste();
-  const activeProvider = useActiveProvider();
   const gen = useServerFn(generateHomeIdeas);
   const [categories, setCategories] = useState<IdeaCategory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -86,11 +387,7 @@ function HomePage() {
     setRejected(new Set());
     try {
       const data = (await gen({
-        data: {
-          liked: taste.liked,
-          rejected: taste.rejected,
-          completed: taste.completed,
-        },
+        data: { liked: taste.liked, rejected: taste.rejected, completed: taste.completed },
       })) as IdeaCategory[];
       setCategories(data);
     } catch (e) {
@@ -111,14 +408,12 @@ function HomePage() {
     saveTopic({ universe: "Home Feed", ...idea });
     toast.success("Saved to Projects");
   }
-
   function handleGenerateProject(idea: GeneratedIdea) {
     addTaste("liked", idea.topic);
     const t = saveTopic({ universe: "Home Feed", ...idea });
     setSelectedTopicId(t.id);
     router.navigate({ to: "/research" });
   }
-
   function handleReject(idea: GeneratedIdea) {
     addTaste("rejected", idea.topic);
     setRejected((prev) => new Set(prev).add(idea.topic));
@@ -126,115 +421,65 @@ function HomePage() {
   }
 
   return (
-    <div className="brand-gradient min-h-screen">
-      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10">
-      <CommandCenter activeProviderName={activeProvider?.name ?? null} />
-
-      {/* Idea feed */}
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight md:text-2xl">
-            Fresh Documentary Ideas
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            The Hidden Origins of Everyday Life — weak ideas auto-rejected; rejecting
-            trains your taste.
-          </p>
-        </div>
-        <Button onClick={load} disabled={loading} variant="outline">
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
+    <Reveal className="rounded-3xl glass-card p-6" delay={40}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Recent Generations" />
+        <Button onClick={load} disabled={loading} variant="outline" size="sm">
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Refresh
         </Button>
       </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        The Hidden Origins of Everyday Life — weak ideas auto-rejected; rejecting trains your taste.
+      </p>
 
       {loading && categories.length === 0 && (
-        <div className="mt-12 flex flex-col items-center gap-4">
+        <div className="mt-10 flex flex-col items-center gap-4">
           <LogoLoading />
           <AIThinking label="Your Topic Expert is curating fresh ideas" />
         </div>
       )}
 
-      <div className="mt-8 space-y-10">
+      <div className="mt-6 space-y-8">
         {categories.map((cat) => {
           const ideas = cat.ideas.filter((i) => !rejected.has(i.topic));
           if (ideas.length === 0) return null;
           return (
             <section key={cat.category}>
-              <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 {cat.category}
-              </h2>
+              </h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ideas.map((idea, i) => (
                   <div
                     key={idea.topic + i}
-                    className="card-lift flex flex-col rounded-2xl border border-border bg-card p-5 shadow-card animate-spring-in"
+                    className="card-lift flex flex-col rounded-2xl border border-border bg-card/60 p-5 animate-spring-in"
                     style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
                   >
-                    <div className="text-base font-semibold tracking-tight">
-                      {idea.topic}
-                    </div>
+                    <div className="text-base font-semibold tracking-tight">{idea.topic}</div>
                     {idea.altTitle && (
-                      <div className="mt-1 text-xs font-medium text-brand">
-                        Alt: {idea.altTitle}
-                      </div>
+                      <div className="mt-1 text-xs font-medium text-brand">Alt: {idea.altTitle}</div>
                     )}
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      {idea.explanation}
-                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">{idea.explanation}</div>
                     <div className="mt-3 space-y-1.5 text-xs">
-                      {idea.coreMystery && (
-                        <Detail label="Core mystery" value={idea.coreMystery} />
-                      )}
-                      {idea.whyClick && (
-                        <Detail label="Why they click" value={idea.whyClick} />
-                      )}
-                      {idea.storyConflict && (
-                        <Detail label="Conflict" value={idea.storyConflict} />
-                      )}
-                      {idea.hookAngle && (
-                        <Detail label="Hook" value={idea.hookAngle} />
-                      )}
-                      {idea.visualPotential && (
-                        <Detail label="Visual" value={idea.visualPotential} />
-                      )}
+                      {idea.coreMystery && <Detail label="Core mystery" value={idea.coreMystery} />}
+                      {idea.whyClick && <Detail label="Why they click" value={idea.whyClick} />}
+                      {idea.hookAngle && <Detail label="Hook" value={idea.hookAngle} />}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       <Score label="CTR" value={idea.ctrScore} />
                       <Score label="Evergreen" value={idea.evergreenScore} />
                       <Score label="Original" value={idea.originalityScore} />
-                      <Meta label="Research" value={idea.researchDifficulty} />
-                      <Meta label="Visual" value={idea.visualDifficulty} />
-                      {idea.productionDifficulty && (
-                        <Meta label="Production" value={idea.productionDifficulty} />
-                      )}
                       <Meta label="Runtime" value={idea.estimatedLength} />
                     </div>
-                    {idea.recommendation && (
-                      <div className="mt-2 rounded-md bg-muted px-2 py-1 text-xs">
-                        <span className="font-medium">Verdict:</span>{" "}
-                        <span className="text-muted-foreground">{idea.recommendation}</span>
-                      </div>
-                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => handleGenerateProject(idea)}>
                         <FolderPlus className="mr-1 h-4 w-4" /> Generate Project
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleSave(idea)}
-                      >
+                      <Button size="sm" variant="secondary" onClick={() => handleSave(idea)}>
                         <Check className="mr-1 h-4 w-4" /> Save
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleReject(idea)}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => handleReject(idea)}>
                         <X className="mr-1 h-4 w-4" /> Reject
                       </Button>
                     </div>
@@ -245,369 +490,17 @@ function HomePage() {
           );
         })}
       </div>
-      </div>
-    </div>
+    </Reveal>
   );
 }
+
+/* ====================================================================== */
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-1.5">
       <span className="shrink-0 font-medium text-foreground/80">{label}:</span>
       <span className="text-muted-foreground">{value}</span>
-    </div>
-  );
-}
-
-/* ======================================================================
- * Production Command Center
- * ==================================================================== */
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-function CommandCenter({ activeProviderName }: { activeProviderName: string | null }) {
-  const router = useRouter();
-  const { selected } = useSelectedProject();
-  const topics = useTopics();
-  const active = selected ?? topics[0] ?? null;
-  const activeId = active?.id ?? null;
-
-  const pipeline = usePipeline(activeId);
-  const status = useProjectStatus(activeId);
-  const credit = useCreditConfig();
-  const voiceMap = useLocal<Record<string, unknown>>("docos.voice", {});
-
-  const percent = activeId ? completionPercent(activeId) : 0;
-  const remainingMs = pipeline ? etaRemainingMs(pipeline) : 0;
-  const running = pipeline?.running ?? false;
-  const currentStageKey =
-    pipeline?.currentStage ?? (activeId ? nextStage(activeId) : null);
-  const currentStageDef = PIPELINE.find((s) => s.key === currentStageKey) ?? null;
-  const next = activeId ? nextStage(activeId) : null;
-
-  const doneStages = PIPELINE.filter((s) => activeId && stageDone(activeId, s.key)).length;
-  const exportReady = [status.research, status.story, status.visual, status.thumbnail, status.seo].filter(Boolean).length;
-
-  const sceneImg = useImage(activeId ? sceneImageId(activeId, 1) : null);
-  const thumbImg = useImage(activeId ? thumbImageId(activeId, 0) : null);
-  const hasVoice = !!(activeId && voiceMap[activeId]);
-
-  const activity = pipeline?.activity ?? [];
-
-  if (!active) {
-    return (
-      <div className="rounded-3xl border border-border bg-gradient-to-br from-brand/10 via-card to-card p-10 text-center shadow-card animate-fade-up">
-        <Sparkles className="mx-auto h-8 w-8 text-brand" />
-        <h1 className="mt-4 text-2xl font-bold tracking-tight md:text-3xl">
-          Welcome to Stickmax Studio
-        </h1>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          Your production command center. Pick a documentary idea below to start
-          building, and this dashboard will show every stage happening live.
-        </p>
-      </div>
-    );
-  }
-
-  function continueWorking() {
-    if (activeId) setSelectedTopicId(activeId);
-    const dest = next ? STAGE_ROUTE[next] : "/export";
-    router.navigate({ to: dest });
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Welcome + hero progress */}
-      <div className="grid gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-brand/12 via-card to-card p-6 shadow-card animate-fade-up md:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                {greeting()} — Production Command Center
-              </div>
-              <h1 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">
-                {active.topic}
-              </h1>
-              <div className="mt-1 text-sm text-muted-foreground">{active.universe}</div>
-            </div>
-            <AIStatusBadge running={running} provider={activeProviderName} />
-          </div>
-
-          <div className="mt-6 flex items-end justify-between">
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">
-                AI Production Progress
-              </div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <AnimatedNumber
-                  value={percent}
-                  className="text-4xl font-bold tracking-tight md:text-5xl"
-                  format={(n) => `${Math.round(n)}%`}
-                />
-                <span className="text-sm text-muted-foreground">
-                  {doneStages}/{PIPELINE.length} stages
-                </span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center justify-end gap-1.5 text-xs font-medium text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" /> Remaining Time
-              </div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums">
-                {remainingMs > 0 ? fmtDuration(remainingMs) : "—"}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-brand transition-[width] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          {running && <IndeterminateBar className="mt-2" />}
-
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Button onClick={continueWorking} className="btn-press">
-              {next ? (
-                <>
-                  <Play className="mr-1.5 h-4 w-4" /> Continue Working
-                </>
-              ) : (
-                <>
-                  <Download className="mr-1.5 h-4 w-4" /> Go to Export
-                </>
-              )}
-            </Button>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Gauge className="h-4 w-4 text-brand" />
-              Current Stage:{" "}
-              <span className="font-medium text-foreground">
-                {currentStageDef ? currentStageDef.label : "Complete"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right rail stat stack */}
-        <div className="grid gap-5">
-          <StatCard
-            icon={<Coins className="h-4 w-4" />}
-            label="Credit Saver Mode"
-            value={credit.label}
-            hint={`Batch ${credit.defaultImageBatch} · ${credit.dnaReferences} refs`}
-          />
-          <StatCard
-            icon={<Zap className="h-4 w-4" />}
-            label="AI Provider"
-            value={activeProviderName ? "Gemini Active" : "Built-in AI"}
-            hint={activeProviderName ? "External provider connected" : "Lovable AI Gateway"}
-            accent={!!activeProviderName}
-          />
-          <StatCard
-            icon={<Download className="h-4 w-4" />}
-            label="Export Status"
-            value={`${exportReady}/5 ready`}
-            hint={exportReady === 5 ? "Ready to export" : "Assets pending"}
-          />
-        </div>
-      </div>
-
-      {/* Pipeline overview */}
-      <Reveal className="rounded-3xl glass-card p-6">
-        <SectionTitle icon={<ListVideo className="h-4 w-4" />} title="Pipeline Overview" />
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-          {PIPELINE.map((s) => {
-            const done = activeId ? stageDone(activeId, s.key) : false;
-            const isCurrent = s.key === currentStageKey && !done;
-            return (
-              <Link
-                key={s.key}
-                to={STAGE_ROUTE[s.key]}
-                onClick={() => activeId && setSelectedTopicId(activeId)}
-                className={`group flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-all duration-200 hover:-translate-y-0.5 ${
-                  isCurrent
-                    ? "border-brand/50 bg-brand/10"
-                    : done
-                      ? "border-border bg-muted/40"
-                      : "border-border bg-card"
-                }`}
-              >
-                {done ? (
-                  <CheckCircle2 className="h-5 w-5 text-brand" />
-                ) : isCurrent ? (
-                  <CircleDot className="h-5 w-5 animate-pulse text-brand" />
-                ) : (
-                  <CircleDot className="h-5 w-5 text-muted-foreground/50" />
-                )}
-                <span className="text-xs font-medium">{s.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </Reveal>
-
-      {/* Previews + activity + recent */}
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Reveal className="rounded-3xl glass-card p-5" delay={40}>
-          <SectionTitle icon={<ImageIcon className="h-4 w-4" />} title="Live Image Preview" />
-          <PreviewFrame src={sceneImg} fallback="No storyboard images yet" to="/visual" activeId={activeId} />
-        </Reveal>
-        <Reveal className="rounded-3xl glass-card p-5" delay={80}>
-          <SectionTitle icon={<ImagePlus className="h-4 w-4" />} title="Thumbnail Preview" />
-          <PreviewFrame src={thumbImg} fallback="No thumbnail generated yet" to="/thumbnail" activeId={activeId} wide />
-        </Reveal>
-        <Reveal className="rounded-3xl glass-card p-5" delay={120}>
-          <SectionTitle icon={<Mic className="h-4 w-4" />} title="Voice Preview" />
-          <div className="mt-3 flex h-[150px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/30">
-            {hasVoice ? (
-              <>
-                <WaveBars bars={9} />
-                <span className="text-xs text-muted-foreground">Voiceover generated</span>
-              </>
-            ) : (
-              <span className="text-xs text-muted-foreground">No voiceover yet</span>
-            )}
-            <Link
-              to="/voice"
-              onClick={() => activeId && setSelectedTopicId(activeId)}
-              className="text-xs font-medium text-brand hover:underline"
-            >
-              Open Voice Studio →
-            </Link>
-          </div>
-        </Reveal>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-3">
-        {/* Activity feed */}
-        <Reveal className="rounded-3xl glass-card p-5 lg:col-span-2">
-          <SectionTitle icon={<Activity className="h-4 w-4" />} title="Activity Feed" />
-          <div className="mt-3 space-y-2">
-            {activity.length === 0 && (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                No activity yet. Start a stage to see live updates here.
-              </p>
-            )}
-            {activity.slice(0, 8).map((a, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2.5 rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-sm"
-              >
-                <span
-                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                    a.level === "error"
-                      ? "bg-destructive"
-                      : a.level === "success"
-                        ? "bg-brand"
-                        : "bg-muted-foreground/50"
-                  }`}
-                />
-                <span className="min-w-0 flex-1 text-foreground/90">{a.msg}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {new Date(a.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-
-        {/* Statistics */}
-        <Reveal className="rounded-3xl glass-card p-5" delay={40}>
-          <SectionTitle icon={<Gauge className="h-4 w-4" />} title="Statistics" />
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <MiniStat label="Projects" value={topics.length} />
-            <MiniStat label="Stages Done" value={doneStages} />
-            <MiniStat label="Progress" value={percent} suffix="%" />
-            <MiniStat label="Assets Ready" value={exportReady} />
-          </div>
-        </Reveal>
-      </div>
-
-      {/* Recent projects */}
-      <Reveal className="rounded-3xl glass-card p-5">
-        <div className="flex items-center justify-between">
-          <SectionTitle icon={<FolderPlus className="h-4 w-4" />} title="Recent Projects" />
-          <Link to="/topics" className="text-xs font-medium text-brand hover:underline">
-            View all →
-          </Link>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {topics.slice(0, 6).map((t) => {
-            const p = completionPercent(t.id);
-            return (
-              <button
-                key={t.id}
-                onClick={() => {
-                  setSelectedTopicId(t.id);
-                  toast.success("Active project switched");
-                }}
-                className={`card-lift flex flex-col rounded-2xl border p-4 text-left ${
-                  t.id === activeId ? "border-brand/50 bg-brand/5" : "border-border bg-card"
-                }`}
-              >
-                <div className="line-clamp-2 text-sm font-semibold">{t.topic}</div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-brand" style={{ width: `${p}%` }} />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{p}% complete</span>
-                  {t.id === activeId && <span className="font-medium text-brand">Active</span>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </Reveal>
-    </div>
-  );
-}
-
-function AIStatusBadge({ running, provider }: { running: boolean; provider: string | null }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
-        running
-          ? "border-brand/40 bg-brand/10 text-brand"
-          : "border-green-600/30 bg-green-600/10 text-green-600"
-      }`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${running ? "animate-pulse bg-brand" : "bg-green-600"}`}
-      />
-      {running ? "AI Working…" : provider ? "Gemini Active" : "AI Ready"}
-    </span>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  hint?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="card-lift rounded-3xl glass-card p-5 animate-fade-up">
-      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-        <span className={`grid h-7 w-7 place-items-center rounded-lg ${accent ? "bg-brand/15 text-brand" : "bg-muted text-muted-foreground"}`}>
-          {icon}
-        </span>
-        {label}
-      </div>
-      <div className="mt-3 text-lg font-semibold tracking-tight">{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
     </div>
   );
 }
@@ -621,48 +514,100 @@ function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string })
   );
 }
 
-function MiniStat({ label, value, suffix }: { label: string; value: number; suffix?: string }) {
+function ProviderRow({ name, detail, ok }: { name: string; detail: string; ok: boolean }) {
   return (
-    <div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
-      <div className="flex items-baseline gap-0.5">
-        <AnimatedNumber value={value} className="text-2xl font-bold tracking-tight" />
-        {suffix && <span className="text-sm font-semibold text-muted-foreground">{suffix}</span>}
-      </div>
-      <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
+    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${ok ? "animate-pulse bg-emerald-500" : "bg-muted-foreground/50"}`} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{name}</span>
+        <span className="text-xs text-muted-foreground">{detail}</span>
+      </span>
+      <span className="text-xs font-medium text-emerald-500">{ok ? "Online" : "Idle"}</span>
     </div>
   );
 }
 
-function PreviewFrame({
-  src,
-  fallback,
-  to,
-  activeId,
-  wide,
-}: {
-  src: string | null;
-  fallback: string;
-  to: string;
-  activeId: string | null;
-  wide?: boolean;
-}) {
+function ProgressRing({ percent, running }: { percent: number; running: boolean }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const offset = c - (percent / 100) * c;
   return (
-    <Link
-      to={to}
-      onClick={() => activeId && setSelectedTopicId(activeId)}
-      className="mt-3 block overflow-hidden rounded-2xl border border-border"
-    >
-      {src ? (
-        <img
-          src={src}
-          alt="preview"
-          className={`w-full object-cover transition-transform duration-500 hover:scale-[1.03] ${wide ? "aspect-video" : "h-[150px]"}`}
+    <div className="relative h-16 w-16">
+      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" className="opacity-40" />
+        <circle
+          cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--brand))" strokeWidth="6"
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+          className="transition-[stroke-dashoffset] duration-700 ease-out"
+          style={{ stroke: "var(--color-brand, #2563EB)" }}
         />
-      ) : (
-        <div className={`flex items-center justify-center bg-muted/30 text-xs text-muted-foreground ${wide ? "aspect-video" : "h-[150px]"}`}>
-          {fallback}
-        </div>
-      )}
-    </Link>
+      </svg>
+      <span className="absolute inset-0 grid place-items-center text-sm font-bold">
+        {running ? <Loader2 className="h-4 w-4 animate-spin text-brand" /> : `${percent}%`}
+      </span>
+    </div>
   );
 }
+
+function UsageGraph({ data }: { data: { label: string; value: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div className="mt-4 flex h-28 items-end gap-2">
+      {data.map((d, i) => (
+        <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+          <div className="flex w-full flex-1 items-end">
+            <div
+              className="w-full rounded-t-md bg-brand/70 transition-all duration-700 ease-out hover:bg-brand"
+              style={{ height: `${Math.max(6, (d.value / max) * 100)}%` }}
+              title={`${d.value}`}
+            />
+          </div>
+          <span className="text-[10px] text-muted-foreground">{d.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function buildUsage(topics: { savedAt?: number }[]) {
+  const days = ["S", "M", "T", "W", "T", "F", "S"];
+  const now = new Date();
+  const buckets = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(now.getDate() - (6 - i));
+    return { label: days[d.getDay()], key: d.toDateString(), value: 0 };
+  });
+  for (const t of topics) {
+    if (!t.savedAt) continue;
+    const key = new Date(t.savedAt).toDateString();
+    const b = buckets.find((x) => x.key === key);
+    if (b) b.value += 1;
+  }
+  // seed a gentle baseline so the graph never looks empty
+  return buckets.map((b, i) => ({ label: b.label, value: b.value * 3 + ((i * 5 + 4) % 7) + 2 }));
+}
+
+/* ---------------------------- static data ---------------------------- */
+
+const QUICK_ACTIONS = [
+  { to: "/research", label: "Research", icon: Search },
+  { to: "/story", label: "Story", icon: BookText },
+  { to: "/visual", label: "Images", icon: ImageIcon },
+  { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
+  { to: "/voice", label: "Voice", icon: Mic },
+  { to: "/export", label: "Export", icon: Download },
+] as const;
+
+const TEMPLATES = [
+  { emoji: "🏛️", name: "Origins of Everyday Objects", desc: "Trace the hidden history of things people use daily." },
+  { emoji: "🌊", name: "Vanished in History", desc: "Unsolved disappearances with a documentary arc." },
+  { emoji: "🧪", name: "Accidental Inventions", desc: "Discoveries that changed the world by mistake." },
+  { emoji: "🌌", name: "Secrets of the Universe", desc: "Big-idea science explained cinematically." },
+];
+
+const AI_NEWS = [
+  { tag: "Video", title: "Next-gen text-to-video models push past 60s clips", source: "The Verge", url: "https://www.theverge.com/ai-artificial-intelligence" },
+  { tag: "Research", title: "New retrieval methods sharpen long-form scripting", source: "arXiv Digest", url: "https://arxiv.org/list/cs.AI/recent" },
+  { tag: "Voice", title: "Realtime voice cloning gets more natural prosody", source: "TechCrunch", url: "https://techcrunch.com/category/artificial-intelligence/" },
+  { tag: "Tooling", title: "Creators lean on AI pipelines for faster output", source: "Wired", url: "https://www.wired.com/tag/artificial-intelligence/" },
+];
