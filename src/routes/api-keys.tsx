@@ -178,10 +178,17 @@ function ApiKeysPage() {
             />
             <RouteRow
               label="Image Provider"
-              hint={`Images & thumbnails · ${active.imageModel}`}
+              hint={`Storyboard images · ${active.imageModel}`}
               supported={GEMINI_SUPPORTS.image}
               value={settings.image}
               onChange={(v) => saveProviderSettings({ image: v })}
+            />
+            <RouteRow
+              label="Thumbnail Provider"
+              hint={`Thumbnails · ${active.imageModel}`}
+              supported={GEMINI_SUPPORTS.image}
+              value={settings.thumbnail}
+              onChange={(v) => saveProviderSettings({ thumbnail: v })}
             />
             <RouteRow
               label="Voice Provider"
