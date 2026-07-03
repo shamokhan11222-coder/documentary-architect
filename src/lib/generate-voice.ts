@@ -2,6 +2,7 @@
 // in IndexedDB, and measures the real audio duration.
 import { putImage } from "./images";
 import { ttsProviderPayload } from "./provider";
+import { enqueueAi } from "./ai-queue";
 import type { VoiceSettings } from "./types";
 
 export const voiceBlockId = (topicId: string, index: number) => `voice:${topicId}:${index}`;
@@ -36,31 +37,33 @@ export async function generateVoiceBlock(
   settings: VoiceSettings,
 ): Promise<number> {
   const spoken = applyDictionary(text, settings.dictionary);
-  const res = await fetch("/api/tts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: spoken,
-      profile: settings.profile,
-      speed: settings.speed,
-      stability: settings.stability,
-      emotion: settings.emotion,
-      pauseStrength: settings.pauseStrength,
-      pitch: settings.pitch,
-      provider: ttsProviderPayload(),
-    }),
-  });
-  if (!res.ok) {
-    let msg = `Voice generation failed (${res.status})`;
-    try {
-      const j = await res.json();
-      if (j?.error) msg = j.error;
-    } catch {
-      /* ignore */
+  const data = await enqueueAi(async () => {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: spoken,
+        profile: settings.profile,
+        speed: settings.speed,
+        stability: settings.stability,
+        emotion: settings.emotion,
+        pauseStrength: settings.pauseStrength,
+        pitch: settings.pitch,
+        provider: ttsProviderPayload(),
+      }),
+    });
+    if (!res.ok) {
+      let msg = `Voice generation failed (${res.status})`;
+      try {
+        const j = await res.json();
+        if (j?.error) msg = j.error;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(res.status === 429 ? `429 ${msg}` : msg);
     }
-    throw new Error(msg);
-  }
-  const data = (await res.json()) as { audio: string };
+    return (await res.json()) as { audio: string };
+  }, "Voice");
   await putImage(voiceBlockId(topicId, index), data.audio);
   return measureDuration(data.audio);
 }

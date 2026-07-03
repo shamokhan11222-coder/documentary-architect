@@ -24,6 +24,7 @@ import { testProvider } from "@/lib/ai.functions";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
+import { QueuePanel } from "@/components/QueuePanel";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
@@ -133,6 +134,8 @@ function ApiKeysPage() {
       />
 
       <DebugStatus />
+
+      <QueuePanel />
 
       <div className="mt-6 rounded-lg border border-border bg-card p-4">
         <div className="text-sm font-medium">Add provider</div>

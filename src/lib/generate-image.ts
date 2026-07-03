@@ -6,6 +6,7 @@ import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
 import { getCreditConfig } from "./credit-mode";
 import { imageProviderPayload } from "./provider";
+import { enqueueAi } from "./ai-queue";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
@@ -16,23 +17,26 @@ function combinedArtDirection(): string {
 }
 
 async function generate(prompt: string, references: string[]): Promise<string> {
-  const res = await fetch("/api/generate-image", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, references, provider: imageProviderPayload() }),
-  });
-  if (!res.ok) {
-    let msg = `Image generation failed (${res.status})`;
-    try {
-      const j = await res.json();
-      if (j?.error) msg = j.error;
-    } catch {
-      /* ignore */
+  return enqueueAi(async () => {
+    const res = await fetch("/api/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, references, provider: imageProviderPayload() }),
+    });
+    if (!res.ok) {
+      let msg = `Image generation failed (${res.status})`;
+      try {
+        const j = await res.json();
+        if (j?.error) msg = j.error;
+      } catch {
+        /* ignore */
+      }
+      // Preserve status so the queue can detect rate limits (429) and retry.
+      throw new Error(res.status === 429 ? `429 ${msg}` : msg);
     }
-    throw new Error(msg);
-  }
-  const data = (await res.json()) as { image: string };
-  return data.image;
+    const data = (await res.json()) as { image: string };
+    return data.image;
+  }, "Image");
 }
 
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
