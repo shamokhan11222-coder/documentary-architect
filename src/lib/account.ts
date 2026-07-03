@@ -8,10 +8,14 @@ import { readLocal, writeLocal, useLocal } from "./local";
 export interface Account {
   email: string;
   name: string;
-  plan: "free" | "basic" | "pro" | "creator";
+  plan: "free" | "starter" | "pro" | "creator";
+  role: "user" | "admin";
 }
 
 const ACCOUNT_KEY = "stickmax.account";
+
+/** Owner/admin accounts — not limited by public user credits. */
+const OWNER_EMAILS = ["owner@stickmax.io", "admin@stickmax.io"];
 
 export function useAccount(): Account | null {
   return useLocal<Account | null>(ACCOUNT_KEY, null);
@@ -21,14 +25,25 @@ export function getAccount(): Account | null {
   return readLocal<Account | null>(ACCOUNT_KEY, null);
 }
 
+/** True when the signed-in account is the owner/admin (unlimited credits). */
+export function isAdmin(): boolean {
+  return getAccount()?.role === "admin";
+}
+
+export function useIsAdmin(): boolean {
+  return useAccount()?.role === "admin";
+}
+
 export function login(email: string, name?: string) {
   const clean = email.trim().toLowerCase();
   const derived =
     name?.trim() || clean.split("@")[0].replace(/[._-]+/g, " ") || "Creator";
+  const admin = OWNER_EMAILS.includes(clean);
   writeLocal<Account>(ACCOUNT_KEY, {
     email: clean,
     name: derived.replace(/\b\w/g, (c) => c.toUpperCase()),
-    plan: "free",
+    plan: admin ? "creator" : "free",
+    role: admin ? "admin" : "user",
   });
 }
 
@@ -60,7 +75,7 @@ interface CreditState {
 }
 
 const CREDITS_KEY = "stickmax.credits";
-const DEFAULT_CREDITS = 250;
+const DEFAULT_CREDITS = 10;
 
 /** Rough per-action credit estimates (used for warnings/estimates). */
 export const CREDIT_COSTS = {
@@ -82,7 +97,7 @@ export const FULL_RUN_ESTIMATE =
   CREDIT_COSTS.seo +
   CREDIT_COSTS.rating;
 
-export const LOW_CREDIT_THRESHOLD = 40;
+export const LOW_CREDIT_THRESHOLD = 5;
 
 function readState(): CreditState {
   return readLocal<CreditState>(CREDITS_KEY, {
@@ -107,6 +122,8 @@ export function getBalance(): number {
 }
 
 export function spendCredits(amount: number, label: string) {
+  // Owner/admin accounts have unlimited internal credits.
+  if (isAdmin()) return;
   const s = readState();
   const entry: CreditEntry = {
     id: crypto.randomUUID(),

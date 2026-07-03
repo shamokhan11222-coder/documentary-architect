@@ -23,16 +23,29 @@ export const Route = createFileRoute("/pricing")({
 
 const PLANS = [
   {
-    name: "Basic",
+    name: "Free",
+    price: 0,
+    credits: 10,
+    highlight: false,
+    cta: "Get started",
+    features: [
+      "10 credits to start",
+      "Topic + Research engine",
+      "Story & script generation",
+      "Community support",
+    ],
+  },
+  {
+    name: "Starter",
     price: 12,
     credits: 400,
     highlight: false,
-    cta: "Start Basic",
+    cta: "Start Starter",
     features: [
       "400 credits / month",
-      "Topic + Research engine",
-      "Story & script generation",
+      "Everything in Free",
       "Standard image quality",
+      "Thumbnails & storyboards",
       "Email support",
     ],
   },
@@ -44,7 +57,7 @@ const PLANS = [
     cta: "Go Pro",
     features: [
       "1,200 credits / month",
-      "Everything in Basic",
+      "Everything in Starter",
       "HD thumbnails & storyboards",
       "Voice studio + subtitles",
       "SEO + rating engine",
@@ -81,7 +94,7 @@ function PricingPage() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 md:grid-cols-3">
+        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {PLANS.map((p) => (
             <div
               key={p.name}

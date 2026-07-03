@@ -9,6 +9,7 @@ import {
   FULL_RUN_ESTIMATE,
   LOW_CREDIT_THRESHOLD,
   CREDIT_COSTS,
+  useIsAdmin,
 } from "@/lib/account";
 
 export const Route = createFileRoute("/credits")({
@@ -18,7 +19,8 @@ export const Route = createFileRoute("/credits")({
 
 function CreditsPage() {
   const { balance, history } = useCredits();
-  const low = balance <= LOW_CREDIT_THRESHOLD;
+  const admin = useIsAdmin();
+  const low = !admin && balance <= LOW_CREDIT_THRESHOLD;
   const spent = history
     .filter((h) => h.amount < 0)
     .reduce((s, h) => s + Math.abs(h.amount), 0);
@@ -30,6 +32,13 @@ function CreditsPage() {
         <p className="mt-1 text-muted-foreground">
           Track your balance, usage, and estimated cost before you generate.
         </p>
+
+        {admin && (
+          <div className="mt-6 flex items-center gap-3 rounded-2xl border border-brand/40 bg-brand/10 px-4 py-3 text-sm text-brand">
+            <Zap className="h-5 w-5 shrink-0" />
+            <span>Owner / admin mode — you have unlimited internal credits.</span>
+          </div>
+        )}
 
         {low && (
           <div className="mt-6 flex items-center gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -50,7 +59,7 @@ function CreditsPage() {
                 low ? "text-destructive" : "text-foreground"
               }`}
             >
-              {balance}
+              {admin ? "∞" : balance}
             </div>
           </Card>
           <Card className="glass-card p-6">

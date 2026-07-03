@@ -126,7 +126,8 @@ function HomePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10">
+    <div className="brand-gradient min-h-screen">
+      <div className="mx-auto max-w-7xl px-6 py-8 md:px-10 md:py-10">
       <CommandCenter activeProviderName={activeProvider?.name ?? null} />
 
       {/* Idea feed */}
@@ -243,6 +244,7 @@ function HomePage() {
             </section>
           );
         })}
+      </div>
       </div>
     </div>
   );
@@ -417,7 +419,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
       </div>
 
       {/* Pipeline overview */}
-      <Reveal className="rounded-3xl border border-border bg-card p-6 shadow-card">
+      <Reveal className="rounded-3xl glass-card p-6">
         <SectionTitle icon={<ListVideo className="h-4 w-4" />} title="Pipeline Overview" />
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           {PIPELINE.map((s) => {
@@ -452,15 +454,15 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
 
       {/* Previews + activity + recent */}
       <div className="grid gap-5 lg:grid-cols-3">
-        <Reveal className="rounded-3xl border border-border bg-card p-5 shadow-card" delay={40}>
+        <Reveal className="rounded-3xl glass-card p-5" delay={40}>
           <SectionTitle icon={<ImageIcon className="h-4 w-4" />} title="Live Image Preview" />
           <PreviewFrame src={sceneImg} fallback="No storyboard images yet" to="/visual" activeId={activeId} />
         </Reveal>
-        <Reveal className="rounded-3xl border border-border bg-card p-5 shadow-card" delay={80}>
+        <Reveal className="rounded-3xl glass-card p-5" delay={80}>
           <SectionTitle icon={<ImagePlus className="h-4 w-4" />} title="Thumbnail Preview" />
           <PreviewFrame src={thumbImg} fallback="No thumbnail generated yet" to="/thumbnail" activeId={activeId} wide />
         </Reveal>
-        <Reveal className="rounded-3xl border border-border bg-card p-5 shadow-card" delay={120}>
+        <Reveal className="rounded-3xl glass-card p-5" delay={120}>
           <SectionTitle icon={<Mic className="h-4 w-4" />} title="Voice Preview" />
           <div className="mt-3 flex h-[150px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/30">
             {hasVoice ? (
@@ -484,7 +486,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
 
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Activity feed */}
-        <Reveal className="rounded-3xl border border-border bg-card p-5 shadow-card lg:col-span-2">
+        <Reveal className="rounded-3xl glass-card p-5 lg:col-span-2">
           <SectionTitle icon={<Activity className="h-4 w-4" />} title="Activity Feed" />
           <div className="mt-3 space-y-2">
             {activity.length === 0 && (
@@ -516,7 +518,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
         </Reveal>
 
         {/* Statistics */}
-        <Reveal className="rounded-3xl border border-border bg-card p-5 shadow-card" delay={40}>
+        <Reveal className="rounded-3xl glass-card p-5" delay={40}>
           <SectionTitle icon={<Gauge className="h-4 w-4" />} title="Statistics" />
           <div className="mt-4 grid grid-cols-2 gap-3">
             <MiniStat label="Projects" value={topics.length} />
@@ -528,7 +530,7 @@ function CommandCenter({ activeProviderName }: { activeProviderName: string | nu
       </div>
 
       {/* Recent projects */}
-      <Reveal className="rounded-3xl border border-border bg-card p-5 shadow-card">
+      <Reveal className="rounded-3xl glass-card p-5">
         <div className="flex items-center justify-between">
           <SectionTitle icon={<FolderPlus className="h-4 w-4" />} title="Recent Projects" />
           <Link to="/topics" className="text-xs font-medium text-brand hover:underline">
@@ -597,7 +599,7 @@ function StatCard({
   accent?: boolean;
 }) {
   return (
-    <div className="card-lift rounded-3xl border border-border bg-card p-5 shadow-card animate-fade-up">
+    <div className="card-lift rounded-3xl glass-card p-5 animate-fade-up">
       <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         <span className={`grid h-7 w-7 place-items-center rounded-lg ${accent ? "bg-brand/15 text-brand" : "bg-muted text-muted-foreground"}`}>
           {icon}

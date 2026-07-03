@@ -24,6 +24,7 @@ import {
   searchProject,
   renameTopic,
   clearArchivedTopics,
+  clearAllTopics,
 } from "@/lib/store";
 import {
   researchTopic,
@@ -185,6 +186,23 @@ function ProjectsPage() {
             }}
           >
             <Trash2 className="mr-1 h-4 w-4" /> Clear archived
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => {
+              if (
+                typeof window !== "undefined" &&
+                window.confirm(
+                  "Delete ALL projects and their generated work? This clears every test project and cannot be undone.",
+                )
+              ) {
+                clearAllTopics();
+                toast.success("Cleared all projects");
+              }
+            }}
+          >
+            <Trash2 className="mr-1 h-4 w-4" /> Clear test projects
           </Button>
         </div>
       </div>
