@@ -33,7 +33,7 @@ export const PDropdownItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium outline-none",
-      "transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "transition-all focus:bg-accent focus:text-accent-foreground focus:translate-x-0.5 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       "[&_svg]:size-4 [&_svg]:text-muted-foreground",
       inset && "pl-8",
       className,
