@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button";
 import { useTopics, useSelectedTopicId, exportProject, useTaste, clearTaste } from "@/lib/store";
 import { getGateStatus, lockSite } from "@/lib/gate.functions";
 import { downloadJson, slugify } from "@/lib/io";
-import { toggleTheme, useTheme } from "@/lib/theme";
 import { CREDIT_MODES, useCreditConfig, setCreditMode, type CreditMode } from "@/lib/credit-mode";
-import { Gauge, Palette, SlidersHorizontal, Database, Brain, FolderOpen, Archive, ShieldCheck } from "lucide-react";
+import { Gauge, SlidersHorizontal, Database, Brain, FolderOpen, Archive, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Stickmax Studio" }] }),
