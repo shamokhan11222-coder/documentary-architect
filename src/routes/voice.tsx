@@ -66,7 +66,8 @@ function VoicePage() {
     if (settings.clonedProfileId) {
       const p = getVoiceProfile(settings.clonedProfileId);
       if (!p) return "Select a voice profile first.";
-      if (!p.sampleAudio) return "Voice sample missing. Upload or record a sample for this profile.";
+      if (!p.sampleAudioId && !p.sampleAudio)
+        return "Voice sample missing. Upload or record a sample for this profile.";
       if (!p.consent) return "Permission not confirmed for this voice profile.";
     }
     return null;
