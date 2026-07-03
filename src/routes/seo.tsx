@@ -109,9 +109,18 @@ function SeoPage() {
   function handleRegenTitles() {
     if (!selected || !seo) return;
     return withBusy("titles", async () => {
-      const { titleOptions, bestTitle } = await regenT({
+      const result = await regenT({
         data: { topic: selected.topic, script: story?.script },
       });
+      // Never wipe existing titles if the model returns empty/missing values.
+      const titleOptions =
+        Array.isArray(result.titleOptions) && result.titleOptions.length
+          ? result.titleOptions
+          : seo.titleOptions;
+      const bestTitle =
+        typeof result.bestTitle === "string" && result.bestTitle.trim()
+          ? result.bestTitle
+          : seo.bestTitle;
       saveSeo({ ...seo, titleOptions, bestTitle, generatedAt: Date.now() });
       toast.success("Titles regenerated");
     });
