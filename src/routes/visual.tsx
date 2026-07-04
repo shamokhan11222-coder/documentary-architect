@@ -433,7 +433,12 @@ function VisualPage() {
         });
         toast.success(`Scene ${scene.sceneNumber} image regenerated`);
       } catch (e) {
-        toast.error(imageErrorMessage(e, "Something went wrong"));
+        if (isRateLimitError(e)) {
+          setRateLimited((prev) => new Set(prev).add(scene.sceneNumber));
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+        } else {
+          toast.error(imageErrorMessage(e, "Something went wrong"));
+        }
       } finally {
         setBusy(null);
       }
