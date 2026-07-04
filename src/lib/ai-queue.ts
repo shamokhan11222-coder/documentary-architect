@@ -6,7 +6,8 @@
 // built-in AI. It enforces:
 //   - a concurrency limit (Generation Speed: Safe=1 / Balanced=2 / Fast=3)
 //   - a 3–5s cooldown between request starts
-//   - automatic retry with exponential backoff (5s, 15s, 30s, 60s) on rate limits
+//   - optional retry with exponential backoff (image generation opts out so
+//     provider limits stop immediately instead of loading for minutes)
 //   - Stop / Resume of the whole queue
 //   - per-task status: pending, running, waiting, retrying, completed, failed
 //
