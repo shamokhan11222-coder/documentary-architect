@@ -12,6 +12,7 @@ import {
   setDefaultVoiceProfile,
 } from "@/lib/production";
 import { getActiveProvider } from "@/lib/provider";
+import { analyzeVoiceSample } from "@/lib/voice-analysis";
 import type { VoiceProfile, VoiceSettings } from "@/lib/types";
 
 const CONSENT_TEXT = "I confirm I own this voice or have permission to clone it.";
@@ -109,6 +110,24 @@ export function CustomVoice({
       toast.error("Could not save the voice sample. Try a shorter sample.");
       return;
     }
+
+    // Fingerprint the sample so generation can stay locked to its gender/pitch.
+    let analysis;
+    try {
+      analysis = await analyzeVoiceSample(sample.url);
+    } catch {
+      analysis = undefined;
+    }
+    if (analysis) {
+      if (analysis.seconds < 30) {
+        toast.warning(
+          `Sample is ${Math.round(analysis.seconds)}s. Use 30–60s of clean speech (no music/noise) for best accuracy.`,
+        );
+      }
+      if (analysis.gender !== "unknown") {
+        toast.info(`Detected ${analysis.gender} voice (~${analysis.pitchHz} Hz). Generation will stay ${analysis.gender}.`);
+      }
+    }
     const profile: VoiceProfile = {
       id,
       name: name.trim(),
@@ -122,6 +141,10 @@ export function CustomVoice({
       status: "ready",
       isDefault: profiles.length === 0, // first saved profile becomes default
       settings: currentSettings,
+      gender: analysis?.gender ?? "unknown",
+      pitchHz: analysis?.pitchHz,
+      sampleSeconds: analysis?.seconds,
+      analysisConfidence: analysis?.confidence,
     };
     saveVoiceProfile(profile);
     onUse(profile.id);
