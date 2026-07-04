@@ -244,10 +244,15 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
           : status === 403
             ? "Permission denied (OpenAI Images): "
             : `OpenAI Images error (${status}): `;
+    // Non-auth path: use RATE_LIMIT for 429, CREDITS_EXHAUSTED for quota, and
+    // PROVIDER_ERROR otherwise so the client surfaces the exact message rather
+    // than a generic "Invalid API key".
     const code =
-      oaCode === "insufficient_quota"
-        ? "CREDITS_EXHAUSTED"
-        : codeForStatus(status === 400 ? 500 : status);
+      status === 429
+        ? "RATE_LIMIT"
+        : oaCode === "insufficient_quota" || status === 402
+          ? "CREDITS_EXHAUSTED"
+          : "PROVIDER_ERROR";
     return jsonError(`${prefix}${detail}`, status, code);
   }
 
