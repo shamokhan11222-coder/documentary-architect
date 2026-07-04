@@ -144,6 +144,98 @@ function toInlineData(ref: string) {
   return { inlineData: { mimeType: m[1], data: m[2] } };
 }
 
+type GeminiModel = {
+  name: string;
+  displayName?: string;
+  supportedGenerationMethods?: string[];
+  supportedActions?: string[];
+};
+
+/** Bare model id (strip the "models/" prefix Google returns). */
+function bareModelId(name: string): string {
+  return name.replace(/^models\//, "");
+}
+
+/** A model is image-capable if its id/displayName mentions "image" or it lists
+ *  image generation among its supported methods/actions. */
+function isImageCapable(m: GeminiModel): boolean {
+  const hay = `${m.name} ${m.displayName ?? ""}`.toLowerCase();
+  if (hay.includes("image")) return true;
+  const methods = [...(m.supportedGenerationMethods ?? []), ...(m.supportedActions ?? [])]
+    .join(" ")
+    .toLowerCase();
+  return methods.includes("image") || methods.includes("predict");
+}
+
+/** List all Gemini models the key can see, across API versions. Returns the
+ *  raw list plus the endpoint used so callers can surface it for debugging. */
+async function fetchGeminiModels(
+  apiKey: string,
+): Promise<{ models: GeminiModel[]; endpoint: string; version: string } | { error: string; status: number }> {
+  let lastErr = "Unknown error";
+  let lastStatus = 502;
+  for (const version of GEMINI_API_VERSIONS) {
+    const endpoint = `${geminiModelsUrl(version)}?key=${encodeURIComponent(apiKey)}&pageSize=200`;
+    try {
+      const r = await fetch(endpoint);
+      if (r.ok) {
+        const data = (await r.json()) as { models?: GeminiModel[] };
+        return { models: data.models ?? [], endpoint: geminiModelsUrl(version), version };
+      }
+      lastStatus = r.status;
+      lastErr = (await r.text().catch(() => "")).slice(0, 200) || `HTTP ${r.status}`;
+      // Auth errors won't be fixed by trying another version.
+      if (r.status === 400 || r.status === 401 || r.status === 403) break;
+    } catch (e) {
+      lastErr = String(e).slice(0, 200);
+    }
+  }
+  return { error: lastErr, status: lastStatus };
+}
+
+/** Resolve which API version actually serves a given model id. Returns null if
+ *  no version has it (i.e. the configured model does not exist). */
+async function resolveGeminiModelVersion(
+  apiKey: string,
+  model: string,
+): Promise<string | null> {
+  for (const version of GEMINI_API_VERSIONS) {
+    const endpoint = `${geminiModelsUrl(version)}/${model}?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const r = await fetch(endpoint);
+      if (r.ok) return version;
+    } catch {
+      /* try next version */
+    }
+  }
+  return null;
+}
+
+/** Diagnostic endpoint — return the image-capable Gemini models for a key so
+ *  the UI can let the user pick a real, existing model. */
+async function listGeminiModels(apiKey: string): Promise<Response> {
+  if (!apiKey?.trim()) return jsonError("Add a Google Gemini API key first.", 400, "NO_PROVIDER");
+  const res = await fetchGeminiModels(apiKey.trim());
+  if ("error" in res) {
+    const msg =
+      res.status === 400 || res.status === 401 || res.status === 403
+        ? "Invalid API key — Gemini rejected the request."
+        : `Could not list Gemini models (${res.status}): ${res.error}`;
+    return jsonError(msg, res.status, res.status === 400 ? "AUTH_ERROR" : codeForStatus(res.status));
+  }
+  const imageModels = res.models.filter(isImageCapable).map((m) => ({
+    id: bareModelId(m.name),
+    displayName: m.displayName ?? bareModelId(m.name),
+  }));
+  const allModels = res.models.map((m) => bareModelId(m.name));
+  return Response.json({
+    endpoint: res.endpoint,
+    apiVersion: res.version,
+    imageModels,
+    allModels,
+  });
+}
+
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
   // Force an image-capable model. Never use a text model (e.g. gemini-2.5-flash).
