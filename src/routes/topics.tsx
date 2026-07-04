@@ -468,6 +468,7 @@ function ProjectsPage() {
           </div>
         </div>
       </div>
+      <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }
