@@ -501,41 +501,81 @@ function RecraftTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
   );
 }
 
-function ProviderStatus({
-  state,
-  message,
-  active,
-  onTest,
-  testing,
+/** Unified active-provider status card. Reflects ANY connected provider
+ *  (Gemini, OpenAI or Recraft) — never assumes Gemini. Shows the resolved
+ *  provider name, active model and last successful connection time. */
+function ActiveProviderStatus({
+  keys,
+  geminiMessage,
+  onTestGemini,
+  geminiTesting,
+  geminiState,
 }: {
-  state: "connected" | "failed" | "invalid" | "not_activated" | "activated";
-  message: string;
-  active: boolean;
-  onTest: () => void;
-  testing: boolean;
+  keys: ReturnType<typeof useApiKeys>;
+  geminiMessage: string;
+  onTestGemini: () => void;
+  geminiTesting: boolean;
+  geminiState: "idle" | "testing" | "connected" | "failed" | "invalid";
 }) {
-  const map = {
-    connected: { label: "Connected", cls: "text-green-600", icon: CheckCircle2 },
-    failed: { label: "Failed", cls: "text-red-600", icon: XCircle },
-    invalid: { label: "Invalid Key", cls: "text-red-600", icon: XCircle },
-    activated: { label: "Gemini Active", cls: "text-green-600", icon: CheckCircle2 },
-    not_activated: { label: "Not Activated — using built-in AI", cls: "text-muted-foreground", icon: CircleDashed },
-  } as const;
-  const s = map[state];
-  const Icon = s.icon;
+  const text = useActiveTextProvider();
+  const image = useActiveImageProvider();
+  const hasGeminiKey = keys.some((k) => k.provider === "Google Gemini" && k.apiKey.trim());
+
+  const fmtTime = (t?: number) =>
+    t ? new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "not tested yet";
+  const lastTestedFor = (providers: string[]) =>
+    keys.filter((k) => providers.includes(k.provider)).map((k) => k.lastTested).filter(Boolean).sort((a, b) => (b ?? 0) - (a ?? 0))[0];
+
+  const activeAny = !!text || !!image;
+  const failed = geminiState === "failed" || geminiState === "invalid";
+
+  const headCls = failed ? "text-red-600" : activeAny ? "text-green-600" : "text-muted-foreground";
+  const HeadIcon = failed ? XCircle : activeAny ? CheckCircle2 : CircleDashed;
+  const headLabel = failed
+    ? geminiState === "invalid"
+      ? "Invalid Key"
+      : "Failed"
+    : activeAny
+      ? "Connected"
+      : "Not Activated — using built-in AI";
+
+  const textName = text ? (text.name === "openai" ? "OpenAI" : "Gemini") : null;
+  const imageName = image ? (image.label) : null;
+
   return (
-    <div className="mt-6 flex items-center justify-between rounded-lg border border-border bg-card p-4">
-      <div className="flex items-center gap-2">
-        <Icon className={`h-5 w-5 ${s.cls}`} />
-        <div>
-          <div className={`text-sm font-medium ${s.cls}`}>Provider status: {s.label}</div>
-          {message && <div className="mt-0.5 text-xs text-muted-foreground">{message}</div>}
+    <div className="mt-6 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <HeadIcon className={`h-5 w-5 ${headCls}`} />
+          <div>
+            <div className={`text-sm font-medium ${headCls}`}>Provider status: {headLabel}</div>
+            {geminiMessage && <div className="mt-0.5 text-xs text-muted-foreground">{geminiMessage}</div>}
+          </div>
         </div>
+        {hasGeminiKey && (
+          <Button size="sm" variant="outline" onClick={onTestGemini} disabled={geminiTesting}>
+            {geminiTesting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+            Test Gemini
+          </Button>
+        )}
       </div>
-      <Button size="sm" variant="outline" onClick={onTest} disabled={!active || testing}>
-        {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-        Test Connection
-      </Button>
+
+      {activeAny && (
+        <div className="mt-3 grid gap-2 border-t border-border pt-3 text-xs">
+          {text && (
+            <div>
+              <span className="font-medium text-foreground">Text Provider:</span> {textName} · {text.textModel}
+              <span className="text-muted-foreground"> · last connected {fmtTime(lastTestedFor(["Google Gemini", "OpenAI"]))}</span>
+            </div>
+          )}
+          {image && (
+            <div>
+              <span className="font-medium text-foreground">Image Provider:</span> {imageName} · {image.imageModel}
+              <span className="text-muted-foreground"> · last connected {fmtTime(lastTestedFor(["Recraft", "OpenAI"]))}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
