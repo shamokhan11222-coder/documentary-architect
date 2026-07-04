@@ -172,21 +172,6 @@ function ApiKeysPage() {
     }
   }
 
-  const providerState:
-    | "connected"
-    | "failed"
-    | "invalid"
-    | "not_activated"
-    | "activated" = !active
-    ? "not_activated"
-    : status === "connected"
-      ? "connected"
-      : status === "failed"
-        ? "failed"
-        : status === "invalid"
-          ? "invalid"
-          : "activated";
-
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <div className="flex items-center gap-2">
