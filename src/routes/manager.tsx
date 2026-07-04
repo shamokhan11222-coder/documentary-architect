@@ -472,6 +472,13 @@ function ManagerPage() {
               <Button variant="ghost" disabled={busy} onClick={() => runPipeline(true)}>
                 <RotateCw className="mr-1 h-4 w-4" /> Regenerate all
               </Button>
+              {imagesSkipped && !busy && (
+                <Button variant="secondary" asChild>
+                  <Link to="/queue">
+                    <SkipForward className="mr-1 h-4 w-4" /> Generate Images Later
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
 
