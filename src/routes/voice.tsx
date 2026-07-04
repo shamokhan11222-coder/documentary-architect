@@ -292,6 +292,30 @@ function VoicePage() {
               <Ctrl label="Emotion" value={settings.emotion} onChange={(v) => update({ emotion: v })} />
               <Ctrl label="Pause Length" value={settings.pauseStrength} onChange={(v) => update({ pauseStrength: v })} />
               <Ctrl label="Pitch" value={settings.pitch} onChange={(v) => update({ pitch: v })} />
+              <Ctrl label="Age (young → older)" value={settings.age ?? 0.3} onChange={(v) => update({ age: v })} />
+              <Ctrl label="Energy" value={settings.energy ?? 0.5} onChange={(v) => update({ energy: v })} />
+              <Ctrl
+                label="Min Similarity %"
+                value={settings.similarityTarget ?? 0.9}
+                min={0.5}
+                max={0.99}
+                step={0.01}
+                onChange={(v) => update({ similarityTarget: v })}
+              />
+              <div>
+                <div className="mb-2 text-xs font-medium">Style</div>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  value={settings.style ?? "documentary"}
+                  onChange={(e) => update({ style: e.target.value as VoiceSettings["style"] })}
+                >
+                  <option value="documentary">Documentary</option>
+                  <option value="friendly">Friendly</option>
+                  <option value="narrative">Storyteller</option>
+                  <option value="educational">Educational</option>
+                  <option value="energetic">Energetic</option>
+                </select>
+              </div>
             </div>
 
             <Dictionary settings={settings} onChange={(dictionary) => update({ dictionary })} />
