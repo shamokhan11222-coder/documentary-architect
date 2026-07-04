@@ -87,29 +87,67 @@ export function isRateLimitError(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Hard timeouts so a slow/unresponsive provider can never hang forever.
+export const IMAGE_TIMEOUT_MS = 90_000;
+export const THUMBNAIL_TIMEOUT_MS = 90_000;
+const TIMEOUT_MESSAGE = "Request timed out. Provider may be slow or unavailable.";
+
+/** fetch() that aborts after `ms` and reports a clear timeout error. */
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new ImageGenError(TIMEOUT_MESSAGE, "TIMEOUT", null);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Timestamp of the last image request, used to enforce the Free Mode delay.
 let lastImageRequestAt = 0;
 
 async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
   recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
+  console.info("[image] request started", { provider: provider.name, model: provider.imageModel });
   // Puter AI generates entirely client-side via the browser SDK — no server call.
   if (provider.name === "puter") {
     try {
-      const img = await puterGenerateImage(prompt);
+      const img = await Promise.race([
+        puterGenerateImage(prompt),
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new ImageGenError(TIMEOUT_MESSAGE, "TIMEOUT", null)), IMAGE_TIMEOUT_MS),
+        ),
+      ]);
       recordTelemetry({ lastProvider: "puter", lastStatus: "success", lastError: null });
+      console.info("[image] response received", { provider: "puter" });
       return img;
     } catch (e) {
+      if (e instanceof ImageGenError && e.code === "TIMEOUT") {
+        recordTelemetry({ lastProvider: "puter", lastStatus: "error", lastError: e.message });
+        console.error("[image] request failed", { provider: "puter", error: e.message });
+        throw e;
+      }
       const msg = e instanceof Error ? e.message : "Puter image generation failed";
       recordTelemetry({ lastProvider: "puter", lastStatus: "error", lastError: msg });
+      console.error("[image] request failed", { provider: "puter", error: msg });
       const rateLimited = e instanceof PuterError && e.kind === "rate-limit";
       throw new ImageGenError(rateLimited ? `429 ${msg}` : msg, rateLimited ? "RATE_LIMIT" : "PROVIDER_ERROR", rateLimited ? 429 : null);
     }
   }
-  const res = await fetch("/api/generate-image", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, references, provider }),
-  });
+  const res = await fetchWithTimeout(
+    "/api/generate-image",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, references, provider }),
+    },
+    IMAGE_TIMEOUT_MS,
+  );
   if (!res.ok) {
     let msg = `Image generation failed (${res.status})`;
     let code: string | null = null;
@@ -121,11 +159,13 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
       /* ignore */
     }
     recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
+    console.error("[image] request failed", { provider: provider.name, status: res.status, error: msg });
     // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
     throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
   }
   const data = (await res.json()) as { image: string };
   recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
+  console.info("[image] response received", { provider: provider.name });
   return data.image;
 }
 
