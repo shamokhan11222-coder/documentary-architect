@@ -542,7 +542,10 @@ export const Route = createFileRoute("/api/generate-image")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as Body;
+        const raw = (await request.json()) as Body & ListBody;
+        // Diagnostic action: list available Gemini models for a key.
+        if (raw.action === "listGeminiModels") return listGeminiModels(raw.apiKey ?? "");
+        const body = raw as Body;
         const { provider } = body;
         if (!provider?.name) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
 
