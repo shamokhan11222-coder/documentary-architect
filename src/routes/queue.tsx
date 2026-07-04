@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Play, Pause, RotateCcw, ListChecks, ImagePlus, FastForward } from "lucide-react";
+import { Loader2, Play, Pause, RotateCcw, ListChecks, ImagePlus, FastForward, CheckCircle2, XCircle, FlaskConical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useVisualMap } from "@/lib/store";
 import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
-import { generateSceneImage, isRateLimitError } from "@/lib/generate-image";
+import { generateSceneImage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, type ImageSanityResult } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
@@ -43,6 +43,24 @@ function QueuePage() {
   const [currentScene, setCurrentScene] = useState<number | null>(null);
   const [rateMsg, setRateMsg] = useState<string>("");
   const rateHitsRef = useRef(0);
+  // Required image sanity test. Batch generation stays locked until ONE test
+  // image succeeds with the active provider.
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState<ImageSanityResult | null>(null);
+  const testPassed = test?.ok === true;
+
+  async function runSanityTest() {
+    setTesting(true);
+    setTest(null);
+    try {
+      const r = await generateTestImage();
+      setTest(r);
+      if (r.ok) toast.success(`Test image OK via ${r.provider} (${(r.ms / 1000).toFixed(1)}s)`);
+      else toast.error(r.error ?? "Test image failed");
+    } finally {
+      setTesting(false);
+    }
+  }
 
   function buildQueue() {
     if (!selected || !map) return;
@@ -153,6 +171,12 @@ function QueuePage() {
     const nums = pendingNums();
     if (!nums.length) return toast.info("Nothing pending");
     void runNumbers([nums[0]]);
+  }
+
+  function generateNext5() {
+    const nums = pendingNums();
+    if (!nums.length) return toast.info("Nothing pending");
+    void runNumbers(nums.slice(0, 5));
   }
 
   // Retry the scene that was interrupted (first not-yet-completed scene).
@@ -267,32 +291,81 @@ function QueuePage() {
             <div className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">{rateMsg}</div>
           )}
 
+          {/* Required image sanity test — batch generation is locked until this
+              produces ONE image with the active provider. */}
+          <div className="mt-4 rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <FlaskConical className="h-4 w-4" /> Image Sanity Test
+              </div>
+              <Button size="sm" onClick={runSanityTest} disabled={testing}>
+                {testing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="mr-1 h-3.5 w-3.5" />}
+                Generate 1 Test Image
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Prompt: “{IMAGE_SANITY_PROMPT}”. Batch buttons unlock only after this succeeds.
+            </p>
+            {test && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-[auto,1fr]">
+                {test.image && (
+                  <img src={test.image} alt="Test" className="h-24 w-24 rounded-md border border-border object-cover" />
+                )}
+                <div className="text-xs">
+                  <div className={`flex items-center gap-1.5 font-medium ${test.ok ? "text-green-600" : "text-red-600"}`}>
+                    {test.ok ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    {test.ok ? "Success" : "Failed"}
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-muted-foreground">
+                    <span>Provider</span><span className="font-medium text-foreground">{test.provider}</span>
+                    <span>Model</span><span className="font-medium text-foreground">{test.model}</span>
+                    <span>Request time</span><span className="font-medium text-foreground">{(test.ms / 1000).toFixed(1)}s</span>
+                  </div>
+                  {!test.ok && test.error && (
+                    <div className="mt-2 rounded-md bg-red-500/10 px-2 py-1.5 text-red-600">
+                      {test.rateLimited ? "Provider rate limit: " : "Error: "}{test.error}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!testPassed && (
+            <p className="mt-3 text-xs text-amber-600">
+              Run the sanity test above and get one successful image before batch generation unlocks.
+            </p>
+          )}
+
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" onClick={startSafeQueue} disabled={running}>
-              {running && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Start Safe Queue
+            <Button size="sm" onClick={startSafeQueue} disabled={running || !testPassed}>
+              {running && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Generate All
             </Button>
             {running ? (
               <Button size="sm" variant="secondary" onClick={pause}>
                 <Pause className="mr-1 h-3.5 w-3.5" /> Pause Queue
               </Button>
             ) : (
-              <Button size="sm" variant="secondary" onClick={startSafeQueue}>
+              <Button size="sm" variant="secondary" onClick={startSafeQueue} disabled={!testPassed}>
                 <Play className="mr-1 h-3.5 w-3.5" /> Resume Queue
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={continueFromLast} disabled={running}>
+            <Button size="sm" variant="outline" onClick={continueFromLast} disabled={running || !testPassed}>
               <FastForward className="mr-1 h-3.5 w-3.5" /> Continue From Last Scene
             </Button>
-            <Button size="sm" variant="outline" onClick={generateOne} disabled={running}>
-              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate One Image
+            <Button size="sm" variant="outline" onClick={generateOne} disabled={running || !testPassed}>
+              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate Next 1
             </Button>
-            <Button size="sm" variant="ghost" onClick={retryCurrent} disabled={running}>
+            <Button size="sm" variant="outline" onClick={generateNext5} disabled={running || !testPassed}>
+              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate Next 5
+            </Button>
+            <Button size="sm" variant="ghost" onClick={retryCurrent} disabled={running || !testPassed}>
               <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry Current
             </Button>
-            <Button size="sm" variant="ghost" onClick={retryFailed} disabled={running}>
+            <Button size="sm" variant="ghost" onClick={retryFailed} disabled={running || !testPassed}>
               <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry Failed
             </Button>
-            <Button size="sm" variant="ghost" onClick={retrySelected} disabled={running}>
+            <Button size="sm" variant="ghost" onClick={retrySelected} disabled={running || !testPassed}>
               Retry Selected ({selectedNums.size})
             </Button>
           </div>

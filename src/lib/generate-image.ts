@@ -351,3 +351,47 @@ export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<strin
   const prompt = buildThumbnailPrompt(idea, combinedArtDirection());
   return generate(prompt, images.slice(0, getCreditConfig().dnaReferences), thumbnailProviderPayload());
 }
+
+/** Result of the required one-image sanity test. Carries the exact provider,
+ *  model, timing, and the real provider error so nothing is hidden. */
+export type ImageSanityResult = {
+  ok: boolean;
+  provider: string;
+  model: string;
+  ms: number;
+  image?: string;
+  error?: string;
+  rateLimited?: boolean;
+};
+
+export const IMAGE_SANITY_PROMPT = "simple blue circle on white background";
+
+/** Generate exactly ONE test image with the active image provider using a
+ *  trivial prompt. Never runs the storyboard. Surfaces the exact provider,
+ *  model, request time and real error. Hard-capped at 90s by callImageApi. */
+export async function generateTestImage(): Promise<ImageSanityResult> {
+  const provider = imageProviderPayload();
+  if (!provider) {
+    return { ok: false, provider: "none", model: "—", ms: 0, error: IMAGE_PROVIDER_NOT_CONNECTED };
+  }
+  const start = Date.now();
+  try {
+    const image = await callImageApi(IMAGE_SANITY_PROMPT, [], provider);
+    return {
+      ok: true,
+      provider: provider.name,
+      model: provider.imageModel ?? "(default)",
+      ms: Date.now() - start,
+      image,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      provider: provider.name,
+      model: provider.imageModel ?? "(default)",
+      ms: Date.now() - start,
+      error: imageErrorMessage(e),
+      rateLimited: isRateLimitError(e),
+    };
+  }
+}
