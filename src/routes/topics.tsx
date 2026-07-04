@@ -297,14 +297,19 @@ function ProjectsPage() {
               {active.length} documentaries · {folders.length} folders in your studio
             </p>
           </div>
-          <div className="relative w-full sm:w-80">
-            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects, scripts, research…"
-              className="w-full rounded-xl border border-border/60 bg-card/50 py-2.5 pl-10 pr-3 text-sm transition-all duration-300 focus:border-brand/50 focus:bg-card focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] focus:outline-none"
-            />
+          <div className="flex w-full items-center gap-3 sm:w-auto">
+            <div className="relative w-full sm:w-80">
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search projects, scripts, research…"
+                className="w-full rounded-xl border border-border/60 bg-card/50 py-2.5 pl-10 pr-3 text-sm transition-all duration-300 focus:border-brand/50 focus:bg-card focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] focus:outline-none"
+              />
+            </div>
+            <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
+              <FolderPlus className="mr-2 h-4 w-4" /> New Project
+            </Button>
           </div>
         </div>
 
