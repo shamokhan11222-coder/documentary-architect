@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useVisualMap } from "@/lib/store";
 import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
-import { generateSceneImage } from "@/lib/generate-image";
+import { generateSceneImage, isRateLimitError } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
@@ -69,6 +69,13 @@ function QueuePage() {
         await putImage(sceneImageId(selected.id, n), url);
         setQueueItem(selected.id, { sceneNumber: n, status: "completed" });
       } catch (e) {
+        // Rate limits are not permanent failures — reset to pending so the scene
+        // is picked up later, keep completed images, and stop this batch.
+        if (isRateLimitError(e)) {
+          setQueueItem(selected.id, { sceneNumber: n, status: "pending" });
+          toast.warning("Free provider limit reached. Continue later.");
+          break;
+        }
         setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: humanizeError(e, "failed") });
         toast.error(`Scene ${n}: ${humanizeError(e, "generation failed")}`);
       }
