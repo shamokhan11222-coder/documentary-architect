@@ -326,6 +326,8 @@ function DebugStatus() {
         ? "OpenAI"
         : choice === "recraft"
           ? "Recraft V4.1 Utility Pro"
+          : choice === "puter"
+            ? "Puter AI"
           : choice === "fal"
             ? "Fal.ai"
             : choice === "replicate"
