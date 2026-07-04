@@ -13,6 +13,8 @@ import {
   deleteApiKey,
   markTested,
 } from "@/lib/apikeys";
+import { readLocal } from "@/lib/local";
+import type { ApiKeyEntry } from "@/lib/types";
 import {
   useActiveProvider,
   useImageProviderStatus,
@@ -48,6 +50,53 @@ function ApiKeysPage() {
     "idle" | "testing" | "connected" | "failed" | "invalid"
   >("idle");
   const [statusMsg, setStatusMsg] = useState<string>("");
+  const [formTesting, setFormTesting] = useState(false);
+
+  // Selecting Recraft pre-fills its required fields so Test Connection can enable.
+  function onProviderChange(next: ApiProvider) {
+    setProvider(next);
+    if (next === "Recraft") {
+      if (!modelName.trim()) setModelName("recraft-v4.1-utility-pro");
+      if (!purpose.trim()) setPurpose("images,thumbnail");
+    }
+  }
+
+  const canTestForm =
+    provider === "Recraft" && apiKey.trim().length > 0 && modelName.trim().length > 0;
+
+  // Test the Recraft connection using the current form values (no save required).
+  // On success, save the key and make Recraft the active Image + Thumbnail provider.
+  async function testFormConnection() {
+    if (!canTestForm) return;
+    setFormTesting(true);
+    try {
+      const p = {
+        name: "recraft" as const,
+        apiKey: apiKey.trim(),
+        imageModel: modelName.trim(),
+        fallback: false,
+      };
+      await testImageProvider(p);
+      saveApiKey({
+        provider: "Recraft",
+        apiKey: apiKey.trim(),
+        purpose: (purpose.trim() || "images,thumbnail"),
+        modelName: modelName.trim(),
+      });
+      saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
+      // Mark the just-saved key as tested so status shows Ready.
+      const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
+        (k) => k.provider === "Recraft" && k.apiKey === apiKey.trim(),
+      );
+      if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
+      setApiKey("");
+      toast.success("Recraft connected — set as active Image Provider");
+    } catch (e) {
+      toast.error(imageErrorMessage(e, "Recraft connection failed"));
+    } finally {
+      setFormTesting(false);
+    }
+  }
 
   function save() {
     if (!apiKey.trim()) {
@@ -147,7 +196,7 @@ function ApiKeysPage() {
           <select
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             value={provider}
-            onChange={(e) => setProvider(e.target.value as ApiProvider)}
+            onChange={(e) => onProviderChange(e.target.value as ApiProvider)}
           >
             {API_PROVIDERS.map((p) => (
               <option key={p} value={p}>
@@ -159,10 +208,16 @@ function ApiKeysPage() {
           <Input placeholder="API key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="h-9" />
           <Input placeholder="Purpose (e.g. voice, images)" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="h-9" />
         </div>
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-2">
           <Button size="sm" onClick={save}>
             <Plug className="mr-1 h-4 w-4" /> Save
           </Button>
+          {provider === "Recraft" && (
+            <Button size="sm" variant="outline" onClick={testFormConnection} disabled={!canTestForm || formTesting}>
+              {formTesting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+              Test Connection
+            </Button>
+          )}
         </div>
       </div>
 
