@@ -355,6 +355,7 @@ function VisualPage() {
       }
       await refreshHave();
       setFailed(new Set());
+      setRateLimited(new Set());
       toast.success(
         repaired > 0
           ? `${repaired} scene(s) marked pending — use Next 5/10/20 to generate.`
@@ -373,6 +374,7 @@ function VisualPage() {
       }
       setHave(new Set());
       setFailed(new Set());
+      setRateLimited(new Set());
       toast.success("Image status reset — all scenes are pending.");
     });
   }
