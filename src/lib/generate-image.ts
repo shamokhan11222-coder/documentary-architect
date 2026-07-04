@@ -192,7 +192,7 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     }
     recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
     console.error("[image] request failed", { provider: provider.name, status: res.status, error: msg });
-    // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
+    // Keep a 429 prefix for legacy rate-limit detectors, but image queue retry is disabled.
     throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
   }
   console.info("[AUDIT][image] response received", {
