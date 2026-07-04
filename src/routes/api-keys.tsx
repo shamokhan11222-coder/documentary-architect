@@ -371,7 +371,7 @@ function RecraftTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
     saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
     setTesting(true);
     try {
-      const provider = { name: "recraft" as const, apiKey: recraftKey.apiKey.trim(), imageModel: "recraftv4_1_pro", fallback: false };
+      const provider = { name: "recraft" as const, apiKey: recraftKey.apiKey.trim(), imageModel: "recraftv4_1_utility_pro", fallback: false };
       await testImageProvider(provider);
       markTested(recraftKey.id, IMAGE_PROVIDER_TEST_PASSED);
       toast.success("Recraft connected — set as active Image Provider");

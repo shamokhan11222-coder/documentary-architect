@@ -267,14 +267,14 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
 async function generateWithRecraft(body: Body, provider: Provider): Promise<Response> {
   const model = provider.imageModel && provider.imageModel.toLowerCase().startsWith("recraft")
     ? provider.imageModel
-    : "recraftv4_1_pro";
+    : "recraftv4_1_utility_pro";
   const upstream = await fetch(RECRAFT, {
     method: "POST",
     headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt: body.prompt,
       model,
-      size: "1820x1024",
+      size: "2688x1536",
       response_format: "url",
       n: 1,
     }),

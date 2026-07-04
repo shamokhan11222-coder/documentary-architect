@@ -113,7 +113,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "openai") return "gpt-image-1";
   if (choice === "fal") return "fal-ai/flux/schnell";
   if (choice === "replicate") return "black-forest-labs/flux-schnell";
-  if (choice === "recraft") return "recraftv4_1_pro";
+  if (choice === "recraft") return "recraftv4_1_utility_pro";
   return "";
 }
 
@@ -139,7 +139,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
     imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.5-flash-image";
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
-    imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_pro";
+    imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
   } else if (!imageModel) {
     imageModel = defaultImageModel(choice);
   }
