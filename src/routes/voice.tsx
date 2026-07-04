@@ -389,6 +389,22 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+function ValRow({ label, ok, value }: { label: string; ok: boolean; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-md border border-border px-2 py-1">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={ok ? "text-green-600 dark:text-green-400" : "text-amber-600"}>{value}</span>
+    </div>
+  );
+}
+function SummaryStatLegacy({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <div className="text-base font-semibold text-foreground">{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
 function Ctrl({
   label,
   value,
