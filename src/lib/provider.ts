@@ -38,7 +38,10 @@ export const GEMINI_UNSUPPORTED_MESSAGE =
 // Separate Gemini models per task. The text model must never be used for image
 // generation, and the image model must never be used for text.
 export const GEMINI_TEXT_MODEL_DEFAULT = "gemini-2.5-flash";
-export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.0-flash-preview-image-generation";
+// Current, existing Gemini image model. The old
+// "gemini-2.0-flash-preview-image-generation" id no longer exists on v1beta
+// (404). The real model is resolved dynamically before every request.
+export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
 
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
