@@ -278,6 +278,36 @@ export type GeminiModelList = {
   allModels: string[];
 };
 
+export type GeminiDiagnostics = {
+  ok: boolean;
+  error?: string;
+  host: string;
+  endpoint?: string;
+  apiVersion?: string;
+  apiVersions?: string[];
+  authMethod: string;
+  requestUrl?: string;
+  httpStatus?: number;
+  ms?: number;
+  imageModel?: string | null;
+  responseBody?: string;
+};
+
+/** Diagnostic: run a full raw Gemini connection check (no content generated).
+ *  Returns the request URL, API version, HTTP status and full response body. */
+export async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<GeminiDiagnostics> {
+  const res = await fetchWithTimeout(
+    "/api/generate-image",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "geminiDiagnostics", apiKey, imageModel }),
+    },
+    IMAGE_TIMEOUT_MS,
+  );
+  return (await res.json()) as GeminiDiagnostics;
+}
+
 /** Diagnostic: list the Gemini models a key can access, filtered to image-capable
  *  ones. Returns the exact endpoint + API version used for debugging. */
 export async function listGeminiModels(apiKey: string): Promise<GeminiModelList> {
