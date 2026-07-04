@@ -205,8 +205,8 @@ export function useImageProviderStatus(): ReturnType<typeof getImageProviderStat
   return statusFor(settings.image, toImageProvider(settings.image, findImageKey(settings.image, list)));
 }
 
-/** Image generation is always available: an external provider when connected,
- *  otherwise the built-in AI. Generation is therefore never silently disabled. */
+/** Image generation requires a connected external image provider (Recraft).
+ *  The built-in AI is never used for images. */
 function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null) {
   if (external) {
     return {
@@ -220,19 +220,20 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
   }
   return {
     choice,
-    label: "Built-in AI",
-    connected: true,
-    testPassed: true,
-    ok: true,
-    message: "Built-in AI ready.",
+    label: "Recraft V4.1 Utility Pro",
+    connected: false,
+    testPassed: false,
+    ok: false,
+    message: IMAGE_PROVIDER_NOT_CONNECTED,
   };
 }
 
-/** Body payload passed to the image API route so the server can route. Uses the
- *  connected external provider when available, otherwise routes to built-in AI. */
+/** Body payload passed to the image API route so the server can route. Returns
+ *  the connected external image provider (Recraft), or null when none is
+ *  connected — the built-in AI is never used for images. */
 export function imageProviderPayload() {
   const p = getActiveImageProvider();
-  if (!p) return { name: "builtin" as const };
+  if (!p) return null;
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
@@ -240,12 +241,12 @@ export function thumbnailProviderPayload() {
   return imageProviderPayload();
 }
 
-/** Whether image generation can start with the currently selected provider.
- *  When the Image Provider is routed to an external provider that is not
- *  connected, generation must NOT silently fall back to built-in AI. */
+/** Whether image generation can start. Requires a connected Recraft key —
+ *  generation never falls back to the built-in AI. */
 export function imageProviderReady(): { ok: boolean; message?: string } {
-  // Image generation is always possible (built-in AI is the fallback path).
-  return { ok: true };
+  return getActiveImageProvider()
+    ? { ok: true }
+    : { ok: false, message: IMAGE_PROVIDER_NOT_CONNECTED };
 }
 
 export function ttsProviderPayload() {
