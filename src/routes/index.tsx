@@ -243,8 +243,8 @@ function Workspace() {
                   Generate a fresh idea and Stickmax will help you build the whole story.
                 </p>
               </div>
-              <Button asChild size="lg" className="btn-press shrink-0">
-                <Link to="/topics"><Wand2 className="mr-2 h-4 w-4" /> Generate Ideas</Link>
+              <Button size="lg" className="btn-press shrink-0" onClick={() => setCreateOpen(true)}>
+                <Wand2 className="mr-2 h-4 w-4" /> Create Project
               </Button>
             </div>
           )}
