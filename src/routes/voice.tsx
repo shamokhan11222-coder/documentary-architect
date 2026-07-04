@@ -173,8 +173,8 @@ function VoicePage() {
         // reuse the preview slot instead of a real block index
       });
       // generateVoiceBlock stores under voice:__preview__:-1
-      const { getImage } = await import("@/lib/images");
-      const url = await getImage(voiceBlockId("__preview__", -1));
+      const { loadImage } = await import("@/lib/images");
+      const url = await loadImage(voiceBlockId("__preview__", -1));
       setPreviewUrl(url ?? null);
       void key;
       toast.success("Clone preview ready");
