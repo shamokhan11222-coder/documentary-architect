@@ -309,7 +309,7 @@ function QueuePage() {
               >
                 <span className="font-medium">Scene {i.sceneNumber}</span>
                 <span className={["rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_STYLE[i.status]].join(" ")}>
-                  {i.status === "pending" ? "waiting" : i.status}
+                  {i.status === "pending" ? "waiting" : i.status === "rate-limited" ? "rate limited" : i.status}
                 </span>
               </button>
             ))}
