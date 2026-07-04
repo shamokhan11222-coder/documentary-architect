@@ -316,16 +316,31 @@ function ApiKeysPage() {
  * generation is allowed, so it's obvious why generation is (or isn't) blocked.
  */
 function DebugStatus() {
-  const active = useActiveProvider();
   const settings = useProviderSettings();
   const imageStatus = useImageProviderStatus();
+  const textProvider = useActiveTextProvider();
   const admin = useIsAdmin();
   const unlimited = useHasUnlimitedAccess();
   const allowed = useCanGenerate();
   const tele = useTelemetry();
 
-  const label = (choice: ProviderChoice) =>
-    active && choice === "gemini" ? "Gemini" : "Built-in AI";
+  const providerLabel = (choice: ProviderChoice) =>
+    choice === "gemini"
+      ? "Gemini"
+      : choice === "openai"
+        ? "OpenAI"
+        : choice === "recraft"
+          ? "Recraft V4.1 Utility Pro"
+          : choice === "fal"
+            ? "Fal.ai"
+            : choice === "replicate"
+              ? "Replicate"
+              : "Built-in AI";
+  const textLabel = textProvider
+    ? textProvider.name === "openai"
+      ? `OpenAI · ${textProvider.textModel}`
+      : `Gemini · ${textProvider.textModel}`
+    : "Built-in AI";
   const creditMode = admin
     ? "Developer Unlimited"
     : unlimited
@@ -335,7 +350,7 @@ function DebugStatus() {
     tele.lastProvider === "gemini"
       ? "Gemini"
       : tele.lastProvider === "openai"
-        ? "OpenAI Images"
+        ? "OpenAI"
         : tele.lastProvider === "fal"
           ? "Fal.ai"
           : tele.lastProvider === "replicate"
@@ -352,10 +367,11 @@ function DebugStatus() {
     <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs">
       <div className="mb-2 font-sans text-sm font-medium">Diagnostics</div>
       <div className="grid gap-1">
-        <div>Active Text Provider: {label(settings.text)}</div>
+        <div>Active Text Provider: {textLabel}</div>
         <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
         <div>Image Provider Status: {imageStatus.message}</div>
-        <div>Active Voice Provider: {label(settings.voice)}</div>
+        <div>Active Thumbnail Provider: {providerLabel(settings.thumbnail)}</div>
+        <div>Active Voice Provider: {providerLabel(settings.voice)}</div>
         <div>Fallback to Built-in: {settings.fallback ? "On" : "Off"}</div>
         <div>Credit Mode: {creditMode}</div>
         <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
