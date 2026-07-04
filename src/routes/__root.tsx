@@ -232,6 +232,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "apple-touch-icon", href: "/app-icon.svg" },
     ],
+    scripts: [
+      // Official Puter.js SDK — browser-side AI (image generation) with no API key.
+      { src: "https://js.puter.com/v2/", async: true },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,

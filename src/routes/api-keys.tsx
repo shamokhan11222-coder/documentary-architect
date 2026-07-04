@@ -326,6 +326,8 @@ function DebugStatus() {
         ? "OpenAI"
         : choice === "recraft"
           ? "Recraft V4.1 Utility Pro"
+          : choice === "puter"
+            ? "Puter AI"
           : choice === "fal"
             ? "Fal.ai"
             : choice === "replicate"
@@ -352,6 +354,8 @@ function DebugStatus() {
             ? "Replicate"
       : tele.lastProvider === "recraft"
         ? "Recraft V4.1 Utility Pro"
+      : tele.lastProvider === "puter"
+        ? "Puter AI"
       : tele.lastProvider === "builtin"
         ? "Built-in AI"
         : "—";
@@ -416,6 +420,7 @@ function ImageRouteRow({
         onChange={(e) => onChange(e.target.value as ProviderChoice)}
       >
         <option value="recraft">Recraft V4.1 Utility Pro</option>
+        <option value="puter">Puter AI</option>
         <option value="gemini">Gemini Image</option>
         <option value="openai">OpenAI Images</option>
         <option value="fal">Fal.ai</option>

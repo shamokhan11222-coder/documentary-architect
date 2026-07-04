@@ -16,6 +16,7 @@ import {
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
+import { usePuterStatus, type PuterStatus } from "@/lib/puter-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
   imageProviderPayload,
@@ -47,6 +48,22 @@ export const Route = createFileRoute("/visual")({
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const pad3 = (n: number) => String(n).padStart(3, "0");
+
+/** Human-readable label for the Puter AI provider status. */
+function puterStatusLabel(s: PuterStatus): string {
+  switch (s) {
+    case "connected":
+      return "Connected";
+    case "generating":
+      return "Generating";
+    case "rate-limited":
+      return "Rate Limited";
+    case "offline":
+      return "Offline";
+    default:
+      return "Ready";
+  }
+}
 
 /** A stored image only counts as "generated" if it's a real, non-empty
  *  data/http image URL. Empty strings or junk left over from a failed run
@@ -138,6 +155,7 @@ function VisualPage() {
   const activeImageProvider = useActiveImageProvider();
   const telemetry = useTelemetry();
   const freeMode = useFreeMode();
+  const puterStatus = usePuterStatus();
   const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
@@ -325,6 +343,12 @@ function VisualPage() {
     setBusy("test-provider");
     void (async () => {
       try {
+        if (imageProviderStatus.choice === "puter") {
+          const ok = typeof window !== "undefined" && !!(window as unknown as { puter?: { ai?: { txt2img?: unknown } } }).puter?.ai?.txt2img;
+          if (ok) toast.success("Puter AI is ready — no API key required.");
+          else toast.error("Puter AI SDK not loaded yet. Reload the page and try again.");
+          return;
+        }
         const provider = imageProviderPayload();
         if (!provider) {
           toast.error("Recraft is not connected. Add your Recraft API key in API Settings.");
@@ -542,6 +566,8 @@ function VisualPage() {
                 value={imageProviderStatus.choice}
                 onChange={(e) => handleImageProviderChange(e.target.value as ProviderChoice)}
               >
+                <option value="puter">Puter AI</option>
+                <option value="recraft">Recraft V4.1 Utility Pro</option>
                 <option value="gemini">Gemini Image</option>
                 <option value="openai">OpenAI Images</option>
                 <option value="fal">Fal.ai</option>
@@ -582,6 +608,9 @@ function VisualPage() {
           <div className="mt-3 grid gap-1 font-mono text-xs text-muted-foreground">
             <div>Active Image Provider: {imageProviderStatus.connected ? imageProviderStatus.label : "Built-in AI disabled"}</div>
             <div>Provider Status: {imageProviderStatus.message}</div>
+            {imageProviderStatus.choice === "puter" && (
+              <div>Puter AI: {puterStatusLabel(busy?.startsWith("all") || busy?.startsWith("next") || busy === "one" || busy === "next-available" ? "generating" : puterStatus)}</div>
+            )}
             <div>Last Image Error: {telemetry.lastError ?? "—"}</div>
           </div>
         </div>

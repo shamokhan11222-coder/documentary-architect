@@ -17,7 +17,7 @@ export interface ActiveProvider {
   ttsModel: string;
 }
 
-export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "recraft" | "builtin";
+export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "recraft" | "puter" | "builtin";
 
 export interface ActiveImageProvider {
   id: string;
@@ -44,7 +44,15 @@ export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
 };
 
 // ---- Provider routing settings (which provider handles each task) ----
-export type ProviderChoice = "gemini" | "builtin" | "openai" | "fal" | "replicate" | "recraft" | "disabled";
+export type ProviderChoice =
+  | "gemini"
+  | "builtin"
+  | "openai"
+  | "fal"
+  | "replicate"
+  | "recraft"
+  | "puter"
+  | "disabled";
 
 export interface ProviderSettings {
   text: ProviderChoice;
@@ -153,6 +161,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "fal") return "fal-ai/flux/schnell";
   if (choice === "replicate") return "black-forest-labs/flux-schnell";
   if (choice === "recraft") return "recraftv4_1_utility_pro";
+  if (choice === "puter") return "puter-txt2img";
   return "";
 }
 
@@ -162,10 +171,26 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "fal") return "Fal.ai";
   if (choice === "replicate") return "Replicate";
   if (choice === "recraft") return "Recraft V4.1 Utility Pro";
+  if (choice === "puter") return "Puter AI";
   return "Built-in AI disabled";
 }
 
+/** Puter AI needs no API key and runs entirely in the browser, so it resolves
+ *  to a synthetic "connected" provider whenever it is the selected choice. */
+function puterImageProvider(): ActiveImageProvider {
+  return {
+    id: "puter",
+    name: "puter",
+    label: "Puter AI",
+    apiKey: "",
+    imageModel: "puter-txt2img",
+    testPassed: true,
+  };
+}
+
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
+  // Puter requires no key — it is always available client-side.
+  if (choice === "puter") return puterImageProvider();
   if (!entry) return null;
   if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate" && choice !== "recraft")
     return null;
@@ -261,6 +286,16 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
       message: external.testPassed ? "Ready" : "Connected — click Test to verify.",
     };
   }
+  if (choice === "puter") {
+    return {
+      choice,
+      label: "Puter AI",
+      connected: true,
+      testPassed: true,
+      ok: true,
+      message: "Ready (no API key required)",
+    };
+  }
   return {
     choice,
     label: "Recraft V4.1 Utility Pro",
@@ -278,6 +313,17 @@ export function imageProviderPayload() {
   const p = getActiveImageProvider();
   if (!p) return null;
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
+}
+
+/** First connected non-Puter image provider (Gemini or Recraft), used as an
+ *  automatic fallback when Puter AI is unavailable or rate limited. */
+export function fallbackImageProviderPayload() {
+  const list = readLocal<ApiKeyEntry[]>(KEY, []);
+  for (const choice of ["gemini", "recraft", "openai"] as ProviderChoice[]) {
+    const p = toImageProvider(choice, findImageKey(choice, list));
+    if (p) return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
+  }
+  return null;
 }
 
 export function thumbnailProviderPayload() {
