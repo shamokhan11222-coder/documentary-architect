@@ -371,6 +371,7 @@ function DebugStatus() {
         <div>Image Provider Status: {imageStatus.message}</div>
         <div>Active Thumbnail Provider: {providerLabel(settings.thumbnail)}</div>
         <div>Active Voice Provider: {providerLabel(settings.voice)}</div>
+        <div>OpenAI Status: Disabled</div>
         <div>Fallback to Built-in: {settings.fallback ? "On" : "Off"}</div>
         <div>Credit Mode: {creditMode}</div>
         <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
