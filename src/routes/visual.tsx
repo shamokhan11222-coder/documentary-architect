@@ -633,6 +633,7 @@ function VisualPage() {
             <span>· Pending {Math.max(0, progress.total - progress.done)}</span>
             <span>· Completed {have.size}</span>
             <span>· Failed {failed.size}</span>
+            {rateLimited.size > 0 && <span>· Waiting (rate limited) {rateLimited.size}</span>}
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
