@@ -79,8 +79,8 @@ function ThumbnailPage() {
 
   // Generate images for thumbnail ideas from `start` up to `count` total ideas,
   // skipping any that already have an image. Never redoes finished thumbnails.
-  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false) {
-    if (!selected) return;
+  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false): Promise<"ok" | "provider-limit"> {
+    if (!selected) return "ok";
     // Thumbnail Free Mode: only ever generate ONE thumbnail — never a batch of
     // variations — to avoid provider rate-limit spam.
     if (getFreeMode()) end = Math.min(end, start + 1);
@@ -100,7 +100,8 @@ function ThumbnailPage() {
         if (isRateLimitError(e)) {
           setProviderLimit(true);
           toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
-          break;
+          setProgress(null);
+          return "provider-limit";
         }
         const msg = imageErrorMessage(e, "failed");
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
@@ -109,6 +110,7 @@ function ThumbnailPage() {
       setProgress({ done: i + 1, total: end });
     }
     setProgress(null);
+    return "ok";
   }
 
   // First click: create ideas and render only ONE thumbnail (or a few in Best
@@ -126,8 +128,8 @@ function ThumbnailPage() {
         },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
-      await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
-      toast.success("First thumbnail ready. Not happy? Generate alternatives.");
+      const status = await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
+      if (status === "ok") toast.success("First thumbnail ready. Not happy? Generate alternatives.");
     });
   }
 
@@ -136,8 +138,8 @@ function ThumbnailPage() {
     if (!selected || !pack) return;
     return withBusy("alt", async () => {
       setProviderLimit(false);
-      await renderImages(pack.ideas, 0, pack.ideas.length);
-      toast.success("Alternatives generated");
+      const status = await renderImages(pack.ideas, 0, pack.ideas.length);
+      if (status === "ok") toast.success("Alternatives generated");
     });
   }
 
@@ -148,9 +150,18 @@ function ThumbnailPage() {
       const updated = (await regen({ data: { topic: selected.topic, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
-      const url = await generateThumbnailImage(updated);
-      await putImage(thumbImageId(selected.id, index), url);
-      toast.success("Thumbnail regenerated");
+      try {
+        const url = await generateThumbnailImage(updated);
+        await putImage(thumbImageId(selected.id, index), url);
+        toast.success("Thumbnail regenerated");
+      } catch (e) {
+        if (isRateLimitError(e)) {
+          setProviderLimit(true);
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+          return;
+        }
+        throw e;
+      }
     });
   }
 
