@@ -14,7 +14,8 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider, imageErrorMessage } from "@/lib/generate-image";
+import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError } from "@/lib/generate-image";
+import { useFreeMode, setFreeMode } from "@/lib/free-mode";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
   imageProviderPayload,
@@ -136,6 +137,7 @@ function VisualPage() {
   const imageProviderStatus = useImageProviderStatus();
   const activeImageProvider = useActiveImageProvider();
   const telemetry = useTelemetry();
+  const freeMode = useFreeMode();
   const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
@@ -144,6 +146,8 @@ function VisualPage() {
   // and which failed on the last run (for "Retry Failed Only").
   const [have, setHave] = useState<Set<number>>(new Set());
   const [failed, setFailed] = useState<Set<number>>(new Set());
+  // Scenes deferred by a rate limit — NOT permanent failures. They resume later.
+  const [rateLimited, setRateLimited] = useState<Set<number>>(new Set());
 
   const refreshHave = useCallback(async () => {
     if (!selected || !map || !Array.isArray(map.scenes)) {
@@ -224,6 +228,11 @@ function VisualPage() {
       n.delete(scene.sceneNumber);
       return n;
     });
+    setRateLimited((prev) => {
+      const n = new Set(prev);
+      n.delete(scene.sceneNumber);
+      return n;
+    });
   }
 
   // Generate a batch of images, running only over the scenes passed in. Stops
@@ -248,6 +257,14 @@ function VisualPage() {
           await genImage(scenes[i]);
         } catch (e) {
           const msg = imageErrorMessage(e, "failed");
+          // Rate limits are NEVER permanent failures. Mark the scene as
+          // "rate limited / waiting", keep every completed image, and stop so
+          // the user can continue from the next pending scene later.
+          if (isRateLimitError(e)) {
+            setRateLimited((prev) => new Set(prev).add(scenes[i].sceneNumber));
+            toast.warning("Free provider limit reached. Continue later.");
+            break;
+          }
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
           if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
             toast.error("Credits exhausted. Completed images are saved — resume later.");
@@ -269,6 +286,18 @@ function VisualPage() {
 
   function generateNext(n: number) {
     return runBatch(`next-${n}`, pendingScenes().slice(0, n));
+  }
+
+  // Free Mode: generate exactly one image (the first pending scene).
+  function generateOne() {
+    return runBatch("one", pendingScenes().slice(0, 1));
+  }
+
+  // Generate the next available pending scene, skipping ones already deferred by
+  // a rate limit in this session so it moves forward.
+  function generateNextAvailable() {
+    const next = pendingScenes().filter((s) => !rateLimited.has(s.sceneNumber)).slice(0, 1);
+    return runBatch("next-available", next.length ? next : pendingScenes().slice(0, 1));
   }
 
   // Generate every pending scene, in order (001, 002, 003 …). Sequential —
@@ -326,6 +355,7 @@ function VisualPage() {
       }
       await refreshHave();
       setFailed(new Set());
+      setRateLimited(new Set());
       toast.success(
         repaired > 0
           ? `${repaired} scene(s) marked pending — use Next 5/10/20 to generate.`
@@ -344,6 +374,7 @@ function VisualPage() {
       }
       setHave(new Set());
       setFailed(new Set());
+      setRateLimited(new Set());
       toast.success("Image status reset — all scenes are pending.");
     });
   }
@@ -441,9 +472,17 @@ function VisualPage() {
         </Button>
         {hasMap && (
           <>
-            <Button onClick={generateAll} disabled={!!busy || !canGenerateImages}>
+            <Button onClick={generateAll} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Images className="mr-2 h-4 w-4" /> Generate All Images
+            </Button>
+            <Button variant="secondary" onClick={generateOne} disabled={!!busy || !canGenerateImages}>
+              {busy === "one" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <ImagePlus className="mr-2 h-4 w-4" /> Generate 1 Image
+            </Button>
+            <Button variant="secondary" onClick={generateNextAvailable} disabled={!!busy || !canGenerateImages}>
+              {busy === "next-available" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <PlayCircle className="mr-2 h-4 w-4" /> Generate Next Available Image
             </Button>
             <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -513,6 +552,23 @@ function VisualPage() {
               Test Image Provider
             </Button>
           </div>
+          <label className="mt-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={freeMode}
+              onChange={(e) => setFreeMode(e.target.checked)}
+            />
+            <span className="font-medium">Free Mode</span>
+            <span className="text-muted-foreground">
+              Generates 1 image at a time, waits 60s between requests, and auto-retries rate limits (1m / 3m / 5m). "Generate All" is disabled.
+            </span>
+          </label>
+          {rateLimited.size > 0 && (
+            <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+              Free provider limit reached. Continue later. {rateLimited.size} scene(s) waiting — completed images are saved and you can resume from the next pending scene.
+            </p>
+          )}
           {!imageProviderStatus.connected && (
             <p className="mt-3 text-xs text-amber-600">
               Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.
@@ -577,6 +633,7 @@ function VisualPage() {
             <span>· Pending {Math.max(0, progress.total - progress.done)}</span>
             <span>· Completed {have.size}</span>
             <span>· Failed {failed.size}</span>
+            {rateLimited.size > 0 && <span>· Waiting (rate limited) {rateLimited.size}</span>}
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div

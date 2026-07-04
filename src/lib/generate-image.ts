@@ -8,6 +8,7 @@ import { getCreditConfig } from "./credit-mode";
 import { imageProviderPayload, thumbnailProviderPayload, IMAGE_PROVIDER_NOT_CONNECTED } from "./provider";
 import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
+import { getFreeMode, FREE_MODE_DELAY_MS, FREE_MODE_RETRY_MS } from "./free-mode";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
@@ -56,33 +57,77 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
   return raw || fallback;
 }
 
+/** Whether an error is a provider rate-limit (HTTP 429 / RATE_LIMIT code). */
+export function isRateLimitError(err: unknown): boolean {
+  if (err instanceof ImageGenError) return err.code === "RATE_LIMIT" || err.status === 429;
+  const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota/i.test(msg);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Timestamp of the last image request, used to enforce the Free Mode delay.
+let lastImageRequestAt = 0;
+
+async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
+  recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
+  const res = await fetch("/api/generate-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, references, provider }),
+  });
+  if (!res.ok) {
+    let msg = `Image generation failed (${res.status})`;
+    let code: string | null = null;
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+      if (j?.code) code = j.code;
+    } catch {
+      /* ignore */
+    }
+    recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
+    // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
+    throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
+  }
+  const data = (await res.json()) as { image: string };
+  recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
+  return data.image;
+}
+
 async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
+  const free = getFreeMode();
   return enqueueAi(async () => {
-    recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
-    const res = await fetch("/api/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, references, provider }),
-    });
-    if (!res.ok) {
-      let msg = `Image generation failed (${res.status})`;
-      let code: string | null = null;
-      try {
-        const j = await res.json();
-        if (j?.error) msg = j.error;
-        if (j?.code) code = j.code;
-      } catch {
-        /* ignore */
-      }
-      // Preserve status so the queue can detect rate limits (429) and retry.
-      recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
-      // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
-      throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
+    // Free Mode: enforce a minimum 60s gap between image requests.
+    if (free && lastImageRequestAt > 0) {
+      const since = Date.now() - lastImageRequestAt;
+      if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
     }
-    const data = (await res.json()) as { image: string };
-    recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
-    return data.image;
+    try {
+      const img = await callImageApi(prompt, references, provider);
+      lastImageRequestAt = Date.now();
+      return img;
+    } catch (e) {
+      // Outside Free Mode (or non-rate-limit errors), let the shared queue's
+      // own backoff handle it.
+      if (!free || !isRateLimitError(e)) throw e;
+      // Free Mode: auto-retry rate-limited requests on a slow schedule.
+      for (const wait of FREE_MODE_RETRY_MS) {
+        await sleep(wait);
+        try {
+          const img = await callImageApi(prompt, references, provider);
+          lastImageRequestAt = Date.now();
+          return img;
+        } catch (e2) {
+          if (!isRateLimitError(e2)) throw e2;
+        }
+      }
+      lastImageRequestAt = Date.now();
+      // Message intentionally avoids the "rate limit" wording so the shared
+      // queue does NOT retry again — the scene is left to resume later.
+      throw new ImageGenError("Free provider limit reached. Continue later.", "RATE_LIMIT", 429);
+    }
   }, "Image");
 }
 
