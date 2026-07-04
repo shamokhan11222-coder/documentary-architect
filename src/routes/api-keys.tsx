@@ -480,6 +480,61 @@ function TextRouteRow({
 /** Test Recraft Connection — validates the saved Recraft key with a minimal
  *  request and, on success, sets Recraft as the active Image Provider. */
 function RecraftTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
+  return <ImageKeyTest keys={keys} />;
+}
+
+/** Test Gemini Image — validates the saved Gemini key against the Gemini IMAGE
+ *  model endpoint (never the text activation path) and, on success, sets Gemini
+ *  as the active Image + Thumbnail provider. */
+function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
+  const activeImage = useActiveImageProvider();
+  const [testing, setTesting] = useState(false);
+  const geminiKey = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim());
+
+  async function run() {
+    if (!geminiKey) {
+      toast.error("Add a Google Gemini API key first (Provider: Google Gemini).");
+      return;
+    }
+    // Route image + thumbnail to Gemini so the payload targets the image model.
+    saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
+    setTesting(true);
+    try {
+      await testImageProvider({
+        name: "gemini",
+        apiKey: geminiKey.apiKey.trim(),
+        imageModel: GEMINI_IMAGE_MODEL_DEFAULT,
+        fallback: false,
+      });
+      toast.success("Gemini Image connected — set as active Image Provider");
+    } catch (e) {
+      // Surface the REAL Gemini error rather than a generic failure.
+      toast.error(imageErrorMessage(e, "Gemini Image connection failed"));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border p-2">
+      <div className="min-w-0 text-xs text-muted-foreground">
+        {geminiKey
+          ? activeImage?.name === "gemini"
+            ? `Gemini Image active · ${GEMINI_IMAGE_MODEL_DEFAULT}`
+            : "Gemini key detected — test to activate Gemini Image."
+          : "No Gemini key yet — add one above (Provider: Google Gemini)."}
+      </div>
+      <Button size="sm" variant="outline" onClick={run} disabled={testing || !geminiKey}>
+        {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+        Test Gemini Image
+      </Button>
+    </div>
+  );
+}
+
+/** Test Recraft Connection — validates the saved Recraft key with a minimal
+ *  request and, on success, sets Recraft as the active Image Provider. */
+function ImageKeyTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
   const activeImage = useActiveImageProvider();
   const [testing, setTesting] = useState(false);
   const recraftKey = keys.find((k) => k.provider === "Recraft" && k.apiKey.trim());
