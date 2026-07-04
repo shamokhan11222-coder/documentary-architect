@@ -12,10 +12,25 @@ import { getFreeMode, FREE_MODE_DELAY_MS, FREE_MODE_RETRY_MS } from "./free-mode
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
-  return [getVisualInstructions(), getInstructionText()]
+  return [getVisualInstructions(), getInstructionText(), selectedVisualStyle()]
     .map((s) => s.trim())
     .filter(Boolean)
     .join(" ");
+}
+
+/** The Visual Style chosen at project creation, read from the active project so
+ *  every Recraft prompt stays consistent with the user's selected look. */
+function selectedVisualStyle(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const id = JSON.parse(localStorage.getItem("docos.selectedTopic") ?? "null");
+    if (!id) return "";
+    const topics = JSON.parse(localStorage.getItem("docos.topics") ?? "[]") as Array<{ id: string; visualStyle?: string }>;
+    const style = topics.find((t) => t?.id === id)?.visualStyle?.trim();
+    return style ? `Visual style: ${style}.` : "";
+  } catch {
+    return "";
+  }
 }
 
 type ImageProviderPayload = NonNullable<ReturnType<typeof imageProviderPayload>>;
