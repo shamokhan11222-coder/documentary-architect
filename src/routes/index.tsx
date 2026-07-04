@@ -52,6 +52,7 @@ import { nextStage, type StageKey } from "@/lib/manager";
 import { loadImage } from "@/lib/images";
 import { Reveal, AIThinking } from "@/components/motion";
 import { LogoLoading } from "@/components/Logo";
+import { CreateProjectModal } from "@/components/CreateProjectModal";
 import type { GeneratedIdea, IdeaCategory, Story, VisualMap } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 
@@ -109,6 +110,7 @@ function Workspace() {
   const active = selected ?? topics[0] ?? null;
   const activeId = active?.id ?? null;
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Time/date-dependent values must not run during SSR/first render — they
   // differ between server and client and cause a hydration crash. Compute
@@ -173,8 +175,8 @@ function Workspace() {
         </form>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button asChild size="lg" className="btn-press">
-            <Link to="/topics"><Wand2 className="mr-2 h-4 w-4" /> New Idea</Link>
+          <Button size="lg" className="btn-press" onClick={() => setCreateOpen(true)}>
+            <Wand2 className="mr-2 h-4 w-4" /> New Idea
           </Button>
           <Button onClick={continueWorking} size="lg" variant="secondary" className="btn-press" disabled={!activeId}>
             <Play className="mr-2 h-4 w-4" /> Continue Project
@@ -241,8 +243,8 @@ function Workspace() {
                   Generate a fresh idea and Stickmax will help you build the whole story.
                 </p>
               </div>
-              <Button asChild size="lg" className="btn-press shrink-0">
-                <Link to="/topics"><Wand2 className="mr-2 h-4 w-4" /> Generate Ideas</Link>
+              <Button size="lg" className="btn-press shrink-0" onClick={() => setCreateOpen(true)}>
+                <Wand2 className="mr-2 h-4 w-4" /> Create Project
               </Button>
             </div>
           )}
@@ -462,6 +464,8 @@ function Workspace() {
           </div>
         )}
       </Reveal>
+
+      <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
     </>
   );
 }

@@ -79,6 +79,7 @@ import { downloadJson, slugify } from "@/lib/io";
 import type { Research, Story, ThumbnailIdea, VisualScene, Topic } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { CreateProjectModal } from "@/components/CreateProjectModal";
 
 const STAGE_ROUTE: Record<StageKey, string> = {
   research: "/research",
@@ -136,6 +137,7 @@ function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [autoId, setAutoId] = useState<string | null>(null);
   const [autoStep, setAutoStep] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     // Data is read synchronously from local storage, so keep this minimal — just
@@ -295,14 +297,19 @@ function ProjectsPage() {
               {active.length} documentaries · {folders.length} folders in your studio
             </p>
           </div>
-          <div className="relative w-full sm:w-80">
-            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects, scripts, research…"
-              className="w-full rounded-xl border border-border/60 bg-card/50 py-2.5 pl-10 pr-3 text-sm transition-all duration-300 focus:border-brand/50 focus:bg-card focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] focus:outline-none"
-            />
+          <div className="flex w-full items-center gap-3 sm:w-auto">
+            <div className="relative w-full sm:w-80">
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search projects, scripts, research…"
+                className="w-full rounded-xl border border-border/60 bg-card/50 py-2.5 pl-10 pr-3 text-sm transition-all duration-300 focus:border-brand/50 focus:bg-card focus:shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_12%,transparent)] focus:outline-none"
+              />
+            </div>
+            <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
+              <FolderPlus className="mr-2 h-4 w-4" /> New Project
+            </Button>
           </div>
         </div>
 
@@ -411,17 +418,31 @@ function ProjectsPage() {
                   <CardSkeleton key={i} />
                 ))}
               </div>
+            ) : active.length === 0 ? (
+              <div className="mt-16 flex flex-col items-center gap-4 text-center">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-brand/12 text-brand">
+                  <Sparkles className="h-8 w-8" />
+                </span>
+                <h3 className="text-2xl font-semibold tracking-tight">No projects yet</h3>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Create your first AI documentary and Stickmax will guide you through
+                  research, story, visuals, voice and more.
+                </p>
+                <Button size="lg" onClick={() => setCreateOpen(true)} className="mt-2">
+                  <FolderPlus className="mr-2 h-4 w-4" /> Create Project
+                </Button>
+              </div>
             ) : filtered.length === 0 ? (
               <div className="mt-16 flex flex-col items-center gap-3 text-center">
                 <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/12 text-brand">
                   <FolderKanban className="h-7 w-7" />
                 </span>
-                <h3 className="text-lg">No projects here yet</h3>
+                <h3 className="text-lg">No projects match</h3>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Generate an idea from the Studio feed to start your first documentary project.
+                  Try a different filter or search, or start a new documentary.
                 </p>
-                <Button onClick={() => router.navigate({ to: "/" })} className="mt-1">
-                  Go to Studio
+                <Button onClick={() => setCreateOpen(true)} className="mt-1">
+                  <FolderPlus className="mr-2 h-4 w-4" /> New Project
                 </Button>
               </div>
             ) : (
@@ -447,6 +468,7 @@ function ProjectsPage() {
           </div>
         </div>
       </div>
+      <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }
