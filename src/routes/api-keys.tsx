@@ -96,7 +96,7 @@ function ApiKeysPage() {
       const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
         (k) => k.provider === provider && k.apiKey === apiKey.trim(),
       );
-      if (saved) markTested(saved.id, "Connected");
+      if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
       setApiKey("");
       toast.success(
         isOpenAI ? "OpenAI connected — routing updated" : "Recraft connected — set as active Image Provider",
