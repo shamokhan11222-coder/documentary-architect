@@ -79,6 +79,9 @@ function ThumbnailPage() {
   // skipping any that already have an image. Never redoes finished thumbnails.
   async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false) {
     if (!selected) return;
+    // Thumbnail Free Mode: only ever generate ONE thumbnail — never a batch of
+    // variations — to avoid provider rate-limit spam.
+    if (getFreeMode()) end = Math.min(end, start + 1);
     setProgress({ done: start, total: end });
     for (let i = start; i < end; i++) {
       // Smart cache: skip thumbnails that already have an image.
@@ -90,6 +93,12 @@ function ThumbnailPage() {
         const url = await generateThumbnailImage(ideas[i]);
         await putImage(thumbImageId(selected.id, i), url);
       } catch (e) {
+        // Provider limit reached — stop immediately, keep completed thumbnails,
+        // and show a clear resumable message instead of hanging or failing all.
+        if (isRateLimitError(e)) {
+          toast.warning("Gemini image limit reached. Resume later.");
+          break;
+        }
         const msg = humanizeError(e, "failed");
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
         if (/credit|402/i.test(msg)) break;
