@@ -238,10 +238,29 @@ async function listGeminiModels(apiKey: string): Promise<Response> {
 
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
+  const apiKey = provider.apiKey ?? "";
   // Force an image-capable model. Never use a text model (e.g. gemini-2.5-flash).
-  let model = provider.imageModel || "";
+  let model = (provider.imageModel || "").trim();
   if (!model.toLowerCase().includes("image")) {
-    model = "gemini-2.0-flash-preview-image-generation";
+    model = GEMINI_IMAGE_MODEL_DEFAULT;
+  }
+  // Resolve the API version that actually serves this model — never assume
+  // v1beta. If no version has it, the configured model does not exist.
+  const version = await resolveGeminiModelVersion(apiKey, model);
+  if (!version) {
+    const listed = await fetchGeminiModels(apiKey);
+    const available =
+      "models" in listed
+        ? listed.models.filter(isImageCapable).map((m) => bareModelId(m.name))
+        : [];
+    const hint = available.length
+      ? ` Available image models: ${available.join(", ")}.`
+      : " No image-capable models were returned for this key.";
+    return jsonError(
+      `Gemini model "${model}" was not found on any supported API version.${hint} Pick one in API Settings › List Available Gemini Models.`,
+      404,
+      "MODEL_NOT_FOUND",
+    );
   }
   const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
@@ -250,16 +269,17 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   }
   // AUDIT: exactly ONE outbound Gemini API request per call. No preview,
   // verification, or duplicate request is ever made here.
-  const endpoint = `${GOOGLE}/${model}:generateContent`;
+  const endpoint = `${geminiModelsUrl(version)}/${model}:generateContent`;
   const auditStart = Date.now();
   console.log("[AUDIT][gemini] outbound request", {
     endpoint,
     model,
+    apiVersion: version,
     time: new Date(auditStart).toISOString(),
     references: parts.length - 1,
   });
   const upstream = await fetch(
-    `${endpoint}?key=${encodeURIComponent(provider.apiKey ?? "")}`,
+    `${endpoint}?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -272,6 +292,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   console.log("[AUDIT][gemini] outbound response", {
     endpoint,
     model,
+    apiVersion: version,
     responseCode: upstream.status,
     ms: Date.now() - auditStart,
   });
