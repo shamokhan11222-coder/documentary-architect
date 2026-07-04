@@ -118,8 +118,8 @@ function ThumbnailPage() {
   function handleGenerate() {
     if (!selected) return;
     return withBusy("gen", async () => {
-        setProviderLimit(false);
-        const ideas = (await gen({
+      setProviderLimit(false);
+      const ideas = (await gen({
         data: {
           topic: selected.topic,
           script: story?.script,
