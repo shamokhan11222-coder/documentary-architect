@@ -404,6 +404,7 @@ function ManagerPage() {
     }
   }
   const failedStage = PIPELINE.find((s) => pipeline?.stages[s.key]?.status === "failed");
+  const imagesSkipped = pipeline?.stages["images"]?.status === "skipped";
   const eta = pipeline ? etaRemainingMs(pipeline) : 0;
 
   return (
