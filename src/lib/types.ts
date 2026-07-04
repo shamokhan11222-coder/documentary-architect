@@ -23,6 +23,12 @@ export interface Topic {
   completed?: boolean;
   archived?: boolean;
   folder?: string;
+  // Onboarding metadata captured at project creation.
+  category?: string;
+  language?: string;
+  targetAudience?: string;
+  visualStyle?: string;
+  voiceProfileId?: string;
 }
 
 // A shared self-review verdict attached to a stage's output.

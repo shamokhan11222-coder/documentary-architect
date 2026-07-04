@@ -111,6 +111,11 @@ function normalizeTopic(value: unknown): Topic | null {
     completed: typeof value.completed === "boolean" ? value.completed : undefined,
     archived: typeof value.archived === "boolean" ? value.archived : undefined,
     folder: asString(value.folder) || undefined,
+    category: asString(value.category) || undefined,
+    language: asString(value.language) || undefined,
+    targetAudience: asString(value.targetAudience) || undefined,
+    visualStyle: asString(value.visualStyle) || undefined,
+    voiceProfileId: asString(value.voiceProfileId) || undefined,
   };
 }
 
