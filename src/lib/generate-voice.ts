@@ -7,6 +7,10 @@ import type { VoiceSettings } from "./types";
 
 export const voiceBlockId = (topicId: string, index: number) => `voice:${topicId}:${index}`;
 
+// Hard timeout so a slow/unresponsive voice provider can never hang forever.
+export const VOICE_TIMEOUT_MS = 120_000;
+const VOICE_TIMEOUT_MESSAGE = "Request timed out. Provider may be slow or unavailable.";
+
 function applyDictionary(text: string, dict: VoiceSettings["dictionary"]): string {
   let out = text;
   for (const d of dict) {
@@ -38,20 +42,36 @@ export async function generateVoiceBlock(
 ): Promise<number> {
   const spoken = applyDictionary(text, settings.dictionary);
   const data = await enqueueAi(async () => {
-    const res = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: spoken,
-        profile: settings.profile,
-        speed: settings.speed,
-        stability: settings.stability,
-        emotion: settings.emotion,
-        pauseStrength: settings.pauseStrength,
-        pitch: settings.pitch,
-        provider: ttsProviderPayload(),
-      }),
-    });
+    const provider = ttsProviderPayload();
+    console.info("[voice] request started", { provider: provider?.name, model: provider?.ttsModel });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), VOICE_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: spoken,
+          profile: settings.profile,
+          speed: settings.speed,
+          stability: settings.stability,
+          emotion: settings.emotion,
+          pauseStrength: settings.pauseStrength,
+          pitch: settings.pitch,
+          provider,
+        }),
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        console.error("[voice] request failed", { error: VOICE_TIMEOUT_MESSAGE });
+        throw new Error(VOICE_TIMEOUT_MESSAGE);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) {
       let msg = `Voice generation failed (${res.status})`;
       try {
@@ -60,10 +80,12 @@ export async function generateVoiceBlock(
       } catch {
         /* ignore */
       }
+      console.error("[voice] request failed", { status: res.status, error: msg });
       throw new Error(res.status === 429 ? `429 ${msg}` : msg);
     }
     const json = (await res.json()) as { audio?: string };
     if (!json?.audio) throw new Error("Voice generation returned no audio.");
+    console.info("[voice] response received");
     return json as { audio: string };
   }, "Voice");
   await putImage(voiceBlockId(topicId, index), data.audio);
