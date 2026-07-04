@@ -91,15 +91,16 @@ function QueuePage() {
   // are never permanently failed and the queue resumes from where it stopped).
   async function runNumbers(nums: number[]) {
     if (!selected) return;
+    const runList = freeMode ? nums.slice(0, 1) : nums;
     setRunning(true);
     pausedRef.current = false;
     setRateMsg("");
     rateHitsRef.current = 0;
     const delayMs = (freeMode ? FREE_QUEUE_DELAY_SEC : getSafeDelaySec()) * 1000;
 
-    for (let idx = 0; idx < nums.length; idx++) {
+    for (let idx = 0; idx < runList.length; idx++) {
       if (pausedRef.current) break;
-      const n = nums[idx];
+      const n = runList[idx];
       const scene = sceneOf(n);
       if (!scene) continue;
       setCurrentScene(n);
@@ -134,7 +135,7 @@ function QueuePage() {
         if (q) saveQueue({ ...q, cursor: Math.max(q.cursor, n) });
       }
       // Wait between requests (never parallel), except after the last item.
-      if (!pausedRef.current && idx < nums.length - 1) await sleep(delayMs);
+      if (!pausedRef.current && idx < runList.length - 1) await sleep(delayMs);
     }
     setRunning(false);
     setCurrentScene(null);
@@ -298,7 +299,7 @@ function QueuePage() {
             <span>
               <span className="font-medium">Free Queue Mode</span>
               <span className="ml-2 text-muted-foreground">
-                1 image at a time, 120 seconds between requests, no parallel requests, Generate All disabled.
+                1 image at a time, 120 seconds between requests, no parallel requests, Generate All and Generate Next 5 disabled.
               </span>
             </span>
           </label>
@@ -359,7 +360,7 @@ function QueuePage() {
               </Button>
             ) : (
               <Button size="sm" variant="secondary" onClick={startSafeQueue} disabled={!testPassed}>
-                <Play className="mr-1 h-3.5 w-3.5" /> Resume Queue
+                <Play className="mr-1 h-3.5 w-3.5" /> {freeMode ? "Resume Later" : "Resume Queue"}
               </Button>
             )}
             <Button size="sm" variant="outline" onClick={continueFromLast} disabled={running || !testPassed}>
