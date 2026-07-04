@@ -259,6 +259,7 @@ function ApiKeysPage() {
               value={settings.image}
               onChange={(v) => saveProviderSettings({ image: v })}
             />
+            <GeminiImageTest keys={keys} />
             <RecraftTest keys={keys} />
             <ImageRouteRow
               label="Thumbnail Provider"
