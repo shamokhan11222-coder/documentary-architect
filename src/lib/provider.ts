@@ -35,6 +35,11 @@ export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
 export const GEMINI_UNSUPPORTED_MESSAGE =
   "Gemini does not support this task in the current setup. Please connect another provider.";
 
+// Separate Gemini models per task. The text model must never be used for image
+// generation, and the image model must never be used for text.
+export const GEMINI_TEXT_MODEL_DEFAULT = "gemini-2.5-flash";
+export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.0-flash-preview-image-generation";
+
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
 export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
@@ -161,7 +166,7 @@ function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry 
 }
 
 function defaultImageModel(choice: ProviderChoice): string {
-  if (choice === "gemini") return "gemini-2.5-flash-image";
+  if (choice === "gemini") return GEMINI_IMAGE_MODEL_DEFAULT;
   if (choice === "openai") return "gpt-image-1";
   if (choice === "fal") return "fal-ai/flux/schnell";
   if (choice === "replicate") return "black-forest-labs/flux-schnell";
@@ -205,7 +210,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   let imageModel = entry.modelName?.trim() || "";
   if (choice === "gemini") {
     // Force an image-capable model. Ignore text model names.
-    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.5-flash-image";
+    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : GEMINI_IMAGE_MODEL_DEFAULT;
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
@@ -232,8 +237,8 @@ function toProvider(e: ApiKeyEntry | null): ActiveProvider | null {
   return {
     name: "gemini",
     apiKey: e.apiKey.trim(),
-    textModel: e.modelName?.trim() || "gemini-2.5-flash",
-    imageModel: "gemini-2.5-flash-image",
+    textModel: e.modelName?.trim() || GEMINI_TEXT_MODEL_DEFAULT,
+    imageModel: GEMINI_IMAGE_MODEL_DEFAULT,
     ttsModel: "gemini-2.5-flash-preview-tts",
   };
 }
