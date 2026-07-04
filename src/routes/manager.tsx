@@ -128,10 +128,30 @@ function ManagerPage() {
   const doSeo = useServerFn(generateSeo);
   const doRate = useServerFn(rateVideo);
 
+  // A stage counts as satisfied for downstream prerequisites if it truly
+  // produced output OR was intentionally skipped due to a provider image limit —
+  // so skipping Images/Thumbnail never blocks Voice/SEO/Rating.
+  function stageSatisfied(id: string, stage: StageKey): boolean {
+    if (stageDone(id, stage)) return true;
+    return getPipeline(id).stages[stage]?.status === "skipped";
+  }
+  function prereqsOk(id: string, stage: StageKey): boolean {
+    return STAGE_DEPS[stage].every((dep) => stageSatisfied(id, dep));
+  }
+
+  // Mark an image stage as "Skipped / Provider Limit" (never Failed) so the
+  // pipeline can continue to Voice, SEO, Rating and Export.
+  function markSkipped(id: string, stage: StageKey) {
+    const label = PIPELINE.find((p) => p.key === stage)?.label ?? stage;
+    patchStage(id, stage, { status: "skipped", error: "Skipped / Provider Limit", finishedAt: Date.now() });
+    logActivity(id, `${label} skipped — provider image limit reached. Continue later.`, "info");
+    toast.warning(`${label} skipped — provider image limit reached. Generate images later.`);
+  }
+
   // Run a single stage. Returns true on success, false on failure.
   async function runStage(id: string, topic: string, explanation: string, stage: StageKey): Promise<boolean> {
     // Locking: never run a stage before its prerequisites are completed.
-    if (!prereqsMet(id, stage)) {
+    if (!prereqsOk(id, stage)) {
       patchStage(id, stage, { status: "failed", error: "Complete the previous stage first." });
       logActivity(id, `${stage} locked — complete the previous stage first`, "error");
       toast.error("Complete the previous stage first.");
@@ -173,8 +193,18 @@ function ManagerPage() {
         for (let i = 0; i < scenes.length; i++) {
           if (cancelled.current) throw new Error("Stopped");
           setTask(id, stage, `Visual Director → image ${i + 1}/${scenes.length}…`);
-          const url = await generateSceneImage(scenes[i]);
-          await putImage(`scene:${id}:${scenes[i].sceneNumber}`, url);
+          try {
+            const url = await generateSceneImage(scenes[i]);
+            await putImage(`scene:${id}:${scenes[i].sceneNumber}`, url);
+          } catch (e) {
+            // Provider image limit reached — stop trying immediately, keep any
+            // completed images, mark the stage skipped and let the run continue.
+            if (isRateLimitError(e)) {
+              markSkipped(id, stage);
+              return true;
+            }
+            throw e;
+          }
         }
       } else if (stage === "thumbnail") {
         const story = readLS<Story>("docos.story", id);
@@ -196,7 +226,13 @@ function ManagerPage() {
           try {
             const url = await generateThumbnailImage(ideas[i]);
             await putImage(`thumb:${id}:${i}`, url);
-          } catch {
+          } catch (e) {
+            // Provider image limit reached — skip the whole thumbnail stage and
+            // continue the pipeline rather than blocking the project.
+            if (isRateLimitError(e)) {
+              markSkipped(id, stage);
+              return true;
+            }
             /* a single thumbnail render can be skipped */
           }
         }
@@ -243,6 +279,12 @@ function ManagerPage() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
+      // Safety net: any provider limit that reaches here for an image stage is
+      // a skip, not a failure — the pipeline keeps going.
+      if ((stage === "images" || stage === "thumbnail") && isRateLimitError(e)) {
+        markSkipped(id, stage);
+        return true;
+      }
       const isCredits =
         !hasUnlimitedAccess() && /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
       patchStage(id, stage, { status: "failed", error: msg, finishedAt: Date.now() });
