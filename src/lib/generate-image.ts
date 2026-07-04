@@ -243,7 +243,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
       lastImageRequestAt = Date.now();
       throw e;
     }
-  }, "Image");
+  }, "Image", { retryRateLimits: false });
 }
 
 export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {
