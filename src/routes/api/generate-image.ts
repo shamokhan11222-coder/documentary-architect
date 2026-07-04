@@ -266,10 +266,55 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   if (!model.toLowerCase().includes("image")) {
     model = GEMINI_IMAGE_MODEL_DEFAULT;
   }
-  // Resolve the API version that actually serves this model — never assume
-  // v1beta. If no version has it, the configured model does not exist.
-  const version = await resolveGeminiModelVersion(apiKey, model);
-  if (!version) {
+  const parts: unknown[] = [{ text: body.prompt }];
+  for (const ref of (body.references ?? []).slice(0, 6)) {
+    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineData(ref) : null;
+    if (inline) parts.push(inline);
+  }
+  const reqBody = JSON.stringify({
+    contents: [{ role: "user", parts }],
+    generationConfig: { responseModalities: ["IMAGE"] },
+  });
+  // AUDIT: exactly ONE outbound generateContent request per call in the normal
+  // case. The API version is NOT hardcoded — we try the preferred version and
+  // only fall through to the next version if the model returns 404 there (i.e.
+  // that version doesn't serve this model). No preview/verification requests.
+  let upstream: Response | null = null;
+  let usedVersion = GEMINI_API_VERSIONS[0];
+  let notFoundText = "";
+  for (const version of GEMINI_API_VERSIONS) {
+    const endpoint = `${geminiModelsUrl(version)}/${model}:generateContent`;
+    const auditStart = Date.now();
+    console.log("[AUDIT][gemini] outbound request", {
+      endpoint,
+      model,
+      apiVersion: version,
+      time: new Date(auditStart).toISOString(),
+      references: parts.length - 1,
+    });
+    const r = await fetch(`${endpoint}?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: reqBody,
+    });
+    console.log("[AUDIT][gemini] outbound response", {
+      endpoint,
+      model,
+      apiVersion: version,
+      responseCode: r.status,
+      ms: Date.now() - auditStart,
+    });
+    // Only a 404 means "wrong API version for this model" — try the next one.
+    if (r.status === 404) {
+      notFoundText = (await r.text().catch(() => "")).slice(0, 200);
+      continue;
+    }
+    upstream = r;
+    usedVersion = version;
+    break;
+  }
+  // Model genuinely not found on any version — surface the real available models.
+  if (!upstream) {
     const listed = await fetchGeminiModels(apiKey);
     const available =
       "models" in listed
@@ -279,45 +324,11 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       ? ` Available image models: ${available.join(", ")}.`
       : " No image-capable models were returned for this key.";
     return jsonError(
-      `Gemini model "${model}" was not found on any supported API version.${hint} Pick one in API Settings › List Available Gemini Models.`,
+      `Gemini model "${model}" was not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).${hint} Pick one in API Settings › List Available Gemini Models.${notFoundText ? ` Details: ${notFoundText}` : ""}`,
       404,
       "MODEL_NOT_FOUND",
     );
   }
-  const parts: unknown[] = [{ text: body.prompt }];
-  for (const ref of (body.references ?? []).slice(0, 6)) {
-    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineData(ref) : null;
-    if (inline) parts.push(inline);
-  }
-  // AUDIT: exactly ONE outbound Gemini API request per call. No preview,
-  // verification, or duplicate request is ever made here.
-  const endpoint = `${geminiModelsUrl(version)}/${model}:generateContent`;
-  const auditStart = Date.now();
-  console.log("[AUDIT][gemini] outbound request", {
-    endpoint,
-    model,
-    apiVersion: version,
-    time: new Date(auditStart).toISOString(),
-    references: parts.length - 1,
-  });
-  const upstream = await fetch(
-    `${endpoint}?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: { responseModalities: ["IMAGE"] },
-      }),
-    },
-  );
-  console.log("[AUDIT][gemini] outbound response", {
-    endpoint,
-    model,
-    apiVersion: version,
-    responseCode: upstream.status,
-    ms: Date.now() - auditStart,
-  });
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
@@ -327,7 +338,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
         ? "Rate limit exceeded (Gemini). Please wait and try again."
         : status === 400 || status === 403
           ? "Invalid API key — Gemini rejected the request. Check your key in API Settings."
-          : `Gemini image generation failed (${status}): ${text.slice(0, 200)}`;
+          : `Gemini image generation failed (${status}) [${usedVersion}]: ${text.slice(0, 200)}`;
     return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
   }
   const data = await upstream.json();
