@@ -17,7 +17,7 @@ export interface ActiveProvider {
   ttsModel: string;
 }
 
-export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "builtin";
+export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "recraft" | "builtin";
 
 export interface ActiveImageProvider {
   id: string;
@@ -29,7 +29,7 @@ export interface ActiveImageProvider {
 }
 
 export const IMAGE_PROVIDER_NOT_CONNECTED =
-  "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.";
+  "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
 export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
 
 export const GEMINI_UNSUPPORTED_MESSAGE =
@@ -44,7 +44,7 @@ export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
 };
 
 // ---- Provider routing settings (which provider handles each task) ----
-export type ProviderChoice = "gemini" | "builtin" | "openai" | "fal" | "replicate" | "disabled";
+export type ProviderChoice = "gemini" | "builtin" | "openai" | "fal" | "replicate" | "recraft" | "disabled";
 
 export interface ProviderSettings {
   text: ProviderChoice;
@@ -57,9 +57,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "gemini",
+  image: "recraft",
   voice: "gemini",
-  thumbnail: "gemini",
+  thumbnail: "recraft",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -67,9 +67,9 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
   const next = { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
-  // Historical projects may have saved "builtin" for image routing. Treat it as
-  // disabled so image generation cannot touch the built-in AI.
-  if (next.image === "builtin") next.image = "disabled";
+  // Image generation must never touch the built-in AI. Any legacy/built-in
+  // image routing is coerced to Recraft, the only supported image provider.
+  if (next.image === "builtin" || next.image === "disabled") next.image = "recraft";
   return next;
 }
 
@@ -101,7 +101,9 @@ function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry 
           ? "Fal.ai"
           : choice === "replicate"
             ? "Replicate"
-            : null;
+            : choice === "recraft"
+              ? "Recraft"
+              : null;
   if (!provider) return null;
   return list.find((e) => e.provider === provider && e.apiKey.trim()) ?? null;
 }
@@ -111,6 +113,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "openai") return "gpt-image-1";
   if (choice === "fal") return "fal-ai/flux/schnell";
   if (choice === "replicate") return "black-forest-labs/flux-schnell";
+  if (choice === "recraft") return "recraftv4_1_utility_pro";
   return "";
 }
 
@@ -119,12 +122,14 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "openai") return "OpenAI Images";
   if (choice === "fal") return "Fal.ai";
   if (choice === "replicate") return "Replicate";
+  if (choice === "recraft") return "Recraft V4.1 Utility Pro";
   return "Built-in AI disabled";
 }
 
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   if (!entry) return null;
-  if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate") return null;
+  if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate" && choice !== "recraft")
+    return null;
 
   // For Gemini image, ONLY use models containing "image" in the name.
   // The user's text modelName (e.g. gemini-2.5-flash) must NOT be used for image gen.
@@ -132,6 +137,9 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   if (choice === "gemini") {
     // Force an image-capable model. Ignore text model names.
     imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.5-flash-image";
+  } else if (choice === "recraft") {
+    // Force a Recraft image model. Ignore any label a user might have typed.
+    imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
   } else if (!imageModel) {
     imageModel = defaultImageModel(choice);
   }
@@ -197,8 +205,8 @@ export function useImageProviderStatus(): ReturnType<typeof getImageProviderStat
   return statusFor(settings.image, toImageProvider(settings.image, findImageKey(settings.image, list)));
 }
 
-/** Image generation is always available: an external provider when connected,
- *  otherwise the built-in AI. Generation is therefore never silently disabled. */
+/** Image generation requires a connected external image provider (Recraft).
+ *  The built-in AI is never used for images. */
 function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null) {
   if (external) {
     return {
@@ -212,19 +220,20 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
   }
   return {
     choice,
-    label: "Built-in AI",
-    connected: true,
-    testPassed: true,
-    ok: true,
-    message: "Built-in AI ready.",
+    label: "Recraft V4.1 Utility Pro",
+    connected: false,
+    testPassed: false,
+    ok: false,
+    message: IMAGE_PROVIDER_NOT_CONNECTED,
   };
 }
 
-/** Body payload passed to the image API route so the server can route. Uses the
- *  connected external provider when available, otherwise routes to built-in AI. */
+/** Body payload passed to the image API route so the server can route. Returns
+ *  the connected external image provider (Recraft), or null when none is
+ *  connected — the built-in AI is never used for images. */
 export function imageProviderPayload() {
   const p = getActiveImageProvider();
-  if (!p) return { name: "builtin" as const };
+  if (!p) return null;
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
@@ -232,12 +241,12 @@ export function thumbnailProviderPayload() {
   return imageProviderPayload();
 }
 
-/** Whether image generation can start with the currently selected provider.
- *  When the Image Provider is routed to an external provider that is not
- *  connected, generation must NOT silently fall back to built-in AI. */
+/** Whether image generation can start. Requires a connected Recraft key —
+ *  generation never falls back to the built-in AI. */
 export function imageProviderReady(): { ok: boolean; message?: string } {
-  // Image generation is always possible (built-in AI is the fallback path).
-  return { ok: true };
+  return getActiveImageProvider()
+    ? { ok: true }
+    : { ok: false, message: IMAGE_PROVIDER_NOT_CONNECTED };
 }
 
 export function ttsProviderPayload() {

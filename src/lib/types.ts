@@ -377,6 +377,7 @@ export type ApiProvider =
   | "Google Gemini"
   | "Fal.ai"
   | "Replicate"
+  | "Recraft"
   | "ElevenLabs"
   | "Custom Provider";
 

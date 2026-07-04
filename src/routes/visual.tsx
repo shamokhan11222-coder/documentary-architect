@@ -326,11 +326,13 @@ function VisualPage() {
     void (async () => {
       try {
         const provider = imageProviderPayload();
+        if (!provider) {
+          toast.error("Recraft is not connected. Add your Recraft API key in API Settings.");
+          return;
+        }
         await testImageProvider(provider);
         if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
-        toast.success(
-          activeImageProvider ? "Image provider test passed" : "Built-in AI is working — ready to generate",
-        );
+        toast.success("Recraft connection successful — ready to generate");
       } catch (e) {
         toast.error(imageErrorMessage(e, "Image provider test failed"));
       } finally {

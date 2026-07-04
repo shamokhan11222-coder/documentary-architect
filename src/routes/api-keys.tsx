@@ -19,9 +19,12 @@ import {
   GEMINI_SUPPORTS,
   useProviderSettings,
   saveProviderSettings,
+  useActiveImageProvider,
+  IMAGE_PROVIDER_TEST_PASSED,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
+import { testImageProvider, imageErrorMessage } from "@/lib/generate-image";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
@@ -185,6 +188,7 @@ function ApiKeysPage() {
               value={settings.image}
               onChange={(v) => saveProviderSettings({ image: v })}
             />
+            <RecraftTest keys={keys} />
             {active && (
               <>
                 <RouteRow
@@ -277,6 +281,8 @@ function DebugStatus() {
           ? "Fal.ai"
           : tele.lastProvider === "replicate"
             ? "Replicate"
+      : tele.lastProvider === "recraft"
+        ? "Recraft V4.1 Utility Pro"
       : tele.lastProvider === "builtin"
         ? "Built-in AI"
         : "—";
@@ -339,12 +345,57 @@ function ImageRouteRow({
         value={value}
         onChange={(e) => onChange(e.target.value as ProviderChoice)}
       >
+        <option value="recraft">Recraft V4.1 Utility Pro</option>
         <option value="gemini">Gemini Image</option>
         <option value="openai">OpenAI Images</option>
         <option value="fal">Fal.ai</option>
         <option value="replicate">Replicate</option>
-        <option value="disabled">Built-in AI disabled</option>
       </select>
+    </div>
+  );
+}
+
+/** Test Recraft Connection — validates the saved Recraft key with a minimal
+ *  request and, on success, sets Recraft as the active Image Provider. */
+function RecraftTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
+  const activeImage = useActiveImageProvider();
+  const [testing, setTesting] = useState(false);
+  const recraftKey = keys.find((k) => k.provider === "Recraft" && k.apiKey.trim());
+
+  async function run() {
+    if (!recraftKey) {
+      toast.error("Add a Recraft API key first (Provider: Recraft).");
+      return;
+    }
+    // Ensure routing points at Recraft so the payload targets it.
+    saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
+    setTesting(true);
+    try {
+      const provider = { name: "recraft" as const, apiKey: recraftKey.apiKey.trim(), imageModel: "recraftv4_1_utility_pro", fallback: false };
+      await testImageProvider(provider);
+      markTested(recraftKey.id, IMAGE_PROVIDER_TEST_PASSED);
+      toast.success("Recraft connected — set as active Image Provider");
+    } catch (e) {
+      markTested(recraftKey.id, "Failed");
+      toast.error(imageErrorMessage(e, "Recraft connection failed"));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border p-2">
+      <div className="min-w-0 text-xs text-muted-foreground">
+        {recraftKey
+          ? activeImage?.name === "recraft"
+            ? "Recraft key detected."
+            : "Recraft key detected — test to activate."
+          : "No Recraft key yet — add one above (Provider: Recraft)."}
+      </div>
+      <Button size="sm" variant="outline" onClick={run} disabled={testing || !recraftKey}>
+        {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+        Test Recraft Connection
+      </Button>
     </div>
   );
 }
