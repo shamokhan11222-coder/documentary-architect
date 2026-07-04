@@ -15,7 +15,8 @@ export type TaskStatus =
   | "failed"
   | "locked"
   | "ready"
-  | "retry";
+  | "retry"
+  | "skipped";
 
 export interface StageState {
   status: TaskStatus;

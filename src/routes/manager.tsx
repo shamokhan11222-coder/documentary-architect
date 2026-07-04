@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import {
   Circle,
   Clock,
   RefreshCw,
+  SkipForward,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { hasUnlimitedAccess } from "@/lib/account";
-import { PIPELINE, stageDone, completionPercent, prereqsMet, type StageKey } from "@/lib/manager";
+import { PIPELINE, stageDone, completionPercent, STAGE_DEPS, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
   getPipeline,
@@ -40,7 +41,7 @@ import {
   generateSeo,
   rateVideo,
 } from "@/lib/ai.functions";
-import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
+import { generateSceneImage, generateThumbnailImage, isRateLimitError } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import { generateVoiceBlock } from "@/lib/generate-voice";
 import { getVisualInstructions } from "@/lib/visual-instructions";
@@ -127,10 +128,30 @@ function ManagerPage() {
   const doSeo = useServerFn(generateSeo);
   const doRate = useServerFn(rateVideo);
 
+  // A stage counts as satisfied for downstream prerequisites if it truly
+  // produced output OR was intentionally skipped due to a provider image limit —
+  // so skipping Images/Thumbnail never blocks Voice/SEO/Rating.
+  function stageSatisfied(id: string, stage: StageKey): boolean {
+    if (stageDone(id, stage)) return true;
+    return getPipeline(id).stages[stage]?.status === "skipped";
+  }
+  function prereqsOk(id: string, stage: StageKey): boolean {
+    return STAGE_DEPS[stage].every((dep) => stageSatisfied(id, dep));
+  }
+
+  // Mark an image stage as "Skipped / Provider Limit" (never Failed) so the
+  // pipeline can continue to Voice, SEO, Rating and Export.
+  function markSkipped(id: string, stage: StageKey) {
+    const label = PIPELINE.find((p) => p.key === stage)?.label ?? stage;
+    patchStage(id, stage, { status: "skipped", error: "Skipped / Provider Limit", finishedAt: Date.now() });
+    logActivity(id, `${label} skipped — provider image limit reached. Continue later.`, "info");
+    toast.warning(`${label} skipped — provider image limit reached. Generate images later.`);
+  }
+
   // Run a single stage. Returns true on success, false on failure.
   async function runStage(id: string, topic: string, explanation: string, stage: StageKey): Promise<boolean> {
     // Locking: never run a stage before its prerequisites are completed.
-    if (!prereqsMet(id, stage)) {
+    if (!prereqsOk(id, stage)) {
       patchStage(id, stage, { status: "failed", error: "Complete the previous stage first." });
       logActivity(id, `${stage} locked — complete the previous stage first`, "error");
       toast.error("Complete the previous stage first.");
@@ -172,8 +193,18 @@ function ManagerPage() {
         for (let i = 0; i < scenes.length; i++) {
           if (cancelled.current) throw new Error("Stopped");
           setTask(id, stage, `Visual Director → image ${i + 1}/${scenes.length}…`);
-          const url = await generateSceneImage(scenes[i]);
-          await putImage(`scene:${id}:${scenes[i].sceneNumber}`, url);
+          try {
+            const url = await generateSceneImage(scenes[i]);
+            await putImage(`scene:${id}:${scenes[i].sceneNumber}`, url);
+          } catch (e) {
+            // Provider image limit reached — stop trying immediately, keep any
+            // completed images, mark the stage skipped and let the run continue.
+            if (isRateLimitError(e)) {
+              markSkipped(id, stage);
+              return true;
+            }
+            throw e;
+          }
         }
       } else if (stage === "thumbnail") {
         const story = readLS<Story>("docos.story", id);
@@ -195,7 +226,13 @@ function ManagerPage() {
           try {
             const url = await generateThumbnailImage(ideas[i]);
             await putImage(`thumb:${id}:${i}`, url);
-          } catch {
+          } catch (e) {
+            // Provider image limit reached — skip the whole thumbnail stage and
+            // continue the pipeline rather than blocking the project.
+            if (isRateLimitError(e)) {
+              markSkipped(id, stage);
+              return true;
+            }
             /* a single thumbnail render can be skipped */
           }
         }
@@ -242,6 +279,12 @@ function ManagerPage() {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
+      // Safety net: any provider limit that reaches here for an image stage is
+      // a skip, not a failure — the pipeline keeps going.
+      if ((stage === "images" || stage === "thumbnail") && isRateLimitError(e)) {
+        markSkipped(id, stage);
+        return true;
+      }
       const isCredits =
         !hasUnlimitedAccess() && /CREDITS_EXHAUSTED|credits? (exhausted|finished)/i.test(msg);
       patchStage(id, stage, { status: "failed", error: msg, finishedAt: Date.now() });
@@ -297,7 +340,7 @@ function ManagerPage() {
 
   async function retryStage(stage: StageKey) {
     if (!selected) return;
-    if (!prereqsMet(selected.id, stage)) {
+    if (!prereqsOk(selected.id, stage)) {
       toast.error("Complete the previous stage first.");
       return;
     }
@@ -314,7 +357,7 @@ function ManagerPage() {
   // Recovery: run ONLY the given stage (does not continue to later stages).
   async function runSingleStage(stage: StageKey) {
     if (!selected) return;
-    if (!prereqsMet(selected.id, stage)) {
+    if (!prereqsOk(selected.id, stage)) {
       toast.error("Complete the previous stage first.");
       return;
     }
@@ -346,13 +389,14 @@ function ManagerPage() {
   // failed/retry states win.
   function derivedStatus(stage: StageKey): TaskStatus {
     const raw: TaskStatus = pipeline?.stages[stage]?.status ?? "pending";
-    if (raw === "completed" || raw === "running" || raw === "failed" || raw === "retry") return raw;
-    if (selectedId && !prereqsMet(selectedId, stage)) return "locked";
+    if (raw === "completed" || raw === "running" || raw === "failed" || raw === "retry" || raw === "skipped")
+      return raw;
+    if (selectedId && !prereqsOk(selectedId, stage)) return "locked";
     return "ready";
   }
 
   const counts: Record<TaskStatus, number> = {
-    completed: 0, pending: 0, failed: 0, running: 0, locked: 0, ready: 0, retry: 0,
+    completed: 0, pending: 0, failed: 0, running: 0, locked: 0, ready: 0, retry: 0, skipped: 0,
   };
   if (pipeline) {
     for (const s of PIPELINE) {
@@ -360,6 +404,7 @@ function ManagerPage() {
     }
   }
   const failedStage = PIPELINE.find((s) => pipeline?.stages[s.key]?.status === "failed");
+  const imagesSkipped = pipeline?.stages["images"]?.status === "skipped";
   const eta = pipeline ? etaRemainingMs(pipeline) : 0;
 
   return (
@@ -427,6 +472,13 @@ function ManagerPage() {
               <Button variant="ghost" disabled={busy} onClick={() => runPipeline(true)}>
                 <RotateCw className="mr-1 h-4 w-4" /> Regenerate all
               </Button>
+              {imagesSkipped && !busy && (
+                <Button variant="secondary" asChild>
+                  <Link to="/queue">
+                    <SkipForward className="mr-1 h-4 w-4" /> Generate Images Later
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
 
@@ -441,7 +493,13 @@ function ManagerPage() {
                   <div
                     key={s.key}
                     className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
-                      st === "failed" ? "border-red-500/50" : st === "running" ? "border-primary" : "border-border"
+                      st === "failed"
+                        ? "border-red-500/50"
+                        : st === "skipped"
+                          ? "border-amber-500/50"
+                          : st === "running"
+                            ? "border-primary"
+                            : "border-border"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -454,11 +512,26 @@ function ManagerPage() {
                           {err}
                         </span>
                       )}
+                      {st === "skipped" && (
+                        <>
+                          <span className="text-[11px] text-amber-600">Skipped / Provider Limit</span>
+                          {!busy && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[11px]"
+                              onClick={() => runSingleStage(s.key)}
+                            >
+                              Generate {s.key === "thumbnail" ? "Thumbnail" : "Images"} Later
+                            </Button>
+                          )}
+                        </>
+                      )}
                       {st === "failed" && !busy ? (
                         <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => retryStage(s.key)}>
                           Retry
                         </Button>
-                      ) : (
+                      ) : st === "skipped" ? null : (
                         <span className="text-[11px] text-muted-foreground">
                           {st === "completed"
                             ? "done"
@@ -537,6 +610,7 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 function StageIcon({ status }: { status: TaskStatus }) {
   if (status === "completed") return <CheckCircle2 className="h-4 w-4 text-green-600" />;
   if (status === "failed") return <XCircle className="h-4 w-4 text-red-600" />;
+  if (status === "skipped") return <SkipForward className="h-4 w-4 text-amber-600" />;
   if (status === "running" || status === "retry") return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
   if (status === "locked") return <Circle className="h-4 w-4 text-muted-foreground/30" />;
   return <Circle className="h-4 w-4 text-muted-foreground/40" />;
