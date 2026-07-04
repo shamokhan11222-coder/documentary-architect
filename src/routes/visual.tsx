@@ -343,6 +343,12 @@ function VisualPage() {
     setBusy("test-provider");
     void (async () => {
       try {
+        if (imageProviderStatus.choice === "puter") {
+          const ok = typeof window !== "undefined" && !!(window as unknown as { puter?: { ai?: { txt2img?: unknown } } }).puter?.ai?.txt2img;
+          if (ok) toast.success("Puter AI is ready — no API key required.");
+          else toast.error("Puter AI SDK not loaded yet. Reload the page and try again.");
+          return;
+        }
         const provider = imageProviderPayload();
         if (!provider) {
           toast.error("Recraft is not connected. Add your Recraft API key in API Settings.");
