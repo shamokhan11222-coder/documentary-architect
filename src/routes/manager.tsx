@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import {
   Circle,
   Clock,
   RefreshCw,
+  SkipForward,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { hasUnlimitedAccess } from "@/lib/account";
-import { PIPELINE, stageDone, completionPercent, prereqsMet, type StageKey } from "@/lib/manager";
+import { PIPELINE, stageDone, completionPercent, prereqsMet, STAGE_DEPS, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
   getPipeline,
@@ -40,7 +41,7 @@ import {
   generateSeo,
   rateVideo,
 } from "@/lib/ai.functions";
-import { generateSceneImage, generateThumbnailImage } from "@/lib/generate-image";
+import { generateSceneImage, generateThumbnailImage, isRateLimitError } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import { generateVoiceBlock } from "@/lib/generate-voice";
 import { getVisualInstructions } from "@/lib/visual-instructions";
