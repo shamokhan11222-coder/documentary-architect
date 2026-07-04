@@ -189,6 +189,7 @@ function ApiKeysPage() {
               value={settings.image}
               onChange={(v) => saveProviderSettings({ image: v })}
             />
+            <RecraftTest keys={keys} />
             {active && (
               <>
                 <RouteRow
