@@ -19,6 +19,43 @@ function combinedArtDirection(): string {
 
 type ImageProviderPayload = NonNullable<ReturnType<typeof imageProviderPayload>>;
 
+/** Error thrown by the image pipeline, carrying the backend's machine code and
+ *  HTTP status so the UI can show a specific message instead of a generic one. */
+export class ImageGenError extends Error {
+  code: string | null;
+  status: number | null;
+  constructor(message: string, code: string | null, status: number | null) {
+    super(message);
+    this.name = "ImageGenError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/** Maps an image-generation error to a specific, user-facing message.
+ *  Never collapses everything into a single generic "try again later" line. */
+export function imageErrorMessage(err: unknown, fallback = "Image generation failed."): string {
+  if (err instanceof ImageGenError) {
+    switch (err.code) {
+      case "NO_PROVIDER":
+        return "No image provider is connected.";
+      case "AUTH_ERROR":
+        return "Invalid API key.";
+      case "RATE_LIMIT":
+        return "Rate limit exceeded.";
+      case "CREDITS_EXHAUSTED":
+      case "PROVIDER_ERROR":
+      case "BAD_REQUEST":
+        // Surface the real provider/backend error text.
+        return err.message || fallback;
+      default:
+        return err.message || fallback;
+    }
+  }
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  return raw || fallback;
+}
+
 async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   return enqueueAi(async () => {
@@ -30,15 +67,18 @@ async function generate(prompt: string, references: string[], provider = imagePr
     });
     if (!res.ok) {
       let msg = `Image generation failed (${res.status})`;
+      let code: string | null = null;
       try {
         const j = await res.json();
         if (j?.error) msg = j.error;
+        if (j?.code) code = j.code;
       } catch {
         /* ignore */
       }
       // Preserve status so the queue can detect rate limits (429) and retry.
       recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
-      throw new Error(res.status === 429 ? `429 ${msg}` : msg);
+      // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
+      throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
     }
     const data = (await res.json()) as { image: string };
     recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
@@ -55,14 +95,16 @@ export async function testImageProvider(provider: ImageProviderPayload): Promise
   });
   if (!res.ok) {
     let msg = `Image provider test failed (${res.status})`;
+    let code: string | null = null;
     try {
       const j = await res.json();
       if (j?.error) msg = j.error;
+      if (j?.code) code = j.code;
     } catch {
       /* ignore */
     }
     recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
-    throw new Error(msg);
+    throw new ImageGenError(msg, code, res.status);
   }
   recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
 }
