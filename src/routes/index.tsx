@@ -175,8 +175,8 @@ function Workspace() {
         </form>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button asChild size="lg" className="btn-press">
-            <Link to="/topics"><Wand2 className="mr-2 h-4 w-4" /> New Idea</Link>
+          <Button size="lg" className="btn-press" onClick={() => setCreateOpen(true)}>
+            <Wand2 className="mr-2 h-4 w-4" /> New Idea
           </Button>
           <Button onClick={continueWorking} size="lg" variant="secondary" className="btn-press" disabled={!activeId}>
             <Play className="mr-2 h-4 w-4" /> Continue Project
