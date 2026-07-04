@@ -52,47 +52,57 @@ function ApiKeysPage() {
   const [statusMsg, setStatusMsg] = useState<string>("");
   const [formTesting, setFormTesting] = useState(false);
 
-  // Selecting Recraft pre-fills its required fields so Test Connection can enable.
+  // Selecting a provider pre-fills its required fields so Test Connection enables.
   function onProviderChange(next: ApiProvider) {
     setProvider(next);
     if (next === "Recraft") {
       if (!modelName.trim()) setModelName("recraft-v4.1-utility-pro");
       if (!purpose.trim()) setPurpose("images,thumbnail");
+    } else if (next === "OpenAI") {
+      if (!modelName.trim()) setModelName("gpt-4o-mini");
+      if (!purpose.trim()) setPurpose("text");
     }
   }
 
+  // Providers whose connection we can validate directly from the form.
   const canTestForm =
-    provider === "Recraft" && apiKey.trim().length > 0 && modelName.trim().length > 0;
+    (provider === "Recraft" || provider === "OpenAI") &&
+    apiKey.trim().length > 0 &&
+    modelName.trim().length > 0;
 
-  // Test the Recraft connection using the current form values (no save required).
-  // On success, save the key and make Recraft the active Image + Thumbnail provider.
+  // Applies routing based on the free-text Purpose field (text/images/thumbnail/all).
+  function applyPurposeRouting(prov: "openai" | "recraft", raw: string) {
+    const p = raw.toLowerCase();
+    const all = p.includes("all");
+    const patch: Record<string, "openai" | "recraft"> = {};
+    if (prov === "openai" && (all || p.includes("text"))) patch.text = "openai";
+    if (all || p.includes("image")) patch.image = prov;
+    if (all || p.includes("thumbnail")) patch.thumbnail = prov;
+    if (Object.keys(patch).length) saveProviderSettings(patch as never);
+  }
+
+  // Test the connection using current form values (no save required). On success,
+  // save the key and route the selected tasks to this provider.
   async function testFormConnection() {
     if (!canTestForm) return;
     setFormTesting(true);
     try {
-      const p = {
-        name: "recraft" as const,
-        apiKey: apiKey.trim(),
-        imageModel: modelName.trim(),
-        fallback: false,
-      };
-      await testImageProvider(p);
-      saveApiKey({
-        provider: "Recraft",
-        apiKey: apiKey.trim(),
-        purpose: (purpose.trim() || "images,thumbnail"),
-        modelName: modelName.trim(),
-      });
-      saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
-      // Mark the just-saved key as tested so status shows Ready.
+      const isOpenAI = provider === "OpenAI";
+      const name = isOpenAI ? ("openai" as const) : ("recraft" as const);
+      await testImageProvider({ name, apiKey: apiKey.trim(), imageModel: modelName.trim(), fallback: false });
+      const purposeVal = purpose.trim() || (isOpenAI ? "text" : "images,thumbnail");
+      saveApiKey({ provider, apiKey: apiKey.trim(), purpose: purposeVal, modelName: modelName.trim() });
+      applyPurposeRouting(name, purposeVal);
       const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
-        (k) => k.provider === "Recraft" && k.apiKey === apiKey.trim(),
+        (k) => k.provider === provider && k.apiKey === apiKey.trim(),
       );
-      if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
+      if (saved) markTested(saved.id, "Connected");
       setApiKey("");
-      toast.success("Recraft connected — set as active Image Provider");
+      toast.success(
+        isOpenAI ? "OpenAI connected — routing updated" : "Recraft connected — set as active Image Provider",
+      );
     } catch (e) {
-      toast.error(imageErrorMessage(e, "Recraft connection failed"));
+      toast.error(imageErrorMessage(e, `${provider} connection failed`));
     } finally {
       setFormTesting(false);
     }
