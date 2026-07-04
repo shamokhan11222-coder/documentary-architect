@@ -395,6 +395,9 @@ export interface ApiKeyEntry {
   apiKey: string;
   purpose: string;
   modelName: string;
+  /** Chosen image model, kept separate from the text `modelName` so picking a
+   *  Gemini image model never breaks text routing. */
+  imageModelName?: string;
   lastTested?: number;
   testResult?: string;
   at: number;
