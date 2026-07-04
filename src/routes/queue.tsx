@@ -20,14 +20,16 @@ export const Route = createFileRoute("/queue")({
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// Rate-limit backoff before pausing: 30s, 60s, 120s.
-const RATE_LIMIT_BACKOFF = [30_000, 60_000, 120_000];
+// If this many scenes hit the provider limit in one run, assume the daily quota
+// is exhausted and surface a stronger message.
+const REPEAT_LIMIT_THRESHOLD = 3;
 
 const STATUS_STYLE: Record<QueueStatus, string> = {
   pending: "bg-muted text-muted-foreground",
   generating: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
   completed: "bg-green-500/15 text-green-600 dark:text-green-400",
   failed: "bg-red-500/15 text-red-600 dark:text-red-400",
+  "rate-limited": "bg-orange-500/15 text-orange-600 dark:text-orange-400",
 };
 
 function QueuePage() {
@@ -40,6 +42,7 @@ function QueuePage() {
   const delaySec = useSafeDelaySec();
   const [currentScene, setCurrentScene] = useState<number | null>(null);
   const [rateMsg, setRateMsg] = useState<string>("");
+  const rateHitsRef = useRef(0);
 
   function buildQueue() {
     if (!selected || !map) return;
@@ -71,6 +74,7 @@ function QueuePage() {
     setRunning(true);
     pausedRef.current = false;
     setRateMsg("");
+    rateHitsRef.current = 0;
     const delayMs = getSafeDelaySec() * 1000;
 
     for (let idx = 0; idx < nums.length; idx++) {
@@ -81,40 +85,36 @@ function QueuePage() {
       setCurrentScene(n);
       setQueueItem(selected.id, { sceneNumber: n, status: "generating" });
 
-      let done = false;
-      let attempt = 0;
-      while (!done && !pausedRef.current) {
-        try {
-          const url = await generateSceneImage(scene);
-          await putImage(sceneImageId(selected.id, n), url);
-          setQueueItem(selected.id, { sceneNumber: n, status: "completed" });
-          setRateMsg("");
-          done = true;
-        } catch (e) {
-          if (isRateLimitError(e)) {
-            // Not a permanent failure — keep the scene waiting and retry slowly.
-            setQueueItem(selected.id, { sceneNumber: n, status: "pending" });
-            if (attempt < RATE_LIMIT_BACKOFF.length) {
-              const wait = RATE_LIMIT_BACKOFF[attempt];
-              setRateMsg(`Rate limited. Waiting ${wait / 1000}s before retry…`);
-              attempt++;
-              await sleep(wait);
-              continue;
-            }
-            // Exhausted backoff — pause and let the user resume later.
-            setRateMsg("Rate limited. Paused — Resume Later to continue.");
-            toast.warning("Rate limited. Paused — resume later to continue.");
-            pausedRef.current = true;
-            break;
+      let completed = false;
+      try {
+        const url = await generateSceneImage(scene);
+        await putImage(sceneImageId(selected.id, n), url);
+        setQueueItem(selected.id, { sceneNumber: n, status: "completed" });
+        setRateMsg("");
+        completed = true;
+      } catch (e) {
+        if (isRateLimitError(e)) {
+          // Provider limit reached — do NOT wait or mark failed. Stop loading,
+          // mark this scene "Rate Limited" (resumable), keep all completed work,
+          // and pause the queue automatically so the user can resume later.
+          rateHitsRef.current += 1;
+          setQueueItem(selected.id, { sceneNumber: n, status: "rate-limited" });
+          if (rateHitsRef.current >= REPEAT_LIMIT_THRESHOLD) {
+            setRateMsg("Daily provider limit likely reached. Try again later or switch provider.");
+            toast.warning("Daily provider limit likely reached. Try again later or switch provider.");
+          } else {
+            setRateMsg("Gemini image limit reached. Resume later.");
+            toast.warning("Gemini image limit reached. Resume later.");
           }
-          setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: humanizeError(e, "failed") });
-          toast.error(`Scene ${n}: ${humanizeError(e, "generation failed")}`);
-          done = true;
+          pausedRef.current = true;
+          break;
         }
+        setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: humanizeError(e, "failed") });
+        toast.error(`Scene ${n}: ${humanizeError(e, "generation failed")}`);
       }
 
       // advance resume cursor after a completed scene
-      if (done) {
+      if (completed) {
         const q = readQueue(selected.id);
         if (q) saveQueue({ ...q, cursor: Math.max(q.cursor, n) });
       }
@@ -130,7 +130,7 @@ function QueuePage() {
     const q = readQueue(selected?.id ?? "");
     if (!q) return [];
     return q.items
-      .filter((i) => i.status === "pending" || i.status === "generating")
+      .filter((i) => i.status === "pending" || i.status === "generating" || i.status === "rate-limited")
       .map((i) => i.sceneNumber)
       .sort((a, b) => a - b);
   }
@@ -155,10 +155,19 @@ function QueuePage() {
     void runNumbers([nums[0]]);
   }
 
+  // Retry the scene that was interrupted (first not-yet-completed scene).
+  function retryCurrent() {
+    const nums = pendingNums();
+    if (!nums.length) return toast.info("Nothing to retry");
+    void runNumbers([nums[0]]);
+  }
+
   function retryFailed() {
     const q = readQueue(selected?.id ?? "");
     if (!q) return;
-    const nums = q.items.filter((i) => i.status === "failed").map((i) => i.sceneNumber);
+    const nums = q.items
+      .filter((i) => i.status === "failed" || i.status === "rate-limited")
+      .map((i) => i.sceneNumber);
     if (!nums.length) return toast.info("No failed items");
     void runNumbers(nums);
   }
@@ -180,7 +189,9 @@ function QueuePage() {
   const total = queue?.items.length ?? 0;
   const completed = counts.completed ?? 0;
   const failed = counts.failed ?? 0;
-  const waiting = (counts.pending ?? 0) + (counts.generating ?? 0);
+  const rateLimited = counts["rate-limited"] ?? 0;
+  const pending = (counts.pending ?? 0) + (counts.generating ?? 0);
+  const waiting = pending + rateLimited;
   // Rough ETA: remaining scenes × (delay + ~10s average generation time).
   const etaSec = waiting * (delaySec + 10);
   const fmtEta = (s: number) => {
