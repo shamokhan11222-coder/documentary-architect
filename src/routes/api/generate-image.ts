@@ -141,8 +141,18 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineData(ref) : null;
     if (inline) parts.push(inline);
   }
+  // AUDIT: exactly ONE outbound Gemini API request per call. No preview,
+  // verification, or duplicate request is ever made here.
+  const endpoint = `${GOOGLE}/${model}:generateContent`;
+  const auditStart = Date.now();
+  console.log("[AUDIT][gemini] outbound request", {
+    endpoint,
+    model,
+    time: new Date(auditStart).toISOString(),
+    references: parts.length - 1,
+  });
   const upstream = await fetch(
-    `${GOOGLE}/${model}:generateContent?key=${encodeURIComponent(provider.apiKey ?? "")}`,
+    `${endpoint}?key=${encodeURIComponent(provider.apiKey ?? "")}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -152,6 +162,12 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       }),
     },
   );
+  console.log("[AUDIT][gemini] outbound response", {
+    endpoint,
+    model,
+    responseCode: upstream.status,
+    ms: Date.now() - auditStart,
+  });
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
