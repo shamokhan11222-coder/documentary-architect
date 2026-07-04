@@ -228,11 +228,15 @@ async function generate(prompt: string, references: string[], provider = imagePr
 
 export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
-  const res = await fetch("/api/generate-image", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider, test: true }),
-  });
+  const res = await fetchWithTimeout(
+    "/api/generate-image",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, test: true }),
+    },
+    IMAGE_TIMEOUT_MS,
+  );
   if (!res.ok) {
     let msg = `Image provider test failed (${res.status})`;
     let code: string | null = null;
