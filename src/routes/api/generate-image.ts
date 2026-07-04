@@ -25,6 +25,7 @@ type Provider = {
   fallback?: boolean;
 };
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
+type ListBody = { action?: "listGeminiModels"; apiKey?: string };
 
 function jsonError(error: string, status = 400, code?: string) {
   console.error("[image] error", { status, code: code ?? null, error });
