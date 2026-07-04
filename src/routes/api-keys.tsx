@@ -22,6 +22,7 @@ import {
   useProviderSettings,
   saveProviderSettings,
   useActiveImageProvider,
+  useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
   type ProviderChoice,
 } from "@/lib/provider";
@@ -52,47 +53,57 @@ function ApiKeysPage() {
   const [statusMsg, setStatusMsg] = useState<string>("");
   const [formTesting, setFormTesting] = useState(false);
 
-  // Selecting Recraft pre-fills its required fields so Test Connection can enable.
+  // Selecting a provider pre-fills its required fields so Test Connection enables.
   function onProviderChange(next: ApiProvider) {
     setProvider(next);
     if (next === "Recraft") {
       if (!modelName.trim()) setModelName("recraft-v4.1-utility-pro");
       if (!purpose.trim()) setPurpose("images,thumbnail");
+    } else if (next === "OpenAI") {
+      if (!modelName.trim()) setModelName("gpt-4o-mini");
+      if (!purpose.trim()) setPurpose("text");
     }
   }
 
+  // Providers whose connection we can validate directly from the form.
   const canTestForm =
-    provider === "Recraft" && apiKey.trim().length > 0 && modelName.trim().length > 0;
+    (provider === "Recraft" || provider === "OpenAI") &&
+    apiKey.trim().length > 0 &&
+    modelName.trim().length > 0;
 
-  // Test the Recraft connection using the current form values (no save required).
-  // On success, save the key and make Recraft the active Image + Thumbnail provider.
+  // Applies routing based on the free-text Purpose field (text/images/thumbnail/all).
+  function applyPurposeRouting(prov: "openai" | "recraft", raw: string) {
+    const p = raw.toLowerCase();
+    const all = p.includes("all");
+    const patch: Record<string, "openai" | "recraft"> = {};
+    if (prov === "openai" && (all || p.includes("text"))) patch.text = "openai";
+    if (all || p.includes("image")) patch.image = prov;
+    if (all || p.includes("thumbnail")) patch.thumbnail = prov;
+    if (Object.keys(patch).length) saveProviderSettings(patch as never);
+  }
+
+  // Test the connection using current form values (no save required). On success,
+  // save the key and route the selected tasks to this provider.
   async function testFormConnection() {
     if (!canTestForm) return;
     setFormTesting(true);
     try {
-      const p = {
-        name: "recraft" as const,
-        apiKey: apiKey.trim(),
-        imageModel: modelName.trim(),
-        fallback: false,
-      };
-      await testImageProvider(p);
-      saveApiKey({
-        provider: "Recraft",
-        apiKey: apiKey.trim(),
-        purpose: (purpose.trim() || "images,thumbnail"),
-        modelName: modelName.trim(),
-      });
-      saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
-      // Mark the just-saved key as tested so status shows Ready.
+      const isOpenAI = provider === "OpenAI";
+      const name = isOpenAI ? ("openai" as const) : ("recraft" as const);
+      await testImageProvider({ name, apiKey: apiKey.trim(), imageModel: modelName.trim(), fallback: false });
+      const purposeVal = purpose.trim() || (isOpenAI ? "text" : "images,thumbnail");
+      saveApiKey({ provider, apiKey: apiKey.trim(), purpose: purposeVal, modelName: modelName.trim() });
+      applyPurposeRouting(name, purposeVal);
       const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
-        (k) => k.provider === "Recraft" && k.apiKey === apiKey.trim(),
+        (k) => k.provider === provider && k.apiKey === apiKey.trim(),
       );
       if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
       setApiKey("");
-      toast.success("Recraft connected — set as active Image Provider");
+      toast.success(
+        isOpenAI ? "OpenAI connected — routing updated" : "Recraft connected — set as active Image Provider",
+      );
     } catch (e) {
-      toast.error(imageErrorMessage(e, "Recraft connection failed"));
+      toast.error(imageErrorMessage(e, `${provider} connection failed`));
     } finally {
       setFormTesting(false);
     }
@@ -212,7 +223,7 @@ function ApiKeysPage() {
           <Button size="sm" onClick={save}>
             <Plug className="mr-1 h-4 w-4" /> Save
           </Button>
-          {provider === "Recraft" && (
+          {(provider === "Recraft" || provider === "OpenAI") && (
             <Button size="sm" variant="outline" onClick={testFormConnection} disabled={!canTestForm || formTesting}>
               {formTesting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
               Test Connection
@@ -228,15 +239,12 @@ function ApiKeysPage() {
             Choose which provider handles each task. Image generation requires a connected external image provider.
           </p>
           <div className="mt-3 space-y-3">
-            {active && (
-              <RouteRow
-                label="Text Provider"
-                hint="Topics, research, story, storyboard, SEO, rating"
-                supported={GEMINI_SUPPORTS.text}
-                value={settings.text}
-                onChange={(v) => saveProviderSettings({ text: v })}
-              />
-            )}
+            <TextRouteRow
+              label="Text Provider"
+              hint="Topics, research, story, storyboard, SEO, rating, script analyzer"
+              value={settings.text}
+              onChange={(v) => saveProviderSettings({ text: v })}
+            />
             <ImageRouteRow
               label="Image Provider"
               hint="Storyboard images"
@@ -244,23 +252,20 @@ function ApiKeysPage() {
               onChange={(v) => saveProviderSettings({ image: v })}
             />
             <RecraftTest keys={keys} />
+            <ImageRouteRow
+              label="Thumbnail Provider"
+              hint="Thumbnail images"
+              value={settings.thumbnail}
+              onChange={(v) => saveProviderSettings({ thumbnail: v })}
+            />
             {active && (
-              <>
-                <RouteRow
-                  label="Thumbnail Provider"
-                  hint={`Thumbnails · ${active.imageModel}`}
-                  supported={GEMINI_SUPPORTS.image}
-                  value={settings.thumbnail}
-                  onChange={(v) => saveProviderSettings({ thumbnail: v })}
-                />
-                <RouteRow
-                  label="Voice Provider"
-                  hint={`Voiceover · ${active.ttsModel}`}
-                  supported={GEMINI_SUPPORTS.tts}
-                  value={settings.voice}
-                  onChange={(v) => saveProviderSettings({ voice: v })}
-                />
-              </>
+              <RouteRow
+                label="Voice Provider"
+                hint={`Voiceover · ${active.ttsModel}`}
+                supported={GEMINI_SUPPORTS.tts}
+                value={settings.voice}
+                onChange={(v) => saveProviderSettings({ voice: v })}
+              />
             )}
           </div>
           <label className="mt-4 flex items-center gap-2 text-sm">
@@ -312,16 +317,31 @@ function ApiKeysPage() {
  * generation is allowed, so it's obvious why generation is (or isn't) blocked.
  */
 function DebugStatus() {
-  const active = useActiveProvider();
   const settings = useProviderSettings();
   const imageStatus = useImageProviderStatus();
+  const textProvider = useActiveTextProvider();
   const admin = useIsAdmin();
   const unlimited = useHasUnlimitedAccess();
   const allowed = useCanGenerate();
   const tele = useTelemetry();
 
-  const label = (choice: ProviderChoice) =>
-    active && choice === "gemini" ? "Gemini" : "Built-in AI";
+  const providerLabel = (choice: ProviderChoice) =>
+    choice === "gemini"
+      ? "Gemini"
+      : choice === "openai"
+        ? "OpenAI"
+        : choice === "recraft"
+          ? "Recraft V4.1 Utility Pro"
+          : choice === "fal"
+            ? "Fal.ai"
+            : choice === "replicate"
+              ? "Replicate"
+              : "Built-in AI";
+  const textLabel = textProvider
+    ? textProvider.name === "openai"
+      ? `OpenAI · ${textProvider.textModel}`
+      : `Gemini · ${textProvider.textModel}`
+    : "Built-in AI";
   const creditMode = admin
     ? "Developer Unlimited"
     : unlimited
@@ -331,7 +351,7 @@ function DebugStatus() {
     tele.lastProvider === "gemini"
       ? "Gemini"
       : tele.lastProvider === "openai"
-        ? "OpenAI Images"
+        ? "OpenAI"
         : tele.lastProvider === "fal"
           ? "Fal.ai"
           : tele.lastProvider === "replicate"
@@ -348,10 +368,11 @@ function DebugStatus() {
     <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs">
       <div className="mb-2 font-sans text-sm font-medium">Diagnostics</div>
       <div className="grid gap-1">
-        <div>Active Text Provider: {label(settings.text)}</div>
+        <div>Active Text Provider: {textLabel}</div>
         <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
         <div>Image Provider Status: {imageStatus.message}</div>
-        <div>Active Voice Provider: {label(settings.voice)}</div>
+        <div>Active Thumbnail Provider: {providerLabel(settings.thumbnail)}</div>
+        <div>Active Voice Provider: {providerLabel(settings.voice)}</div>
         <div>Fallback to Built-in: {settings.fallback ? "On" : "Off"}</div>
         <div>Credit Mode: {creditMode}</div>
         <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
@@ -405,6 +426,37 @@ function ImageRouteRow({
         <option value="openai">OpenAI Images</option>
         <option value="fal">Fal.ai</option>
         <option value="replicate">Replicate</option>
+      </select>
+    </div>
+  );
+}
+
+/** Text-task routing row. Offers Gemini, OpenAI or the built-in AI. */
+function TextRouteRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: ProviderChoice;
+  onChange: (v: ProviderChoice) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">{hint}</div>
+      </div>
+      <select
+        className="h-8 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value as ProviderChoice)}
+      >
+        <option value="gemini">Gemini</option>
+        <option value="openai">OpenAI</option>
+        <option value="builtin">Built-in AI</option>
       </select>
     </div>
   );

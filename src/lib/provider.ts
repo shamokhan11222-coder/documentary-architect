@@ -91,6 +91,45 @@ function findGemini(list: ApiKeyEntry[]): ApiKeyEntry | null {
   return list.find((e) => e.provider === "Google Gemini" && e.apiKey.trim()) ?? null;
 }
 
+function findOpenAI(list: ApiKeyEntry[]): ApiKeyEntry | null {
+  return list.find((e) => e.provider === "OpenAI" && e.apiKey.trim()) ?? null;
+}
+
+// ---- Active TEXT provider (Gemini or OpenAI, per routing settings) ----
+export interface ActiveTextProvider {
+  name: "gemini" | "openai";
+  apiKey: string;
+  textModel: string;
+}
+
+function resolveTextProvider(settings: ProviderSettings, list: ApiKeyEntry[]): ActiveTextProvider | null {
+  if (settings.text === "openai") {
+    const o = findOpenAI(list);
+    return o
+      ? { name: "openai", apiKey: o.apiKey.trim(), textModel: o.modelName?.trim() || "gpt-4o-mini" }
+      : null;
+  }
+  if (settings.text === "gemini") {
+    const g = findGemini(list);
+    return g
+      ? { name: "gemini", apiKey: g.apiKey.trim(), textModel: g.modelName?.trim() || "gemini-2.5-flash" }
+      : null;
+  }
+  return null; // built-in / disabled
+}
+
+/** Non-reactive read of the active text provider (Gemini or OpenAI). */
+export function getActiveTextProvider(): ActiveTextProvider | null {
+  return resolveTextProvider(getProviderSettings(), readLocal<ApiKeyEntry[]>(KEY, []));
+}
+
+/** Reactive hook for the active text provider. */
+export function useActiveTextProvider(): ActiveTextProvider | null {
+  const settings = useProviderSettings();
+  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  return resolveTextProvider(settings, list);
+}
+
 function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry | null {
   const provider =
     choice === "gemini"
@@ -140,6 +179,10 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
+  } else if (choice === "openai") {
+    // Force an OpenAI image model. A text model (e.g. gpt-4o-mini) must never
+    // be used for image generation — default to gpt-image-1.
+    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gpt-image-1";
   } else if (!imageModel) {
     imageModel = defaultImageModel(choice);
   }
