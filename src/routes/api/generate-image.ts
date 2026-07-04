@@ -258,6 +258,51 @@ async function listGeminiModels(apiKey: string): Promise<Response> {
   });
 }
 
+/** Full raw diagnostics for a Gemini key. Performs exactly ONE live models-list
+ *  request and returns the full request URL (key redacted), API version,
+ *  HTTP status code, and the complete raw response body — no content is
+ *  generated. Used by the Gemini Diagnostics page. */
+async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<Response> {
+  const key = apiKey?.trim();
+  if (!key) {
+    return Response.json({
+      ok: false,
+      error: "No Gemini API key detected. Add one in API Settings.",
+      host: GEMINI_HOST,
+      apiVersions: GEMINI_API_VERSIONS,
+      authMethod: "API key via ?key= query parameter",
+    });
+  }
+  const version = GEMINI_API_VERSIONS[0];
+  const requestUrl = `${geminiModelsUrl(version)}?key=${encodeURIComponent(key)}&pageSize=200`;
+  const redactedUrl = `${geminiModelsUrl(version)}?key=***REDACTED***&pageSize=200`;
+  let httpStatus = 0;
+  let responseBody = "";
+  let ok = false;
+  const started = Date.now();
+  try {
+    const r = await fetch(requestUrl);
+    httpStatus = r.status;
+    ok = r.ok;
+    responseBody = await r.text();
+  } catch (e) {
+    responseBody = `Fetch failed: ${String(e).slice(0, 300)}`;
+  }
+  return Response.json({
+    ok,
+    host: GEMINI_HOST,
+    endpoint: geminiModelsUrl(version),
+    apiVersion: version,
+    apiVersions: GEMINI_API_VERSIONS,
+    authMethod: "API key via ?key= query parameter",
+    requestUrl: redactedUrl,
+    httpStatus,
+    ms: Date.now() - started,
+    imageModel: imageModel?.trim() || null,
+    responseBody: responseBody.slice(0, 20000),
+  });
+}
+
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
   const apiKey = provider.apiKey ?? "";
