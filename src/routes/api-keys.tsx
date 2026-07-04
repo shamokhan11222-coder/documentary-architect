@@ -238,15 +238,12 @@ function ApiKeysPage() {
             Choose which provider handles each task. Image generation requires a connected external image provider.
           </p>
           <div className="mt-3 space-y-3">
-            {active && (
-              <RouteRow
-                label="Text Provider"
-                hint="Topics, research, story, storyboard, SEO, rating"
-                supported={GEMINI_SUPPORTS.text}
-                value={settings.text}
-                onChange={(v) => saveProviderSettings({ text: v })}
-              />
-            )}
+            <TextRouteRow
+              label="Text Provider"
+              hint="Topics, research, story, storyboard, SEO, rating, script analyzer"
+              value={settings.text}
+              onChange={(v) => saveProviderSettings({ text: v })}
+            />
             <ImageRouteRow
               label="Image Provider"
               hint="Storyboard images"
@@ -254,23 +251,20 @@ function ApiKeysPage() {
               onChange={(v) => saveProviderSettings({ image: v })}
             />
             <RecraftTest keys={keys} />
+            <ImageRouteRow
+              label="Thumbnail Provider"
+              hint="Thumbnail images"
+              value={settings.thumbnail}
+              onChange={(v) => saveProviderSettings({ thumbnail: v })}
+            />
             {active && (
-              <>
-                <RouteRow
-                  label="Thumbnail Provider"
-                  hint={`Thumbnails · ${active.imageModel}`}
-                  supported={GEMINI_SUPPORTS.image}
-                  value={settings.thumbnail}
-                  onChange={(v) => saveProviderSettings({ thumbnail: v })}
-                />
-                <RouteRow
-                  label="Voice Provider"
-                  hint={`Voiceover · ${active.ttsModel}`}
-                  supported={GEMINI_SUPPORTS.tts}
-                  value={settings.voice}
-                  onChange={(v) => saveProviderSettings({ voice: v })}
-                />
-              </>
+              <RouteRow
+                label="Voice Provider"
+                hint={`Voiceover · ${active.ttsModel}`}
+                supported={GEMINI_SUPPORTS.tts}
+                value={settings.voice}
+                onChange={(v) => saveProviderSettings({ voice: v })}
+              />
             )}
           </div>
           <label className="mt-4 flex items-center gap-2 text-sm">
