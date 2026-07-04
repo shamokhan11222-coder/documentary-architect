@@ -226,9 +226,13 @@ async function generate(prompt: string, references: string[], provider = imagePr
         const fb = fallbackImageProviderPayload();
         if (fb && fb.name !== "puter") {
           console.error("[Puter] falling back to", fb.name, e);
-          const img = await callImageApi(prompt, references, fb);
-          setPuterStatus("connected");
-          return img;
+          try {
+            const img = await callImageApi(prompt, references, fb);
+            setPuterStatus("connected");
+            return img;
+          } finally {
+            lastImageRequestAt = Date.now();
+          }
         }
         throw e;
       }
