@@ -54,6 +54,9 @@ export class ImageGenError extends Error {
   }
 }
 
+export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
+  "Provider free tier limit reached. Try later or switch provider.";
+
 /** Maps an image-generation error to a specific, user-facing message.
  *  Never collapses everything into a single generic "try again later" line. */
 export function imageErrorMessage(err: unknown, fallback = "Image generation failed."): string {
@@ -68,7 +71,7 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
       case "AUTH_ERROR":
         return "Invalid API key.";
       case "RATE_LIMIT":
-        return "Rate limit exceeded.";
+        return PROVIDER_FREE_TIER_LIMIT_MESSAGE;
       case "CREDITS_EXHAUSTED":
       case "PROVIDER_ERROR":
       case "BAD_REQUEST":
@@ -86,7 +89,7 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
 export function isRateLimitError(err: unknown): boolean {
   if (err instanceof ImageGenError) return err.code === "RATE_LIMIT" || err.status === 429;
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota|tier limit exceeded/i.test(msg);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -234,8 +237,8 @@ async function generate(prompt: string, references: string[], provider = imagePr
       lastImageRequestAt = Date.now();
       return img;
     } catch (e) {
-      // Never block for minutes on a rate limit. Surface it immediately so the
-      // queue can stop loading, mark the scene "Rate Limited", and pause — the
+      // Never block for minutes on provider limits. Surface it immediately so the
+      // queue can stop loading, mark the scene Provider Limit, and pause — the
       // user resumes later. The per-request 90s timeout guarantees no long hang.
       lastImageRequestAt = Date.now();
       throw e;
