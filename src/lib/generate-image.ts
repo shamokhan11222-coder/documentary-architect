@@ -211,12 +211,20 @@ async function generate(prompt: string, references: string[], provider = imagePr
   const active: ImageProviderPayload = provider;
   const free = getFreeMode();
   return enqueueAi(async () => {
+    // Free Queue Mode: enforce a fixed 120s gap before any image provider call.
+    if (free && lastImageRequestAt > 0) {
+      const since = Date.now() - lastImageRequestAt;
+      if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
+    }
     // Puter AI: try the browser SDK first; if it is unavailable, automatically
     // fall back to Gemini or Recraft when one is connected. Provider limits stop.
     if (active.name === "puter") {
       try {
-        return await callImageApi(prompt, references, active);
+        const img = await callImageApi(prompt, references, active);
+        lastImageRequestAt = Date.now();
+        return img;
       } catch (e) {
+        lastImageRequestAt = Date.now();
         if (isRateLimitError(e)) throw e;
         const fb = fallbackImageProviderPayload();
         if (fb && fb.name !== "puter") {
@@ -227,11 +235,6 @@ async function generate(prompt: string, references: string[], provider = imagePr
         }
         throw e;
       }
-    }
-    // Free Queue Mode: enforce a fixed 120s gap between image requests.
-    if (free && lastImageRequestAt > 0) {
-      const since = Date.now() - lastImageRequestAt;
-      if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
     }
     try {
       const img = await callImageApi(prompt, references, active);
