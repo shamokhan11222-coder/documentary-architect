@@ -92,8 +92,6 @@ export function isRateLimitError(err: unknown): boolean {
   return /\b429\b|rate.?limit|too many requests|resource_exhausted|tier limit exceeded/i.test(msg);
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 // Hard timeouts so a slow/unresponsive provider can never hang forever.
 export const IMAGE_TIMEOUT_MS = 90_000;
 export const THUMBNAIL_TIMEOUT_MS = 90_000;
@@ -117,6 +115,11 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Pro
 
 // Timestamp of the last image request, used to enforce the Free Mode delay.
 let lastImageRequestAt = 0;
+
+export function getImageCooldownRemainingMs(): number {
+  if (!getFreeMode() || lastImageRequestAt <= 0) return 0;
+  return Math.max(0, FREE_MODE_DELAY_MS - (Date.now() - lastImageRequestAt));
+}
 
 // AUDIT: monotonic counter of image API requests actually sent from the client.
 // One user click of "Generate Image" must produce exactly ONE increment here;
@@ -211,11 +214,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
   const active: ImageProviderPayload = provider;
   const free = getFreeMode();
   return enqueueAi(async () => {
-    // Free Queue Mode: enforce a fixed 120s gap before any image provider call.
-    if (free && lastImageRequestAt > 0) {
-      const since = Date.now() - lastImageRequestAt;
-      if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
-    }
+    void free;
     // Puter AI: try the browser SDK first; if it is unavailable, automatically
     // fall back to Gemini or Recraft when one is connected. Provider limits stop.
     if (active.name === "puter") {
