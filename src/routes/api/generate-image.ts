@@ -62,6 +62,13 @@ async function validateProvider(provider: Provider): Promise<Response> {
       return validationResult(r, "Recraft");
     }
     if (name === "gemini") {
+      // Image/thumbnail providers must be validated against the actual Gemini
+      // IMAGE model endpoint — never the text/models-list activation path.
+      const imageModel = provider.imageModel?.trim();
+      if (imageModel && imageModel.toLowerCase().includes("image")) {
+        const r = await fetch(`${GOOGLE}/${imageModel}?key=${encodeURIComponent(provider.apiKey)}`);
+        return validationResult(r, "Gemini Image");
+      }
       const r = await fetch(`${GOOGLE}?key=${encodeURIComponent(provider.apiKey)}&pageSize=1`);
       return validationResult(r, "Gemini");
     }
