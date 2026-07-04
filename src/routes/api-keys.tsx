@@ -19,9 +19,13 @@ import {
   GEMINI_SUPPORTS,
   useProviderSettings,
   saveProviderSettings,
+  useActiveImageProvider,
+  imageProviderPayload,
+  IMAGE_PROVIDER_TEST_PASSED,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
+import { testImageProvider, imageErrorMessage } from "@/lib/generate-image";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
