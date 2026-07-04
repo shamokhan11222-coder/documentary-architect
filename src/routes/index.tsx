@@ -110,6 +110,7 @@ function Workspace() {
   const active = selected ?? topics[0] ?? null;
   const activeId = active?.id ?? null;
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Time/date-dependent values must not run during SSR/first render — they
   // differ between server and client and cause a hydration crash. Compute
