@@ -17,7 +17,7 @@ export interface ActiveProvider {
   ttsModel: string;
 }
 
-export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "builtin";
+export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "recraft" | "builtin";
 
 export interface ActiveImageProvider {
   id: string;
@@ -29,7 +29,7 @@ export interface ActiveImageProvider {
 }
 
 export const IMAGE_PROVIDER_NOT_CONNECTED =
-  "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.";
+  "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
 export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
 
 export const GEMINI_UNSUPPORTED_MESSAGE =
@@ -44,7 +44,7 @@ export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
 };
 
 // ---- Provider routing settings (which provider handles each task) ----
-export type ProviderChoice = "gemini" | "builtin" | "openai" | "fal" | "replicate" | "disabled";
+export type ProviderChoice = "gemini" | "builtin" | "openai" | "fal" | "replicate" | "recraft" | "disabled";
 
 export interface ProviderSettings {
   text: ProviderChoice;
@@ -57,9 +57,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "gemini",
+  image: "recraft",
   voice: "gemini",
-  thumbnail: "gemini",
+  thumbnail: "recraft",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -67,9 +67,9 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
   const next = { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
-  // Historical projects may have saved "builtin" for image routing. Treat it as
-  // disabled so image generation cannot touch the built-in AI.
-  if (next.image === "builtin") next.image = "disabled";
+  // Image generation must never touch the built-in AI. Any legacy/built-in
+  // image routing is coerced to Recraft, the only supported image provider.
+  if (next.image === "builtin" || next.image === "disabled") next.image = "recraft";
   return next;
 }
 
@@ -101,7 +101,9 @@ function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry 
           ? "Fal.ai"
           : choice === "replicate"
             ? "Replicate"
-            : null;
+            : choice === "recraft"
+              ? "Recraft"
+              : null;
   if (!provider) return null;
   return list.find((e) => e.provider === provider && e.apiKey.trim()) ?? null;
 }
@@ -111,6 +113,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "openai") return "gpt-image-1";
   if (choice === "fal") return "fal-ai/flux/schnell";
   if (choice === "replicate") return "black-forest-labs/flux-schnell";
+  if (choice === "recraft") return "recraftv4_1_pro";
   return "";
 }
 
@@ -119,12 +122,14 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "openai") return "OpenAI Images";
   if (choice === "fal") return "Fal.ai";
   if (choice === "replicate") return "Replicate";
+  if (choice === "recraft") return "Recraft V4.1 Utility Pro";
   return "Built-in AI disabled";
 }
 
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   if (!entry) return null;
-  if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate") return null;
+  if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate" && choice !== "recraft")
+    return null;
 
   // For Gemini image, ONLY use models containing "image" in the name.
   // The user's text modelName (e.g. gemini-2.5-flash) must NOT be used for image gen.
@@ -132,6 +137,9 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   if (choice === "gemini") {
     // Force an image-capable model. Ignore text model names.
     imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gemini-2.5-flash-image";
+  } else if (choice === "recraft") {
+    // Force a Recraft image model. Ignore any label a user might have typed.
+    imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_pro";
   } else if (!imageModel) {
     imageModel = defaultImageModel(choice);
   }
