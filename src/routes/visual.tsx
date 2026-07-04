@@ -586,6 +586,9 @@ function VisualPage() {
           <div className="mt-3 grid gap-1 font-mono text-xs text-muted-foreground">
             <div>Active Image Provider: {imageProviderStatus.connected ? imageProviderStatus.label : "Built-in AI disabled"}</div>
             <div>Provider Status: {imageProviderStatus.message}</div>
+            {imageProviderStatus.choice === "puter" && (
+              <div>Puter AI: {puterStatusLabel(busy?.startsWith("all") || busy?.startsWith("next") || busy === "one" || busy === "next-available" ? "generating" : puterStatus)}</div>
+            )}
             <div>Last Image Error: {telemetry.lastError ?? "—"}</div>
           </div>
         </div>
