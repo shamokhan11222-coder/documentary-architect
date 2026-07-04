@@ -24,6 +24,7 @@ import {
   useActiveImageProvider,
   useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
+  GEMINI_IMAGE_MODEL_DEFAULT,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
@@ -62,6 +63,11 @@ function ApiKeysPage() {
     } else if (next === "OpenAI") {
       if (!modelName.trim()) setModelName("gpt-4o-mini");
       if (!purpose.trim()) setPurpose("text");
+    } else if (next === "Google Gemini") {
+      // Gemini serves BOTH text and image via separate models. Prefill the text
+      // model; the image model is forced server-side to the image endpoint.
+      if (!modelName.trim()) setModelName("gemini-2.5-flash");
+      if (!purpose.trim()) setPurpose("text,images");
     }
   }
 
@@ -118,7 +124,15 @@ function ApiKeysPage() {
     // Saving a key immediately activates that provider by pointing the relevant
     // routing at it. No Gemini requirement — any supported provider activates.
     if (provider === "Google Gemini") {
-      saveProviderSettings({ text: "gemini" });
+      // Route each requested task to Gemini. An empty purpose activates Gemini
+      // fully (text + image + thumbnail) so the image provider is never left
+      // "Not Activated" after adding a Gemini key.
+      const p = (purpose.trim() || "text,images,thumbnail").toLowerCase();
+      const patch: Partial<{ text: ProviderChoice; image: ProviderChoice; thumbnail: ProviderChoice }> = {};
+      if (p.includes("all") || p.includes("text")) patch.text = "gemini";
+      if (p.includes("all") || p.includes("image")) patch.image = "gemini";
+      if (p.includes("all") || p.includes("image") || p.includes("thumbnail")) patch.thumbnail = "gemini";
+      saveProviderSettings(patch);
     } else if (provider === "OpenAI") {
       applyPurposeRouting("openai", purpose.trim() || "text");
     } else if (provider === "Recraft") {
