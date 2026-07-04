@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Loader2, RefreshCw, CheckCircle2, XCircle, Image as ImageIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useApiKeys } from "@/lib/apikeys";
+import { useApiKeys, saveApiKey } from "@/lib/apikeys";
 import {
   useActiveTextProvider,
   useActiveImageProvider,
@@ -12,7 +12,6 @@ import {
   GEMINI_IMAGE_MODEL_DEFAULT,
   saveProviderSettings,
 } from "@/lib/provider";
-import { saveApiKey } from "@/lib/apikeys";
 import {
   geminiDiagnostics,
   listGeminiModels,
