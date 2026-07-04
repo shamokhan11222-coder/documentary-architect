@@ -397,14 +397,6 @@ function ValRow({ label, ok, value }: { label: string; ok: boolean; value: strin
     </div>
   );
 }
-function SummaryStatLegacy({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border px-3 py-2">
-      <div className="text-base font-semibold text-foreground">{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-    </div>
-  );
-}
 function Ctrl({
   label,
   value,
