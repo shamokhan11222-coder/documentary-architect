@@ -176,34 +176,98 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
 }
 
 async function generateWithOpenAI(body: Body, provider: Provider): Promise<Response> {
+  // Force an image-capable model — a text model (e.g. gpt-4o-mini) is never
+  // valid on the Images endpoint.
+  let model = provider.imageModel || "gpt-image-1";
+  if (!model.toLowerCase().includes("image")) model = "gpt-image-1";
+
+  // Dedicated OpenAI Images API — NOT chat completions.
+  const reqBody = { model, prompt: body.prompt, size: "1024x1024", n: 1 };
+  console.log("[image] OpenAI request", {
+    endpoint: OPENAI,
+    model,
+    headers: { Authorization: "Bearer ****", "Content-Type": "application/json" },
+    body: { ...reqBody, prompt: (body.prompt ?? "").slice(0, 200) },
+  });
+
   const upstream = await fetch(OPENAI, {
     method: "POST",
     headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: provider.imageModel || "gpt-image-1",
-      prompt: body.prompt,
-      size: "1024x1024",
-      n: 1,
-    }),
+    body: JSON.stringify(reqBody),
   });
+
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
-    logProviderCall("openai", provider.imageModel || "gpt-image-1", provider.apiKey, status, false, text);
-    const msg =
+    logProviderCall("openai", model, provider.apiKey, status, false, text);
+    console.error("[image] OpenAI full error response", { httpStatus: status, body: text });
+
+    // Parse the real OpenAI error object: { error: { message, type, code } }.
+    let oaMessage = "";
+    let oaType = "";
+    let oaCode = "";
+    try {
+      const j = JSON.parse(text);
+      oaMessage = j?.error?.message || j?.message || "";
+      oaType = j?.error?.type || "";
+      oaCode = j?.error?.code || "";
+    } catch {
+      oaMessage = text;
+    }
+
+    // Only treat it as an auth/key problem when OpenAI actually says so.
+    const isAuth =
+      status === 401 ||
+      oaCode === "invalid_api_key" ||
+      oaType === "authentication_failed" ||
+      oaType === "invalid_request_error" && /api key/i.test(oaMessage);
+
+    if (isAuth) {
+      return jsonError(
+        oaMessage || "OpenAI rejected the API key (authentication failed).",
+        status,
+        "AUTH_ERROR",
+      );
+    }
+
+    // Surface the exact OpenAI error for everything else (model not found,
+    // insufficient quota, permission denied, unsupported endpoint, malformed
+    // request, rate limit, etc.).
+    const detail = oaMessage
+      ? `${oaMessage}${oaCode ? ` [${oaCode}]` : ""}`
+      : text.slice(0, 300) || `OpenAI Images request failed (${status}).`;
+    const prefix =
       status === 429
-        ? "Rate limit exceeded (OpenAI Images). Please wait and try again."
-        : status === 400 || status === 401 || status === 403
-          ? "Invalid API key — OpenAI Images rejected the request. Check your key and image model in API Settings."
-          : `OpenAI Images generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
+        ? "Rate limit exceeded (OpenAI Images): "
+        : status === 402 || oaCode === "insufficient_quota"
+          ? "Insufficient quota (OpenAI Images): "
+          : status === 403
+            ? "Permission denied (OpenAI Images): "
+            : `OpenAI Images error (${status}): `;
+    // Non-auth path: use RATE_LIMIT for 429, CREDITS_EXHAUSTED for quota, and
+    // PROVIDER_ERROR otherwise so the client surfaces the exact message rather
+    // than a generic "Invalid API key".
+    const code =
+      status === 429
+        ? "RATE_LIMIT"
+        : oaCode === "insufficient_quota" || status === 402
+          ? "CREDITS_EXHAUSTED"
+          : "PROVIDER_ERROR";
+    return jsonError(`${prefix}${detail}`, status, code);
   }
+
   const data = await upstream.json();
+  console.log("[image] OpenAI success", {
+    httpStatus: upstream.status,
+    model,
+    hasB64: !!data?.data?.[0]?.b64_json,
+    hasUrl: !!data?.data?.[0]?.url,
+  });
   const b64 = data?.data?.[0]?.b64_json;
   const url = data?.data?.[0]?.url;
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
   if (typeof url === "string" && url.trim()) return Response.json({ image: url });
-  return jsonError("OpenAI Images returned no image.", 502);
+  return jsonError("OpenAI Images returned no image.", 502, "PROVIDER_ERROR");
 }
 
 async function generateWithFal(body: Body, provider: Provider): Promise<Response> {
