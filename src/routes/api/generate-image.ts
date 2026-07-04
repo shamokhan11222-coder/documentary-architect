@@ -30,6 +30,55 @@ function codeForStatus(status: number): string {
   return "PROVIDER_ERROR";
 }
 
+/** Turn a lightweight validation response into a normalized result. */
+function validationResult(r: Response, label: string): Response {
+  if (r.ok) return Response.json({ ok: true });
+  const msg =
+    r.status === 400 || r.status === 401 || r.status === 403
+      ? "Invalid API key."
+      : r.status === 429
+        ? `Rate limit exceeded (${label}).`
+        : `${label} validation failed (${r.status}).`;
+  return jsonError(msg, r.status, r.status === 400 ? "AUTH_ERROR" : codeForStatus(r.status));
+}
+
+/** Validate a provider with the smallest possible request — never generates a
+ *  full image. Uses each provider's lightweight auth/list endpoint. */
+async function validateProvider(provider: Provider): Promise<Response> {
+  const name = provider.name;
+  if (name === "builtin") {
+    if (!process.env.LOVABLE_API_KEY)
+      return jsonError("Built-in AI is not configured (missing LOVABLE_API_KEY).", 500, "PROVIDER_ERROR");
+    return Response.json({ ok: true });
+  }
+  if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
+  try {
+    if (name === "gemini") {
+      const r = await fetch(`${GOOGLE}?key=${encodeURIComponent(provider.apiKey)}&pageSize=1`);
+      return validationResult(r, "Gemini");
+    }
+    if (name === "openai") {
+      const r = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${provider.apiKey}` },
+      });
+      return validationResult(r, "OpenAI");
+    }
+    if (name === "replicate") {
+      const r = await fetch("https://api.replicate.com/v1/account", {
+        headers: { Authorization: `Bearer ${provider.apiKey}` },
+      });
+      return validationResult(r, "Replicate");
+    }
+    if (name === "fal") {
+      // Fal.ai has no lightweight auth-check endpoint; accept a present key.
+      return Response.json({ ok: true });
+    }
+  } catch (e) {
+    return jsonError(`Provider validation failed: ${String(e).slice(0, 200)}`, 502, "PROVIDER_ERROR");
+  }
+  return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
+}
+
 /** Log the outcome of an upstream provider call in a redaction-safe way
  *  (never logs the API key itself, only its length/prefix). */
 function logProviderCall(
@@ -251,10 +300,8 @@ export const Route = createFileRoute("/api/generate-image")({
         const { provider } = body;
         if (!provider?.name) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
 
-        if (body.test) {
-          body.prompt = "simple clean blue circle icon on white background";
-          body.references = [];
-        }
+        // Provider test: smallest possible validation request, never a full image.
+        if (body.test) return validateProvider(provider);
         if (!body.prompt?.trim()) return jsonError("Missing prompt", 400, "BAD_REQUEST");
 
         console.log("[image] request received", {
