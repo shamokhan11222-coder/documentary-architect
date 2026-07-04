@@ -14,8 +14,7 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider, imageErrorMessage } from "@/lib/generate-image";
-import { generateSceneImage as _gen, isRateLimitError } from "@/lib/generate-image";
+import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
