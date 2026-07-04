@@ -41,7 +41,7 @@ import {
   generateSeo,
   rateVideo,
 } from "@/lib/ai.functions";
-import { generateSceneImage, generateThumbnailImage, isRateLimitError } from "@/lib/generate-image";
+import { generateSceneImage, generateThumbnailImage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import { generateVoiceBlock } from "@/lib/generate-voice";
 import { getVisualInstructions } from "@/lib/visual-instructions";
@@ -144,8 +144,8 @@ function ManagerPage() {
   function markSkipped(id: string, stage: StageKey) {
     const label = PIPELINE.find((p) => p.key === stage)?.label ?? stage;
     patchStage(id, stage, { status: "skipped", error: "Skipped / Provider Limit", finishedAt: Date.now() });
-    logActivity(id, `${label} skipped — provider image limit reached. Continue later.`, "info");
-    toast.warning(`${label} skipped — provider image limit reached. Generate images later.`);
+    logActivity(id, `${label} skipped — ${PROVIDER_FREE_TIER_LIMIT_MESSAGE}`, "info");
+    toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
   }
 
   // Run a single stage. Returns true on success, false on failure.
