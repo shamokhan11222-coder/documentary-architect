@@ -13,7 +13,7 @@ import {
 } from "./provider";
 import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
-import { getFreeMode, FREE_MODE_DELAY_MS, FREE_MODE_RETRY_MS } from "./free-mode";
+import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
