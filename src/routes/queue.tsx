@@ -173,6 +173,12 @@ function QueuePage() {
     void runNumbers([nums[0]]);
   }
 
+  function generateNext5() {
+    const nums = pendingNums();
+    if (!nums.length) return toast.info("Nothing pending");
+    void runNumbers(nums.slice(0, 5));
+  }
+
   // Retry the scene that was interrupted (first not-yet-completed scene).
   function retryCurrent() {
     const nums = pendingNums();
