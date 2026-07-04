@@ -65,9 +65,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "recraft",
+  image: "gemini",
   voice: "gemini",
-  thumbnail: "recraft",
+  thumbnail: "gemini",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -75,9 +75,14 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
   const next = { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
-  // Image generation must never touch the built-in AI. Any legacy/built-in
-  // image routing is coerced to Recraft, the only supported image provider.
-  if (next.image === "builtin" || next.image === "disabled") next.image = "recraft";
+  // Gemini-only mode: OpenAI is disabled as an ACTIVE provider everywhere. It
+  // stays selectable in API Settings for future use, but never routes here.
+  if (next.text === "openai") next.text = "gemini";
+  if (next.voice === "openai") next.voice = "gemini";
+  // Image generation must never touch the built-in AI or OpenAI. Any legacy
+  // built-in/OpenAI image routing is coerced to Gemini image.
+  if (next.image === "builtin" || next.image === "disabled" || next.image === "openai") next.image = "gemini";
+  if (next.thumbnail === "builtin" || next.thumbnail === "disabled" || next.thumbnail === "openai") next.thumbnail = "gemini";
   return next;
 }
 
@@ -319,7 +324,7 @@ export function imageProviderPayload() {
  *  automatic fallback when Puter AI is unavailable or rate limited. */
 export function fallbackImageProviderPayload() {
   const list = readLocal<ApiKeyEntry[]>(KEY, []);
-  for (const choice of ["gemini", "recraft", "openai"] as ProviderChoice[]) {
+  for (const choice of ["gemini", "recraft"] as ProviderChoice[]) {
     const p = toImageProvider(choice, findImageKey(choice, list));
     if (p) return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
   }
