@@ -45,6 +45,7 @@ function VoicePage() {
   const settings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
   const profiles = useVoiceProfiles();
   const [busy, setBusy] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // The cloned voice selected for this project (persisted per project via
   // settings.clonedProfileId). When profiles exist, one must be selected
@@ -148,6 +149,40 @@ function VoicePage() {
     }
     setBusy(null);
     if (!creditsOut) toast.success("Narration complete");
+  }
+
+  /** Preview Clone — narrate a single sentence so the user can compare the
+   *  generated voice against the uploaded sample. */
+  async function previewClone() {
+    if (!selectedProfile) {
+      toast.error("Select a voice profile first.");
+      return;
+    }
+    const guard = voiceGuard();
+    if (guard) {
+      toast.error(guard);
+      return;
+    }
+    setBusy("preview");
+    setPreviewUrl(null);
+    const sentence = "This is a preview of the selected voice clone. Compare it with your uploaded sample.";
+    const key = `voicepreview:${selectedProfile.id}`;
+    try {
+      await generateVoiceBlock("__preview__", -1, sentence, {
+        ...genSettings(),
+        // reuse the preview slot instead of a real block index
+      });
+      // generateVoiceBlock stores under voice:__preview__:-1
+      const { getImage } = await import("@/lib/images");
+      const url = await getImage(voiceBlockId("__preview__", -1));
+      setPreviewUrl(url ?? null);
+      void key;
+      toast.success("Clone preview ready");
+    } catch (e) {
+      toast.error(humanizeError(e, "Preview failed"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   function editText(index: number, text: string) {
