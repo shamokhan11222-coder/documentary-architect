@@ -277,9 +277,8 @@ function VisualPage() {
           await genImage(scenes[i]);
         } catch (e) {
           const msg = imageErrorMessage(e, "failed");
-          // Rate limits are NEVER permanent failures. Mark the scene as
-          // "rate limited / waiting", keep every completed image, and stop so
-          // the user can continue from the next pending scene later.
+          // Provider limits are NEVER permanent failures. Mark the scene as
+          // Provider Limit, keep every completed image, and stop immediately.
           if (isRateLimitError(e)) {
             setRateLimited((prev) => new Set(prev).add(scenes[i].sceneNumber));
             toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
@@ -359,7 +358,7 @@ function VisualPage() {
         }
         await testImageProvider(provider);
         if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
-        toast.success("Recraft connection successful — ready to generate");
+      toast.success("Image provider connection successful — ready to generate");
       } catch (e) {
         toast.error(imageErrorMessage(e, "Image provider test failed"));
       } finally {
@@ -597,7 +596,7 @@ function VisualPage() {
           </label>
           {rateLimited.size > 0 && (
             <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-              Free provider limit reached. Continue later. {rateLimited.size} scene(s) waiting — completed images are saved and you can resume from the next pending scene.
+              {PROVIDER_FREE_TIER_LIMIT_MESSAGE} {rateLimited.size} scene(s) marked Provider Limit — completed images are saved and you can resume later.
             </p>
           )}
           {!imageProviderStatus.connected && (
@@ -667,7 +666,7 @@ function VisualPage() {
             <span>· Pending {Math.max(0, progress.total - progress.done)}</span>
             <span>· Completed {have.size}</span>
             <span>· Failed {failed.size}</span>
-            {rateLimited.size > 0 && <span>· Waiting (rate limited) {rateLimited.size}</span>}
+            {rateLimited.size > 0 && <span>· Provider Limit {rateLimited.size}</span>}
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
