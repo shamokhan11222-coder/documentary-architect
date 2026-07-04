@@ -3,6 +3,7 @@
 import { putImage } from "./images";
 import { ttsProviderPayload } from "./provider";
 import { enqueueAi } from "./ai-queue";
+import { getVoiceProfile } from "./production";
 import type { VoiceSettings } from "./types";
 
 export const voiceBlockId = (topicId: string, index: number) => `voice:${topicId}:${index}`;
@@ -41,6 +42,28 @@ export async function generateVoiceBlock(
   settings: VoiceSettings,
 ): Promise<number> {
   const spoken = applyDictionary(text, settings.dictionary);
+
+  // If a cloned voice is selected, it MUST drive synthesis — never silently
+  // fall back to a default (often female) prebuilt voice.
+  let clone: { id: string; name: string; gender: string; pitchHz?: number } | undefined;
+  if (settings.clonedProfileId) {
+    const profile = getVoiceProfile(settings.clonedProfileId);
+    if (!profile) throw new Error("Selected voice clone could not be used.");
+    if (profile.status && profile.status !== "ready") {
+      throw new Error("Voice clone is still processing.");
+    }
+    if (!profile.sampleAudioId && !profile.sampleAudio) {
+      throw new Error("Selected voice clone could not be used.");
+    }
+    clone = {
+      id: profile.id,
+      name: profile.name,
+      gender: profile.gender ?? "unknown",
+      pitchHz: profile.pitchHz,
+    };
+    console.info("[voice] using cloned voice", clone);
+  }
+
   const data = await enqueueAi(async () => {
     const provider = ttsProviderPayload();
     console.info("[voice] request started", { provider: provider?.name, model: provider?.ttsModel });
@@ -60,6 +83,7 @@ export async function generateVoiceBlock(
           pauseStrength: settings.pauseStrength,
           pitch: settings.pitch,
           provider,
+          clone,
         }),
         signal: ctrl.signal,
       });
