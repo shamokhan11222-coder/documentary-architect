@@ -28,7 +28,13 @@ import {
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
-import { testImageProvider, imageErrorMessage } from "@/lib/generate-image";
+import {
+  testImageProvider,
+  imageErrorMessage,
+  listGeminiModels,
+  validateGeminiImageModel,
+  type GeminiModelList,
+} from "@/lib/generate-image";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
