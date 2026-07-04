@@ -61,6 +61,10 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
     switch (err.code) {
       case "NO_PROVIDER":
         return "No image provider is connected.";
+      case "TIMEOUT":
+        return "Request timed out. Provider may be slow or unavailable.";
+      case "UNSUPPORTED_TASK":
+        return "Gemini provider is connected but this task is not supported by the selected model.";
       case "AUTH_ERROR":
         return "Invalid API key.";
       case "RATE_LIMIT":
