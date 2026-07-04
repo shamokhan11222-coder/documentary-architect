@@ -15,7 +15,7 @@ import {
   saveThumbnails,
 } from "@/lib/store";
 import { useImage, putImage, loadImage } from "@/lib/images";
-import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE } from "@/lib/generate-image";
+import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,11 @@ function ThumbnailPage() {
   // skipping any that already have an image. Never redoes finished thumbnails.
   async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false): Promise<"ok" | "provider-limit"> {
     if (!selected) return "ok";
+    const cooldownMs = getImageCooldownRemainingMs();
+    if (cooldownMs > 0) {
+      toast.info(`Free Queue Mode cooldown: try again in ${Math.ceil(cooldownMs / 1000)}s.`);
+      return "provider-limit";
+    }
     // Thumbnail Free Mode: only ever generate ONE thumbnail — never a batch of
     // variations — to avoid provider rate-limit spam.
     if (getFreeMode()) end = Math.min(end, start + 1);
