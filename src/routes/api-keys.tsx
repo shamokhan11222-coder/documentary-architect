@@ -13,6 +13,8 @@ import {
   deleteApiKey,
   markTested,
 } from "@/lib/apikeys";
+import { readLocal } from "@/lib/local";
+import type { ApiKeyEntry } from "@/lib/types";
 import {
   useActiveProvider,
   useImageProviderStatus,
@@ -83,7 +85,7 @@ function ApiKeysPage() {
       });
       saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
       // Mark the just-saved key as tested so status shows Ready.
-      const saved = readLocal<import("@/lib/types").ApiKeyEntry[]>("docos.apikeys", []).find(
+      const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
         (k) => k.provider === "Recraft" && k.apiKey === apiKey.trim(),
       );
       if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
