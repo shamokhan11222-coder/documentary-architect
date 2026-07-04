@@ -11,6 +11,10 @@ const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
 // Legacy alias kept for the non-Gemini helpers below.
 const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
+// Current, existing Gemini image model. NOT the old preview id that 404s.
+// Only used as a starting point — the real model is resolved dynamically and
+// validated against the live models list before generating.
+const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
