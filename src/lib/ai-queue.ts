@@ -15,6 +15,7 @@
 // useSyncExternalStore. Settings (speed) and paused flag are persisted.
 import { useSyncExternalStore } from "react";
 import { readLocal, writeLocal } from "./local";
+import { getFreeMode } from "./free-mode";
 
 export type QueueTaskStatus =
   | "pending"
@@ -162,7 +163,7 @@ function schedulePump(delay: number) {
 
 function pump() {
   if (isPaused()) return;
-  const concurrency = SPEED_CONCURRENCY[getSpeed()];
+  const concurrency = getFreeMode() ? 1 : SPEED_CONCURRENCY[getSpeed()];
 
   while (running.size < concurrency) {
     const task = tasks.find((t) => t.status === "pending" || t.status === "waiting");
