@@ -88,6 +88,16 @@ function VoicePage() {
     if (!selected) return;
     const blocks = voice?.blocks ?? [];
     saveVoice({ topicId: selected.id, settings: { ...settings, ...patch }, blocks, generatedAt: Date.now() });
+    // Any change that affects the cloned voice invalidates the last similarity
+    // check — force a fresh preview before generation is unlocked again.
+    if (
+      ["clonedProfileId", "pitch", "age", "energy", "style", "profile", "speed", "stability"].some(
+        (k) => k in patch,
+      )
+    ) {
+      setSimilarity(null);
+      setPreviewUrl(null);
+    }
   }
 
   function buildBlocks() {
