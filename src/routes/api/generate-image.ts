@@ -1,15 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 // Silent, internal image generation. Images are routed only through the user's
-// selected external image provider. Built-in AI is intentionally disabled here.
+// selected external image provider (Recraft is primary). The built-in AI is
+// never used for images.
 const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
-const LOVABLE_IMAGE = "https://ai.gateway.lovable.dev/v1/images/generations";
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
-const PROVIDER_REQUIRED = "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.";
+const RECRAFT = "https://external.api.recraft.ai/v1/images/generations";
+const PROVIDER_REQUIRED =
+  "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
 
-type Provider = { name?: "gemini" | "openai" | "fal" | "replicate" | "builtin"; apiKey?: string; imageModel?: string; fallback?: boolean };
+type Provider = {
+  name?: "gemini" | "openai" | "fal" | "replicate" | "recraft" | "builtin";
+  apiKey?: string;
+  imageModel?: string;
+  fallback?: boolean;
+};
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
 
 function jsonError(error: string, status = 400, code?: string) {
@@ -46,13 +53,14 @@ function validationResult(r: Response, label: string): Response {
  *  full image. Uses each provider's lightweight auth/list endpoint. */
 async function validateProvider(provider: Provider): Promise<Response> {
   const name = provider.name;
-  if (name === "builtin") {
-    if (!process.env.LOVABLE_API_KEY)
-      return jsonError("Built-in AI is not configured (missing LOVABLE_API_KEY).", 500, "PROVIDER_ERROR");
-    return Response.json({ ok: true });
-  }
   if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
   try {
+    if (name === "recraft") {
+      const r = await fetch("https://external.api.recraft.ai/v1/users/me", {
+        headers: { Authorization: `Bearer ${provider.apiKey}` },
+      });
+      return validationResult(r, "Recraft");
+    }
     if (name === "gemini") {
       const r = await fetch(`${GOOGLE}?key=${encodeURIComponent(provider.apiKey)}&pageSize=1`);
       return validationResult(r, "Gemini");
@@ -292,6 +300,50 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
   return jsonError("Replicate returned no image.", 502);
 }
 
+async function generateWithRecraft(body: Body, provider: Provider): Promise<Response> {
+  const model = provider.imageModel && provider.imageModel.toLowerCase().startsWith("recraft")
+    ? provider.imageModel
+    : "recraftv4_1_pro";
+  const upstream = await fetch(RECRAFT, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt: body.prompt,
+      model,
+      size: "1820x1024",
+      response_format: "url",
+      n: 1,
+    }),
+  });
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => "");
+    const status = upstream.status;
+    logProviderCall("recraft", model, provider.apiKey, status, false, text);
+    // Surface the REAL Recraft error message whenever the provider returns one.
+    let providerMsg = "";
+    try {
+      const j = JSON.parse(text);
+      providerMsg = j?.message || j?.error || j?.detail || "";
+    } catch {
+      providerMsg = text;
+    }
+    const msg =
+      status === 429
+        ? `Rate limit exceeded (Recraft).${providerMsg ? " " + providerMsg : ""}`
+        : status === 400 || status === 401 || status === 403
+          ? `Recraft rejected the request: ${providerMsg || "invalid API key."}`
+          : `Recraft image generation failed (${status}): ${(providerMsg || text).slice(0, 300)}`;
+    return jsonError(msg, status, status === 400 || status === 401 || status === 403 ? "AUTH_ERROR" : codeForStatus(status));
+  }
+  const data = await upstream.json();
+  const b64 = data?.data?.[0]?.b64_json;
+  const url = firstUrl(data?.data) ?? firstUrl(data);
+  logProviderCall("recraft", model, provider.apiKey, upstream.status, true, url ? "url image" : b64 ? "b64 image" : "no image");
+  if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
+  if (url) return Response.json({ image: url });
+  return jsonError("Recraft returned no image.", 502, "PROVIDER_ERROR");
+}
+
 export const Route = createFileRoute("/api/generate-image")({
   server: {
     handlers: {
@@ -311,8 +363,8 @@ export const Route = createFileRoute("/api/generate-image")({
           references: (body.references ?? []).length,
         });
 
-        if (provider.name === "builtin") return generateWithBuiltin(body);
         if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
+        if (provider.name === "recraft") return generateWithRecraft(body, provider);
         if (provider.name === "gemini") return generateWithGemini(body, provider);
         if (provider.name === "openai") return generateWithOpenAI(body, provider);
         if (provider.name === "fal") return generateWithFal(body, provider);
