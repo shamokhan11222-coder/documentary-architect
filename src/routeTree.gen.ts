@@ -34,6 +34,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as GeminiDiagnosticsRouteImport } from './routes/gemini-diagnostics'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
@@ -175,6 +176,11 @@ const InstructionsRoute = InstructionsRouteImport.update({
   path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GeminiDiagnosticsRoute = GeminiDiagnosticsRouteImport.update({
+  id: '/gemini-diagnostics',
+  path: '/gemini-diagnostics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -264,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -306,6 +313,7 @@ export interface FileRoutesByTo {
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -349,6 +357,7 @@ export interface FileRoutesById {
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -393,6 +402,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/faq'
     | '/forgot-password'
+    | '/gemini-diagnostics'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -435,6 +445,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/faq'
     | '/forgot-password'
+    | '/gemini-diagnostics'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -477,6 +488,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/faq'
     | '/forgot-password'
+    | '/gemini-diagnostics'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -520,6 +532,7 @@ export interface RootRouteChildren {
   ExportRoute: typeof ExportRoute
   FaqRoute: typeof FaqRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  GeminiDiagnosticsRoute: typeof GeminiDiagnosticsRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LandingRoute: typeof LandingRoute
@@ -727,6 +740,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gemini-diagnostics': {
+      id: '/gemini-diagnostics'
+      path: '/gemini-diagnostics'
+      fullPath: '/gemini-diagnostics'
+      preLoaderRoute: typeof GeminiDiagnosticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forgot-password': {
       id: '/forgot-password'
       path: '/forgot-password'
@@ -848,6 +868,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExportRoute: ExportRoute,
   FaqRoute: FaqRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  GeminiDiagnosticsRoute: GeminiDiagnosticsRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LandingRoute: LandingRoute,
