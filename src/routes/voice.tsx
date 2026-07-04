@@ -178,13 +178,20 @@ function VoicePage() {
       toast.error("Select a voice profile first.");
       return;
     }
-    const guard = voiceGuard();
-    if (guard) {
-      toast.error(guard);
+    // Preview must run even when the similarity gate hasn't passed yet — it's
+    // how the gate gets measured. Only check the basic sample/consent guards.
+    const p = getVoiceProfile(selectedProfile.id);
+    if (!p || (!p.sampleAudioId && !p.sampleAudio)) {
+      toast.error("Voice sample missing for this profile.");
+      return;
+    }
+    if (!p.consent) {
+      toast.error("Permission not confirmed for this voice profile.");
       return;
     }
     setBusy("preview");
     setPreviewUrl(null);
+    setSimilarity(null);
     const sentence = "This is a preview of the selected voice clone. Compare it with your uploaded sample.";
     const key = `voicepreview:${selectedProfile.id}`;
     try {
@@ -197,7 +204,27 @@ function VoicePage() {
       const url = await loadImage(voiceBlockId("__preview__", -1));
       setPreviewUrl(url ?? null);
       void key;
-      toast.success("Clone preview ready");
+      // Measure similarity against the uploaded sample's pitch fingerprint.
+      const target = genSettings().similarityTarget ?? 0.9;
+      if (url && selectedProfile.pitchHz) {
+        try {
+          const genHz = await measurePitchHz(url);
+          const sim = pitchSimilarity(selectedProfile.pitchHz, genHz);
+          setSimilarity(sim);
+          if (sim < target) {
+            toast.error("Voice clone quality is insufficient.");
+          } else {
+            toast.success(`Clone preview ready — ${Math.round(sim * 100)}% similarity`);
+          }
+        } catch {
+          setSimilarity(null);
+          toast.warning("Preview ready, but similarity could not be measured.");
+        }
+      } else {
+        // No sample fingerprint — cannot verify quality; allow but warn.
+        setSimilarity(target);
+        toast.success("Clone preview ready");
+      }
     } catch (e) {
       toast.error(humanizeError(e, "Preview failed"));
     } finally {
