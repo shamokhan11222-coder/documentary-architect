@@ -228,6 +228,11 @@ function VisualPage() {
       n.delete(scene.sceneNumber);
       return n;
     });
+    setRateLimited((prev) => {
+      const n = new Set(prev);
+      n.delete(scene.sceneNumber);
+      return n;
+    });
   }
 
   // Generate a batch of images, running only over the scenes passed in. Stops
@@ -252,6 +257,14 @@ function VisualPage() {
           await genImage(scenes[i]);
         } catch (e) {
           const msg = imageErrorMessage(e, "failed");
+          // Rate limits are NEVER permanent failures. Mark the scene as
+          // "rate limited / waiting", keep every completed image, and stop so
+          // the user can continue from the next pending scene later.
+          if (isRateLimitError(e)) {
+            setRateLimited((prev) => new Set(prev).add(scenes[i].sceneNumber));
+            toast.warning("Free provider limit reached. Continue later.");
+            break;
+          }
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
           if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
             toast.error("Credits exhausted. Completed images are saved — resume later.");
