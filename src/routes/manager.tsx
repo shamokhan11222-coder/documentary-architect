@@ -485,7 +485,13 @@ function ManagerPage() {
                   <div
                     key={s.key}
                     className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
-                      st === "failed" ? "border-red-500/50" : st === "running" ? "border-primary" : "border-border"
+                      st === "failed"
+                        ? "border-red-500/50"
+                        : st === "skipped"
+                          ? "border-amber-500/50"
+                          : st === "running"
+                            ? "border-primary"
+                            : "border-border"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -498,11 +504,26 @@ function ManagerPage() {
                           {err}
                         </span>
                       )}
+                      {st === "skipped" && (
+                        <>
+                          <span className="text-[11px] text-amber-600">Skipped / Provider Limit</span>
+                          {!busy && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[11px]"
+                              onClick={() => runSingleStage(s.key)}
+                            >
+                              Generate {s.key === "thumbnail" ? "Thumbnail" : "Images"} Later
+                            </Button>
+                          )}
+                        </>
+                      )}
                       {st === "failed" && !busy ? (
                         <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => retryStage(s.key)}>
                           Retry
                         </Button>
-                      ) : (
+                      ) : st === "skipped" ? null : (
                         <span className="text-[11px] text-muted-foreground">
                           {st === "completed"
                             ? "done"
