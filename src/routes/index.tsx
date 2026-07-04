@@ -464,6 +464,8 @@ function Workspace() {
           </div>
         )}
       </Reveal>
+
+      <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
     </>
   );
 }
