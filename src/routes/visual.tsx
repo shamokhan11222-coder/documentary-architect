@@ -14,7 +14,7 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider } from "@/lib/generate-image";
+import { generateSceneImage, testImageProvider, imageErrorMessage } from "@/lib/generate-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
   imageProviderPayload,
@@ -247,7 +247,7 @@ function VisualPage() {
         try {
           await genImage(scenes[i]);
         } catch (e) {
-          const msg = humanizeError(e, "failed");
+          const msg = imageErrorMessage(e, "failed");
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
           if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
             toast.error("Credits exhausted. Completed images are saved — resume later.");
@@ -293,14 +293,21 @@ function VisualPage() {
   }
 
   function handleTestImageProvider() {
-    return withBusy("test-provider", async () => {
-      const provider = imageProviderPayload();
-      await testImageProvider(provider);
-      if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
-      toast.success(
-        activeImageProvider ? "Image provider test passed" : "Built-in AI is working — ready to generate",
-      );
-    });
+    setBusy("test-provider");
+    void (async () => {
+      try {
+        const provider = imageProviderPayload();
+        await testImageProvider(provider);
+        if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
+        toast.success(
+          activeImageProvider ? "Image provider test passed" : "Built-in AI is working — ready to generate",
+        );
+      } catch (e) {
+        toast.error(imageErrorMessage(e, "Image provider test failed"));
+      } finally {
+        setBusy(null);
+      }
+    })();
   }
 
   // Repair: drop any stored image that is missing/invalid so those scenes
@@ -363,7 +370,7 @@ function VisualPage() {
         });
         toast.success(`Scene ${scene.sceneNumber} image regenerated`);
       } catch (e) {
-        toast.error(humanizeError(e, "Something went wrong"));
+        toast.error(imageErrorMessage(e, "Something went wrong"));
       } finally {
         setBusy(null);
       }

@@ -12,8 +12,44 @@ const PROVIDER_REQUIRED = "Image provider not connected. Connect Gemini Image, O
 type Provider = { name?: "gemini" | "openai" | "fal" | "replicate" | "builtin"; apiKey?: string; imageModel?: string; fallback?: boolean };
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
 
-function jsonError(error: string, status = 400) {
-  return new Response(JSON.stringify({ error }), { status, headers: { "Content-Type": "application/json" } });
+function jsonError(error: string, status = 400, code?: string) {
+  console.error("[image] error", { status, code: code ?? null, error });
+  return new Response(JSON.stringify({ error, code: code ?? null, status }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** Classify an upstream HTTP status into a stable machine code the frontend
+ *  maps to a specific, human-readable message. */
+function codeForStatus(status: number): string {
+  if (status === 401 || status === 403) return "AUTH_ERROR";
+  if (status === 429) return "RATE_LIMIT";
+  if (status === 402) return "CREDITS_EXHAUSTED";
+  if (status >= 500) return "PROVIDER_ERROR";
+  return "PROVIDER_ERROR";
+}
+
+/** Log the outcome of an upstream provider call in a redaction-safe way
+ *  (never logs the API key itself, only its length/prefix). */
+function logProviderCall(
+  providerName: string,
+  model: string,
+  apiKey: string | undefined,
+  status: number,
+  ok: boolean,
+  payloadPreview: string,
+) {
+  console.log("[image] provider call", {
+    provider: providerName,
+    model,
+    apiKey: apiKey
+      ? { length: apiKey.length, prefix: apiKey.slice(0, 4) }
+      : "none (built-in)",
+    httpStatus: status,
+    ok,
+    payload: payloadPreview.slice(0, 300),
+  });
 }
 
 function firstUrl(value: unknown): string | null {
@@ -40,32 +76,36 @@ function toInlineData(ref: string) {
 // external image provider is connected so image generation is never disabled.
 async function generateWithBuiltin(body: Body): Promise<Response> {
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) return jsonError("Built-in AI is not configured (missing LOVABLE_API_KEY).", 500);
+  if (!key) return jsonError("Built-in AI is not configured (missing LOVABLE_API_KEY).", 500, "PROVIDER_ERROR");
+  const model = "google/gemini-2.5-flash-image";
+  console.log("[image] request → built-in AI", { model, promptLength: (body.prompt ?? "").length });
   const upstream = await fetch(LOVABLE_IMAGE, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
+      model,
       prompt: body.prompt,
     }),
   });
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
+    logProviderCall("builtin", model, undefined, status, false, text);
     const msg =
       status === 429
-        ? "Built-in AI rate limit reached. Please wait and try again."
+        ? "Rate limit exceeded on built-in AI. Please wait and try again."
         : status === 402
-          ? "AI credits exhausted. Add credits in workspace settings."
+          ? "Built-in AI credits exhausted. Add credits in workspace settings, or connect your own image provider (Gemini, OpenAI, Fal.ai, Replicate) in API Settings."
           : `Built-in AI image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status);
+    return jsonError(msg, status, codeForStatus(status));
   }
   const data = await upstream.json();
   const b64 = data?.data?.[0]?.b64_json;
   const url = firstUrl(data?.data) ?? firstUrl(data);
+  logProviderCall("builtin", model, undefined, upstream.status, true, b64 ? "b64 image" : url ? "url image" : "no image");
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
   if (url) return Response.json({ image: url });
-  return jsonError("Built-in AI returned no image.", 502);
+  return jsonError("Built-in AI returned no image.", 502, "PROVIDER_ERROR");
 }
 
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
@@ -94,20 +134,22 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
+    logProviderCall("gemini", model, provider.apiKey, status, false, text);
     const msg =
       status === 429
-        ? "Gemini rate limit reached. Please wait and try again."
+        ? "Rate limit exceeded (Gemini). Please wait and try again."
         : status === 400 || status === 403
-          ? "Gemini rejected the request — check your API key in API Settings."
+          ? "Invalid API key — Gemini rejected the request. Check your key in API Settings."
           : `Gemini image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status);
+    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
   }
   const data = await upstream.json();
   const partsOut = data?.candidates?.[0]?.content?.parts ?? [];
   const inline = partsOut.find((p: { inlineData?: { data?: string } }) => p?.inlineData?.data);
   const b64 = inline?.inlineData?.data;
+  logProviderCall("gemini", model, provider.apiKey, upstream.status, true, b64 ? "b64 image" : "no image");
   if (!b64)
-    return jsonError("Gemini returned no image for this prompt.", 502);
+    return jsonError("Gemini returned no image for this prompt.", 502, "PROVIDER_ERROR");
   const mime = inline.inlineData.mimeType || "image/png";
   return Response.json({ image: `data:${mime};base64,${b64}` });
 }
@@ -126,13 +168,14 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
+    logProviderCall("openai", provider.imageModel || "gpt-image-1", provider.apiKey, status, false, text);
     const msg =
       status === 429
-        ? "OpenAI Images rate limit reached. Please wait and try again."
+        ? "Rate limit exceeded (OpenAI Images). Please wait and try again."
         : status === 400 || status === 401 || status === 403
-          ? "OpenAI Images rejected the request — check your API key and image model in API Settings."
+          ? "Invalid API key — OpenAI Images rejected the request. Check your key and image model in API Settings."
           : `OpenAI Images generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status);
+    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
   }
   const data = await upstream.json();
   const b64 = data?.data?.[0]?.b64_json;
@@ -152,13 +195,14 @@ async function generateWithFal(body: Body, provider: Provider): Promise<Response
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
+    logProviderCall("fal", model, provider.apiKey, status, false, text);
     const msg =
       status === 429
-        ? "Fal.ai rate limit reached. Please wait and try again."
+        ? "Rate limit exceeded (Fal.ai). Please wait and try again."
         : status === 400 || status === 401 || status === 403
-          ? "Fal.ai rejected the request — check your API key and image model in API Settings."
+          ? "Invalid API key — Fal.ai rejected the request. Check your key and image model in API Settings."
           : `Fal.ai image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status);
+    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
   }
   const data = await upstream.json();
   const url = firstUrl(data);
@@ -176,13 +220,14 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
   if (!create.ok) {
     const text = await create.text().catch(() => "");
     const status = create.status;
+    logProviderCall("replicate", model, provider.apiKey, status, false, text);
     const msg =
       status === 429
-        ? "Replicate rate limit reached. Please wait and try again."
+        ? "Rate limit exceeded (Replicate). Please wait and try again."
         : status === 400 || status === 401 || status === 403
-          ? "Replicate rejected the request — check your API key and image model in API Settings."
+          ? "Invalid API key — Replicate rejected the request. Check your key and image model in API Settings."
           : `Replicate image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status);
+    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
   }
   let data = await create.json();
   for (let i = 0; i < 20 && data?.status !== "succeeded" && data?.status !== "failed" && data?.status !== "canceled"; i++) {
@@ -204,21 +249,28 @@ export const Route = createFileRoute("/api/generate-image")({
       POST: async ({ request }) => {
         const body = (await request.json()) as Body;
         const { provider } = body;
-        if (!provider?.name) return jsonError(PROVIDER_REQUIRED, 400);
+        if (!provider?.name) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
 
         if (body.test) {
           body.prompt = "simple clean blue circle icon on white background";
           body.references = [];
         }
-        if (!body.prompt?.trim()) return jsonError("Missing prompt", 400);
+        if (!body.prompt?.trim()) return jsonError("Missing prompt", 400, "BAD_REQUEST");
+
+        console.log("[image] request received", {
+          provider: provider.name,
+          model: provider.imageModel ?? "(default)",
+          test: !!body.test,
+          references: (body.references ?? []).length,
+        });
 
         if (provider.name === "builtin") return generateWithBuiltin(body);
-        if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400);
+        if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
         if (provider.name === "gemini") return generateWithGemini(body, provider);
         if (provider.name === "openai") return generateWithOpenAI(body, provider);
         if (provider.name === "fal") return generateWithFal(body, provider);
         if (provider.name === "replicate") return generateWithReplicate(body, provider);
-        return jsonError(PROVIDER_REQUIRED, 400);
+        return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
       },
     },
   },
