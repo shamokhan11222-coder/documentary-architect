@@ -222,13 +222,17 @@ export const Route = createFileRoute("/api/tts")({
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
         const voice = VOICE_MAP[body.profile ?? "deep"] ?? "onyx";
-        // Keep built-in AI narration gender-consistent with a selected clone.
+        // Keep built-in AI narration consistent with a selected clone. Match the
+        // sample's PITCH, not just gender, so a natural young male never gets the
+        // deep bass "onyx" voice.
         const lockedVoice =
           body.clone?.gender === "male"
-            ? "onyx"
+            ? naturalMaleVoiceForPitch(body.clone?.pitchHz)
             : body.clone?.gender === "female"
-              ? "shimmer"
-              : voice;
+              ? naturalFemaleVoiceForPitch(body.clone?.pitchHz)
+              : body.clone
+                ? "ash"
+                : voice;
         const speed = Math.min(1.2, Math.max(0.7, body.speed ?? 1));
 
         const upstream = await fetch(GATEWAY, {
