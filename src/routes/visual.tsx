@@ -14,7 +14,7 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError } from "@/lib/generate-image";
+import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
 import { usePuterStatus, type PuterStatus } from "@/lib/puter-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
@@ -255,9 +255,15 @@ function VisualPage() {
 
   // Generate a batch of images, running only over the scenes passed in. Stops
   // early and saves progress if credits run out.
-  async function runBatch(key: string, scenes: VisualScene[]) {
+  async function runBatch(key: string, requestedScenes: VisualScene[]) {
+    const scenes = freeMode ? requestedScenes.slice(0, 1) : requestedScenes;
     if (!scenes.length) {
       toast.info("Nothing to generate — every image in range is already done.");
+      return;
+    }
+    const cooldownMs = getImageCooldownRemainingMs();
+    if (cooldownMs > 0) {
+      toast.info(`Free Queue Mode cooldown: try again in ${Math.ceil(cooldownMs / 1000)}s.`);
       return;
     }
     // Requirement: images must use the active Image Provider. If it isn't
@@ -275,12 +281,11 @@ function VisualPage() {
           await genImage(scenes[i]);
         } catch (e) {
           const msg = imageErrorMessage(e, "failed");
-          // Rate limits are NEVER permanent failures. Mark the scene as
-          // "rate limited / waiting", keep every completed image, and stop so
-          // the user can continue from the next pending scene later.
+          // Provider limits are NEVER permanent failures. Mark the scene as
+          // Provider Limit, keep every completed image, and stop immediately.
           if (isRateLimitError(e)) {
             setRateLimited((prev) => new Set(prev).add(scenes[i].sceneNumber));
-            toast.warning("Free provider limit reached. Continue later.");
+            toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
             break;
           }
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
@@ -311,11 +316,9 @@ function VisualPage() {
     return runBatch("one", pendingScenes().slice(0, 1));
   }
 
-  // Generate the next available pending scene, skipping ones already deferred by
-  // a rate limit in this session so it moves forward.
+  // Resume from the first pending scene, including scenes marked Provider Limit.
   function generateNextAvailable() {
-    const next = pendingScenes().filter((s) => !rateLimited.has(s.sceneNumber)).slice(0, 1);
-    return runBatch("next-available", next.length ? next : pendingScenes().slice(0, 1));
+    return runBatch("next-available", pendingScenes().slice(0, 1));
   }
 
   // Generate every pending scene, in order (001, 002, 003 …). Sequential —
@@ -337,6 +340,7 @@ function VisualPage() {
 
   function handleImageProviderChange(choice: ProviderChoice) {
     saveProviderSettings({ image: choice });
+    setRateLimited(new Set());
   }
 
   function handleTestImageProvider() {
@@ -356,7 +360,7 @@ function VisualPage() {
         }
         await testImageProvider(provider);
         if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
-        toast.success("Recraft connection successful — ready to generate");
+      toast.success("Image provider connection successful — ready to generate");
       } catch (e) {
         toast.error(imageErrorMessage(e, "Image provider test failed"));
       } finally {
@@ -427,7 +431,12 @@ function VisualPage() {
         });
         toast.success(`Scene ${scene.sceneNumber} image regenerated`);
       } catch (e) {
-        toast.error(imageErrorMessage(e, "Something went wrong"));
+        if (isRateLimitError(e)) {
+          setRateLimited((prev) => new Set(prev).add(scene.sceneNumber));
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+        } else {
+          toast.error(imageErrorMessage(e, "Something went wrong"));
+        }
       } finally {
         setBusy(null);
       }
@@ -504,31 +513,31 @@ function VisualPage() {
             </Button>
             <Button variant="secondary" onClick={generateOne} disabled={!!busy || !canGenerateImages}>
               {busy === "one" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <ImagePlus className="mr-2 h-4 w-4" /> Generate 1 Image
+              <ImagePlus className="mr-2 h-4 w-4" /> Generate One Image
             </Button>
             <Button variant="secondary" onClick={generateNextAvailable} disabled={!!busy || !canGenerateImages}>
               {busy === "next-available" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <PlayCircle className="mr-2 h-4 w-4" /> Generate Next Available Image
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages}>
+            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <ImagePlus className="mr-2 h-4 w-4" /> Next 5
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy || !canGenerateImages}>
+            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "next-10" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next 10
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy || !canGenerateImages}>
+            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "next-20" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next 20
             </Button>
             {failed.size > 0 && (
               <>
-                <Button variant="outline" onClick={retryFailed} disabled={!!busy || !canGenerateImages}>
+                <Button variant="outline" onClick={retryFailed} disabled={!!busy || !canGenerateImages || freeMode}>
                   {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
                 </Button>
-                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy || !canGenerateImages}>
+                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy || !canGenerateImages || freeMode}>
                   {busy === "continue" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <PlayCircle className="mr-2 h-4 w-4" /> Continue From Failed Scene
                 </Button>
@@ -589,12 +598,12 @@ function VisualPage() {
             />
             <span className="font-medium">Free Mode</span>
             <span className="text-muted-foreground">
-              Generates 1 image at a time, waits 60s between requests, and auto-retries rate limits (1m / 3m / 5m). "Generate All" is disabled.
+              Generates 1 image at a time, waits 120 seconds between requests, no parallel requests, no automatic retries. "Generate All" is disabled.
             </span>
           </label>
           {rateLimited.size > 0 && (
             <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-              Free provider limit reached. Continue later. {rateLimited.size} scene(s) waiting — completed images are saved and you can resume from the next pending scene.
+              {PROVIDER_FREE_TIER_LIMIT_MESSAGE} {rateLimited.size} scene(s) marked Provider Limit — completed images are saved and you can resume later.
             </p>
           )}
           {!imageProviderStatus.connected && (
@@ -664,7 +673,7 @@ function VisualPage() {
             <span>· Pending {Math.max(0, progress.total - progress.done)}</span>
             <span>· Completed {have.size}</span>
             <span>· Failed {failed.size}</span>
-            {rateLimited.size > 0 && <span>· Waiting (rate limited) {rateLimited.size}</span>}
+            {rateLimited.size > 0 && <span>· Provider Limit {rateLimited.size}</span>}
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
@@ -719,6 +728,7 @@ function VisualPage() {
               ["Images generated", have.size, "bg-green-500/15 text-green-600"],
               ["Images missing", Math.max(0, scenes.length - have.size), "bg-amber-500/15 text-amber-600"],
               ["Pending", pendingScenes().length, "bg-blue-500/15 text-blue-600"],
+              ["Provider Limit", rateLimited.size, "bg-orange-500/15 text-orange-600"],
               ["Failed", failed.size, "bg-red-500/15 text-red-600"],
             ] as [string, number, string][]).map(([label, value, cls]) => (
               <span key={label} className={`rounded-full px-2.5 py-1 font-medium ${cls}`}>
@@ -739,6 +749,7 @@ function VisualPage() {
               topicId={selected.id}
               busy={busy}
               providerReady={imageProviderStatus.ok}
+              providerLimited={rateLimited.has(s.sceneNumber)}
               onRegen={onCardRegen}
               onReplace={onCardReplace}
               onDelete={onCardDelete}
@@ -755,6 +766,7 @@ const SceneCard = memo(function SceneCard({
   topicId,
   busy,
   providerReady,
+  providerLimited,
   onRegen,
   onReplace,
   onDelete,
@@ -763,6 +775,7 @@ const SceneCard = memo(function SceneCard({
   topicId: string;
   busy: string | null;
   providerReady: boolean;
+  providerLimited: boolean;
   onRegen: (scene: VisualScene) => void;
   onReplace: (scene: VisualScene, file: File | null) => void;
   onDelete: (sceneNumber: number) => void;
@@ -770,7 +783,7 @@ const SceneCard = memo(function SceneCard({
   const img = useImage(sceneImageId(topicId, scene.sceneNumber));
   const inputId = `replace-${topicId}-${scene.sceneNumber}`;
   const generating = busy === `img-${scene.sceneNumber}`;
-  const status = generating ? "Generating…" : img ? "Ready" : providerReady ? "No image" : "Pending image provider setup";
+  const status = generating ? "Generating…" : img ? "Ready" : providerLimited ? "Provider Limit" : providerReady ? "No image" : "Pending image provider setup";
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="relative flex aspect-video items-center justify-center bg-muted/30">
@@ -798,9 +811,11 @@ const SceneCard = memo(function SceneCard({
               "rounded-full px-2 py-0.5 text-[11px] font-medium",
               generating
                 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                : img
-                  ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                  : "bg-muted text-muted-foreground",
+                  : img
+                    ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                    : providerLimited
+                      ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+                      : "bg-muted text-muted-foreground",
             ].join(" ")}
           >
             {status}

@@ -6,7 +6,8 @@
 // built-in AI. It enforces:
 //   - a concurrency limit (Generation Speed: Safe=1 / Balanced=2 / Fast=3)
 //   - a 3–5s cooldown between request starts
-//   - automatic retry with exponential backoff (5s, 15s, 30s, 60s) on rate limits
+//   - optional retry with exponential backoff (image generation opts out so
+//     provider limits stop immediately instead of loading for minutes)
 //   - Stop / Resume of the whole queue
 //   - per-task status: pending, running, waiting, retrying, completed, failed
 //
@@ -14,6 +15,7 @@
 // useSyncExternalStore. Settings (speed) and paused flag are persisted.
 import { useSyncExternalStore } from "react";
 import { readLocal, writeLocal } from "./local";
+import { getFreeMode } from "./free-mode";
 
 export type QueueTaskStatus =
   | "pending"
@@ -63,6 +65,7 @@ interface InternalTask extends QueueTask {
   run: () => Promise<unknown>;
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
+  retryRateLimits: boolean;
 }
 
 const tasks: InternalTask[] = [];
@@ -114,7 +117,7 @@ function buildSnapshot(): Snapshot {
     counts,
     paused: isPaused(),
     speed,
-    concurrency: SPEED_CONCURRENCY[speed],
+    concurrency: getFreeMode() ? 1 : SPEED_CONCURRENCY[speed],
   };
 }
 
@@ -125,7 +128,7 @@ function emit() {
 
 function isRateLimit(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
-  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|tier limit exceeded/i.test(msg);
 }
 
 function setStatus(t: InternalTask, status: QueueTaskStatus, message?: string) {
@@ -160,7 +163,7 @@ function schedulePump(delay: number) {
 
 function pump() {
   if (isPaused()) return;
-  const concurrency = SPEED_CONCURRENCY[getSpeed()];
+  const concurrency = getFreeMode() ? 1 : SPEED_CONCURRENCY[getSpeed()];
 
   while (running.size < concurrency) {
     const task = tasks.find((t) => t.status === "pending" || t.status === "waiting");
@@ -188,7 +191,7 @@ async function startTask(task: InternalTask) {
     setStatus(task, "completed", undefined);
     task.resolve(result);
   } catch (e) {
-    if (isRateLimit(e) && task.attempt < BACKOFF.length) {
+    if (task.retryRateLimits && isRateLimit(e) && task.attempt < BACKOFF.length) {
       const wait = BACKOFF[task.attempt];
       task.attempt++;
       setStatus(task, "retrying", "Rate limited. Waiting before retry…");
@@ -217,7 +220,11 @@ let idc = 0;
  * Enqueue an AI request. Returns a promise that resolves with the task result
  * (or rejects if it fails after all retries). All AI calls should go through here.
  */
-export function enqueueAi<T>(run: () => Promise<T>, label = "AI request"): Promise<T> {
+export function enqueueAi<T>(
+  run: () => Promise<T>,
+  label = "AI request",
+  options: { retryRateLimits?: boolean } = {},
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const task: InternalTask = {
       id: `q${++idc}-${Date.now()}`,
@@ -229,6 +236,7 @@ export function enqueueAi<T>(run: () => Promise<T>, label = "AI request"): Promi
       run: run as () => Promise<unknown>,
       resolve: resolve as (v: unknown) => void,
       reject,
+      retryRateLimits: options.retryRateLimits !== false,
     };
     tasks.push(task);
     emit();

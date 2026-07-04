@@ -54,6 +54,9 @@ export class ImageGenError extends Error {
   }
 }
 
+export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
+  "Provider free tier limit reached. Try later or switch provider.";
+
 /** Maps an image-generation error to a specific, user-facing message.
  *  Never collapses everything into a single generic "try again later" line. */
 export function imageErrorMessage(err: unknown, fallback = "Image generation failed."): string {
@@ -68,7 +71,7 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
       case "AUTH_ERROR":
         return "Invalid API key.";
       case "RATE_LIMIT":
-        return "Rate limit exceeded.";
+        return PROVIDER_FREE_TIER_LIMIT_MESSAGE;
       case "CREDITS_EXHAUSTED":
       case "PROVIDER_ERROR":
       case "BAD_REQUEST":
@@ -86,10 +89,8 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
 export function isRateLimitError(err: unknown): boolean {
   if (err instanceof ImageGenError) return err.code === "RATE_LIMIT" || err.status === 429;
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|tier limit exceeded/i.test(msg);
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Hard timeouts so a slow/unresponsive provider can never hang forever.
 export const IMAGE_TIMEOUT_MS = 90_000;
@@ -115,9 +116,14 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Pro
 // Timestamp of the last image request, used to enforce the Free Mode delay.
 let lastImageRequestAt = 0;
 
+export function getImageCooldownRemainingMs(): number {
+  if (!getFreeMode() || lastImageRequestAt <= 0) return 0;
+  return Math.max(0, FREE_MODE_DELAY_MS - (Date.now() - lastImageRequestAt));
+}
+
 // AUDIT: monotonic counter of image API requests actually sent from the client.
-// One user click of "Generate Image" must produce exactly ONE increment here
-// (retries only happen after a 429 and are logged with attempt info).
+// One user click of "Generate Image" must produce exactly ONE increment here;
+// provider limits are surfaced immediately and never retried endlessly.
 let imageRequestAuditCount = 0;
 
 async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
@@ -186,7 +192,7 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     }
     recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
     console.error("[image] request failed", { provider: provider.name, status: res.status, error: msg });
-    // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
+    // Keep a 429 prefix for legacy rate-limit detectors, but image queue retry is disabled.
     throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
   }
   console.info("[AUDIT][image] response received", {
@@ -206,41 +212,43 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
 async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   const active: ImageProviderPayload = provider;
-  const free = getFreeMode();
   return enqueueAi(async () => {
-    // Puter AI: try the browser SDK first; if it is unavailable or rate limited,
-    // automatically fall back to Gemini or Recraft when one is connected.
+    // Puter AI: try the browser SDK first; if it is unavailable, automatically
+    // fall back to Gemini or Recraft when one is connected. Provider limits stop.
     if (active.name === "puter") {
       try {
-        return await callImageApi(prompt, references, active);
+        const img = await callImageApi(prompt, references, active);
+        lastImageRequestAt = Date.now();
+        return img;
       } catch (e) {
+        lastImageRequestAt = Date.now();
+        if (isRateLimitError(e)) throw e;
         const fb = fallbackImageProviderPayload();
         if (fb && fb.name !== "puter") {
           console.error("[Puter] falling back to", fb.name, e);
-          const img = await callImageApi(prompt, references, fb);
-          setPuterStatus("connected");
-          return img;
+          try {
+            const img = await callImageApi(prompt, references, fb);
+            setPuterStatus("connected");
+            return img;
+          } finally {
+            lastImageRequestAt = Date.now();
+          }
         }
         throw e;
       }
-    }
-    // Free Mode: enforce a minimum 60s gap between image requests.
-    if (free && lastImageRequestAt > 0) {
-      const since = Date.now() - lastImageRequestAt;
-      if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
     }
     try {
       const img = await callImageApi(prompt, references, active);
       lastImageRequestAt = Date.now();
       return img;
     } catch (e) {
-      // Never block for minutes on a rate limit. Surface it immediately so the
-      // queue can stop loading, mark the scene "Rate Limited", and pause — the
+      // Never block for minutes on provider limits. Surface it immediately so the
+      // queue can stop loading, mark the scene Provider Limit, and pause — the
       // user resumes later. The per-request 90s timeout guarantees no long hang.
       lastImageRequestAt = Date.now();
       throw e;
     }
-  }, "Image");
+  }, "Image", { retryRateLimits: false });
 }
 
 export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {

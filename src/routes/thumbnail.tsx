@@ -15,7 +15,7 @@ import {
   saveThumbnails,
 } from "@/lib/store";
 import { useImage, putImage, loadImage } from "@/lib/images";
-import { generateThumbnailImage, isRateLimitError } from "@/lib/generate-image";
+import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ function ThumbnailPage() {
   const [dev, setDev] = useState(false);
   const [review, setReview] = useState<ThumbnailReview | null>(null);
   const freeMode = useFreeMode();
+  const [providerLimit, setProviderLimit] = useState(false);
 
   function handleReview() {
     if (!selected || !pack) return;
@@ -78,8 +79,13 @@ function ThumbnailPage() {
 
   // Generate images for thumbnail ideas from `start` up to `count` total ideas,
   // skipping any that already have an image. Never redoes finished thumbnails.
-  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false) {
-    if (!selected) return;
+  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false): Promise<"ok" | "provider-limit"> {
+    if (!selected) return "ok";
+    const cooldownMs = getImageCooldownRemainingMs();
+    if (cooldownMs > 0) {
+      toast.info(`Free Queue Mode cooldown: try again in ${Math.ceil(cooldownMs / 1000)}s.`);
+      return "provider-limit";
+    }
     // Thumbnail Free Mode: only ever generate ONE thumbnail — never a batch of
     // variations — to avoid provider rate-limit spam.
     if (getFreeMode()) end = Math.min(end, start + 1);
@@ -97,16 +103,19 @@ function ThumbnailPage() {
         // Provider limit reached — stop immediately, keep completed thumbnails,
         // and show a clear resumable message instead of hanging or failing all.
         if (isRateLimitError(e)) {
-          toast.warning("Gemini image limit reached. Resume later.");
-          break;
+          setProviderLimit(true);
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+          setProgress(null);
+          return "provider-limit";
         }
-        const msg = humanizeError(e, "failed");
+        const msg = imageErrorMessage(e, "failed");
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
         if (/credit|402/i.test(msg)) break;
       }
       setProgress({ done: i + 1, total: end });
     }
     setProgress(null);
+    return "ok";
   }
 
   // First click: create ideas and render only ONE thumbnail (or a few in Best
@@ -114,6 +123,7 @@ function ThumbnailPage() {
   function handleGenerate() {
     if (!selected) return;
     return withBusy("gen", async () => {
+      setProviderLimit(false);
       const ideas = (await gen({
         data: {
           topic: selected.topic,
@@ -123,8 +133,8 @@ function ThumbnailPage() {
         },
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
-      await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
-      toast.success("First thumbnail ready. Not happy? Generate alternatives.");
+      const status = await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
+      if (status === "ok") toast.success("First thumbnail ready. Not happy? Generate alternatives.");
     });
   }
 
@@ -132,20 +142,31 @@ function ThumbnailPage() {
   function handleAlternatives() {
     if (!selected || !pack) return;
     return withBusy("alt", async () => {
-      await renderImages(pack.ideas, 0, pack.ideas.length);
-      toast.success("Alternatives generated");
+      setProviderLimit(false);
+      const status = await renderImages(pack.ideas, 0, pack.ideas.length);
+      if (status === "ok") toast.success("Alternatives generated");
     });
   }
 
   function handleRegen(index: number) {
     if (!selected || !pack) return;
     return withBusy(`i-${index}`, async () => {
+      setProviderLimit(false);
       const updated = (await regen({ data: { topic: selected.topic, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
-      const url = await generateThumbnailImage(updated);
-      await putImage(thumbImageId(selected.id, index), url);
-      toast.success("Thumbnail regenerated");
+      try {
+        const url = await generateThumbnailImage(updated);
+        await putImage(thumbImageId(selected.id, index), url);
+        toast.success("Thumbnail regenerated");
+      } catch (e) {
+        if (isRateLimitError(e)) {
+          setProviderLimit(true);
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+          return;
+        }
+        throw e;
+      }
     });
   }
 
@@ -197,6 +218,18 @@ function ThumbnailPage() {
           </Button>
         )}
       </div>
+
+      {freeMode && (
+        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+          Free Queue Mode: generates only 1 thumbnail image and disables multiple variations.
+        </p>
+      )}
+
+      {providerLimit && (
+        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+          {PROVIDER_FREE_TIER_LIMIT_MESSAGE} Completed thumbnails are saved.
+        </p>
+      )}
 
       {review && (
         <p className="mt-3 rounded-md border border-primary/40 bg-primary/5 p-3 text-xs text-muted-foreground">

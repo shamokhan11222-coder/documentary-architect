@@ -49,6 +49,15 @@ function codeForStatus(status: number): string {
   return "PROVIDER_ERROR";
 }
 
+function isProviderLimit(status: number, text: string): boolean {
+  return status === 429 || /tier limit exceeded|rate.?limit|too many requests|resource_exhausted/i.test(text);
+}
+
+function codeForProviderResponse(status: number, text: string): string {
+  if (isProviderLimit(status, text)) return "RATE_LIMIT";
+  return codeForStatus(status);
+}
+
 /** Turn a lightweight validation response into a normalized result. */
 function validationResult(r: Response, label: string): Response {
   if (r.ok) return Response.json({ ok: true });
@@ -378,13 +387,14 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("gemini", model, provider.apiKey, status, false, text);
+    const providerLimited = isProviderLimit(status, text);
     const msg =
-      status === 429
-        ? "Rate limit exceeded (Gemini). Please wait and try again."
+      providerLimited
+        ? "Provider free tier limit reached. Try later or switch provider."
         : status === 400 || status === 403
           ? "Invalid API key — Gemini rejected the request. Check your key in API Settings."
           : `Gemini image generation failed (${status}) [${usedVersion}]: ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
+    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
   }
   const data = await upstream.json();
   const partsOut = data?.candidates?.[0]?.content?.parts ?? [];
@@ -437,12 +447,15 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
       oaMessage = text;
     }
 
+    const providerLimited = isProviderLimit(status, `${oaMessage} ${oaType} ${oaCode} ${text}`);
+
     // Only treat it as an auth/key problem when OpenAI actually says so.
     const isAuth =
-      status === 401 ||
-      oaCode === "invalid_api_key" ||
-      oaType === "authentication_failed" ||
-      oaType === "invalid_request_error" && /api key/i.test(oaMessage);
+      !providerLimited &&
+      (status === 401 ||
+        oaCode === "invalid_api_key" ||
+        oaType === "authentication_failed" ||
+        (oaType === "invalid_request_error" && /api key/i.test(oaMessage)));
 
     if (isAuth) {
       return jsonError(
@@ -459,8 +472,8 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
       ? `${oaMessage}${oaCode ? ` [${oaCode}]` : ""}`
       : text.slice(0, 300) || `OpenAI Images request failed (${status}).`;
     const prefix =
-      status === 429
-        ? "Rate limit exceeded (OpenAI Images): "
+      providerLimited
+        ? "Provider free tier limit reached. Try later or switch provider. "
         : status === 402 || oaCode === "insufficient_quota"
           ? "Insufficient quota (OpenAI Images): "
           : status === 403
@@ -470,7 +483,7 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
     // PROVIDER_ERROR otherwise so the client surfaces the exact message rather
     // than a generic "Invalid API key".
     const code =
-      status === 429
+      providerLimited
         ? "RATE_LIMIT"
         : oaCode === "insufficient_quota" || status === 402
           ? "CREDITS_EXHAUSTED"
@@ -503,13 +516,14 @@ async function generateWithFal(body: Body, provider: Provider): Promise<Response
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("fal", model, provider.apiKey, status, false, text);
+    const providerLimited = isProviderLimit(status, text);
     const msg =
-      status === 429
-        ? "Rate limit exceeded (Fal.ai). Please wait and try again."
+      providerLimited
+        ? "Provider free tier limit reached. Try later or switch provider."
         : status === 400 || status === 401 || status === 403
           ? "Invalid API key — Fal.ai rejected the request. Check your key and image model in API Settings."
           : `Fal.ai image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
+    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
   }
   const data = await upstream.json();
   const url = firstUrl(data);
@@ -528,13 +542,14 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
     const text = await create.text().catch(() => "");
     const status = create.status;
     logProviderCall("replicate", model, provider.apiKey, status, false, text);
+    const providerLimited = isProviderLimit(status, text);
     const msg =
-      status === 429
-        ? "Rate limit exceeded (Replicate). Please wait and try again."
+      providerLimited
+        ? "Provider free tier limit reached. Try later or switch provider."
         : status === 400 || status === 401 || status === 403
           ? "Invalid API key — Replicate rejected the request. Check your key and image model in API Settings."
           : `Replicate image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
+    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
   }
   let data = await create.json();
   for (let i = 0; i < 20 && data?.status !== "succeeded" && data?.status !== "failed" && data?.status !== "canceled"; i++) {
@@ -577,13 +592,20 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
     } catch {
       providerMsg = text;
     }
+    const providerLimited = isProviderLimit(status, providerMsg || text);
     const msg =
-      status === 429
-        ? `Rate limit exceeded (Recraft).${providerMsg ? " " + providerMsg : ""}`
+      providerLimited
+        ? "Provider free tier limit reached. Try later or switch provider."
         : status === 400 || status === 401 || status === 403
           ? `Recraft rejected the request: ${providerMsg || "invalid API key."}`
           : `Recraft image generation failed (${status}): ${(providerMsg || text).slice(0, 300)}`;
-    return jsonError(msg, status, status === 400 || status === 401 || status === 403 ? "AUTH_ERROR" : codeForStatus(status));
+    return jsonError(
+      msg,
+      status,
+      (status === 400 || status === 401 || status === 403) && !providerLimited
+        ? "AUTH_ERROR"
+        : codeForProviderResponse(status, providerMsg || text),
+    );
   }
   const data = await upstream.json();
   const b64 = data?.data?.[0]?.b64_json;
