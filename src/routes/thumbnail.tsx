@@ -15,7 +15,7 @@ import {
   saveThumbnails,
 } from "@/lib/store";
 import { useImage, putImage, loadImage } from "@/lib/images";
-import { generateThumbnailImage, isRateLimitError } from "@/lib/generate-image";
+import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,7 @@ function ThumbnailPage() {
   const [dev, setDev] = useState(false);
   const [review, setReview] = useState<ThumbnailReview | null>(null);
   const freeMode = useFreeMode();
+  const [providerLimit, setProviderLimit] = useState(false);
 
   function handleReview() {
     if (!selected || !pack) return;
@@ -97,10 +98,11 @@ function ThumbnailPage() {
         // Provider limit reached — stop immediately, keep completed thumbnails,
         // and show a clear resumable message instead of hanging or failing all.
         if (isRateLimitError(e)) {
-          toast.warning("Gemini image limit reached. Resume later.");
+          setProviderLimit(true);
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
           break;
         }
-        const msg = humanizeError(e, "failed");
+        const msg = imageErrorMessage(e, "failed");
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
         if (/credit|402/i.test(msg)) break;
       }
@@ -114,7 +116,8 @@ function ThumbnailPage() {
   function handleGenerate() {
     if (!selected) return;
     return withBusy("gen", async () => {
-      const ideas = (await gen({
+        setProviderLimit(false);
+        const ideas = (await gen({
         data: {
           topic: selected.topic,
           script: story?.script,
@@ -132,6 +135,7 @@ function ThumbnailPage() {
   function handleAlternatives() {
     if (!selected || !pack) return;
     return withBusy("alt", async () => {
+      setProviderLimit(false);
       await renderImages(pack.ideas, 0, pack.ideas.length);
       toast.success("Alternatives generated");
     });
@@ -140,6 +144,7 @@ function ThumbnailPage() {
   function handleRegen(index: number) {
     if (!selected || !pack) return;
     return withBusy(`i-${index}`, async () => {
+      setProviderLimit(false);
       const updated = (await regen({ data: { topic: selected.topic, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
@@ -197,6 +202,18 @@ function ThumbnailPage() {
           </Button>
         )}
       </div>
+
+      {freeMode && (
+        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+          Free Queue Mode: generates only 1 thumbnail image and disables multiple variations.
+        </p>
+      )}
+
+      {providerLimit && (
+        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+          {PROVIDER_FREE_TIER_LIMIT_MESSAGE} Completed thumbnails are saved.
+        </p>
+      )}
 
       {review && (
         <p className="mt-3 rounded-md border border-primary/40 bg-primary/5 p-3 text-xs text-muted-foreground">
