@@ -137,6 +137,7 @@ function VisualPage() {
   const imageProviderStatus = useImageProviderStatus();
   const activeImageProvider = useActiveImageProvider();
   const telemetry = useTelemetry();
+  const freeMode = useFreeMode();
   const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
@@ -145,6 +146,8 @@ function VisualPage() {
   // and which failed on the last run (for "Retry Failed Only").
   const [have, setHave] = useState<Set<number>>(new Set());
   const [failed, setFailed] = useState<Set<number>>(new Set());
+  // Scenes deferred by a rate limit — NOT permanent failures. They resume later.
+  const [rateLimited, setRateLimited] = useState<Set<number>>(new Set());
 
   const refreshHave = useCallback(async () => {
     if (!selected || !map || !Array.isArray(map.scenes)) {
