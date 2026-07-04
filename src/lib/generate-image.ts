@@ -212,9 +212,7 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
 async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   const active: ImageProviderPayload = provider;
-  const free = getFreeMode();
   return enqueueAi(async () => {
-    void free;
     // Puter AI: try the browser SDK first; if it is unavailable, automatically
     // fall back to Gemini or Recraft when one is connected. Provider limits stop.
     if (active.name === "puter") {
