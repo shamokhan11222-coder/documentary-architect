@@ -115,6 +115,11 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Pro
 // Timestamp of the last image request, used to enforce the Free Mode delay.
 let lastImageRequestAt = 0;
 
+// AUDIT: monotonic counter of image API requests actually sent from the client.
+// One user click of "Generate Image" must produce exactly ONE increment here
+// (retries only happen after a 429 and are logged with attempt info).
+let imageRequestAuditCount = 0;
+
 async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
   recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
   console.info("[image] request started", { provider: provider.name, model: provider.imageModel });
@@ -152,7 +157,24 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     },
     IMAGE_TIMEOUT_MS,
   );
+  const auditNo = ++imageRequestAuditCount;
+  const auditStart = Date.now();
+  console.info("[AUDIT][image] request sent", {
+    totalRequestsSent: auditNo,
+    endpoint: "/api/generate-image",
+    provider: provider.name,
+    model: provider.imageModel ?? "(default)",
+    time: new Date(auditStart).toISOString(),
+  });
   if (!res.ok) {
+    console.info("[AUDIT][image] response received", {
+      totalRequestsSent: auditNo,
+      endpoint: "/api/generate-image",
+      provider: provider.name,
+      model: provider.imageModel ?? "(default)",
+      responseCode: res.status,
+      ms: Date.now() - auditStart,
+    });
     let msg = `Image generation failed (${res.status})`;
     let code: string | null = null;
     try {
@@ -167,6 +189,14 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     // Keep the "429 " prefix so the shared AI queue's rate-limit retry still triggers.
     throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
   }
+  console.info("[AUDIT][image] response received", {
+    totalRequestsSent: auditNo,
+    endpoint: "/api/generate-image",
+    provider: provider.name,
+    model: provider.imageModel ?? "(default)",
+    responseCode: res.status,
+    ms: Date.now() - auditStart,
+  });
   const data = (await res.json()) as { image: string };
   recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
   console.info("[image] response received", { provider: provider.name });
