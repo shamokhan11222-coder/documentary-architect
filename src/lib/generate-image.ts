@@ -89,7 +89,7 @@ export function imageErrorMessage(err: unknown, fallback = "Image generation fai
 export function isRateLimitError(err: unknown): boolean {
   if (err instanceof ImageGenError) return err.code === "RATE_LIMIT" || err.status === 429;
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota|tier limit exceeded/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|tier limit exceeded/i.test(msg);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
