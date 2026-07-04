@@ -354,6 +354,8 @@ function DebugStatus() {
             ? "Replicate"
       : tele.lastProvider === "recraft"
         ? "Recraft V4.1 Utility Pro"
+      : tele.lastProvider === "puter"
+        ? "Puter AI"
       : tele.lastProvider === "builtin"
         ? "Built-in AI"
         : "—";
