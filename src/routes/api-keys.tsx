@@ -647,7 +647,7 @@ function ActiveProviderStatus({
           {image && (
             <div>
               <span className="font-medium text-foreground">Image Provider:</span> {imageName} · {image.imageModel}
-              <span className="text-muted-foreground"> · last connected {fmtTime(lastTestedFor(["Recraft", "OpenAI"]))}</span>
+              <span className="text-muted-foreground"> · last connected {fmtTime(lastTestedFor(["Recraft", "OpenAI", "Google Gemini"]))}</span>
             </div>
           )}
         </div>
