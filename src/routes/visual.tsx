@@ -721,6 +721,7 @@ function VisualPage() {
               ["Images generated", have.size, "bg-green-500/15 text-green-600"],
               ["Images missing", Math.max(0, scenes.length - have.size), "bg-amber-500/15 text-amber-600"],
               ["Pending", pendingScenes().length, "bg-blue-500/15 text-blue-600"],
+              ["Provider Limit", rateLimited.size, "bg-orange-500/15 text-orange-600"],
               ["Failed", failed.size, "bg-red-500/15 text-red-600"],
             ] as [string, number, string][]).map(([label, value, cls]) => (
               <span key={label} className={`rounded-full px-2.5 py-1 font-medium ${cls}`}>
