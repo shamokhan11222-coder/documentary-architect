@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useVisualMap } from "@/lib/store";
 import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
-import { generateSceneImage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, type ImageSanityResult } from "@/lib/generate-image";
+import { generateSceneImage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, PROVIDER_FREE_TIER_LIMIT_MESSAGE, type ImageSanityResult } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
-import { SAFE_DELAY_OPTIONS, useSafeDelaySec, setSafeDelaySec, getSafeDelaySec } from "@/lib/free-mode";
+import { SAFE_DELAY_OPTIONS, useSafeDelaySec, setSafeDelaySec, getSafeDelaySec, useFreeMode, setFreeMode, FREE_QUEUE_DELAY_SEC } from "@/lib/free-mode";
 
 export const Route = createFileRoute("/queue")({
   head: () => ({ meta: [{ title: "Image Queue — Stickmax Studio" }] }),
@@ -29,6 +29,7 @@ const STATUS_STYLE: Record<QueueStatus, string> = {
   generating: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
   completed: "bg-green-500/15 text-green-600 dark:text-green-400",
   failed: "bg-red-500/15 text-red-600 dark:text-red-400",
+  "provider-limit": "bg-orange-500/15 text-orange-600 dark:text-orange-400",
   "rate-limited": "bg-orange-500/15 text-orange-600 dark:text-orange-400",
 };
 
@@ -40,6 +41,7 @@ function QueuePage() {
   const pausedRef = useRef(false);
   const [selectedNums, setSelectedNums] = useState<Set<number>>(new Set());
   const delaySec = useSafeDelaySec();
+  const freeMode = useFreeMode();
   const [currentScene, setCurrentScene] = useState<number | null>(null);
   const [rateMsg, setRateMsg] = useState<string>("");
   const rateHitsRef = useRef(0);
@@ -93,7 +95,7 @@ function QueuePage() {
     pausedRef.current = false;
     setRateMsg("");
     rateHitsRef.current = 0;
-    const delayMs = getSafeDelaySec() * 1000;
+    const delayMs = (freeMode ? FREE_QUEUE_DELAY_SEC : getSafeDelaySec()) * 1000;
 
     for (let idx = 0; idx < nums.length; idx++) {
       if (pausedRef.current) break;
@@ -116,14 +118,9 @@ function QueuePage() {
           // mark this scene "Rate Limited" (resumable), keep all completed work,
           // and pause the queue automatically so the user can resume later.
           rateHitsRef.current += 1;
-          setQueueItem(selected.id, { sceneNumber: n, status: "rate-limited" });
-          if (rateHitsRef.current >= REPEAT_LIMIT_THRESHOLD) {
-            setRateMsg("Daily provider limit likely reached. Try again later or switch provider.");
-            toast.warning("Daily provider limit likely reached. Try again later or switch provider.");
-          } else {
-            setRateMsg("Gemini image limit reached. Resume later.");
-            toast.warning("Gemini image limit reached. Resume later.");
-          }
+          setQueueItem(selected.id, { sceneNumber: n, status: "provider-limit", error: PROVIDER_FREE_TIER_LIMIT_MESSAGE });
+          setRateMsg(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
           pausedRef.current = true;
           break;
         }
@@ -148,7 +145,7 @@ function QueuePage() {
     const q = readQueue(selected?.id ?? "");
     if (!q) return [];
     return q.items
-      .filter((i) => i.status === "pending" || i.status === "generating" || i.status === "rate-limited")
+      .filter((i) => i.status === "pending" || i.status === "generating" || i.status === "provider-limit" || i.status === "rate-limited")
       .map((i) => i.sceneNumber)
       .sort((a, b) => a - b);
   }
@@ -190,7 +187,7 @@ function QueuePage() {
     const q = readQueue(selected?.id ?? "");
     if (!q) return;
     const nums = q.items
-      .filter((i) => i.status === "failed" || i.status === "rate-limited")
+      .filter((i) => i.status === "failed" || i.status === "provider-limit" || i.status === "rate-limited")
       .map((i) => i.sceneNumber);
     if (!nums.length) return toast.info("No failed items");
     void runNumbers(nums);
@@ -213,9 +210,9 @@ function QueuePage() {
   const total = queue?.items.length ?? 0;
   const completed = counts.completed ?? 0;
   const failed = counts.failed ?? 0;
-  const rateLimited = counts["rate-limited"] ?? 0;
+  const providerLimited = (counts["provider-limit"] ?? 0) + (counts["rate-limited"] ?? 0);
   const pending = (counts.pending ?? 0) + (counts.generating ?? 0);
-  const waiting = pending + rateLimited;
+  const waiting = pending + providerLimited;
   // Rough ETA: remaining scenes × (delay + ~10s average generation time).
   const etaSec = waiting * (delaySec + 10);
   const fmtEta = (s: number) => {
@@ -280,7 +277,7 @@ function QueuePage() {
             <Stat label="Total Scenes" value={total} />
             <Stat label="Completed" value={completed} />
             <Stat label="Pending" value={pending} />
-            <Stat label="Rate Limited" value={rateLimited} />
+            <Stat label="Provider Limit" value={providerLimited} />
             <Stat label="Failed" value={failed} />
           </div>
           {waiting > 0 && (
@@ -290,6 +287,21 @@ function QueuePage() {
           {rateMsg && (
             <div className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">{rateMsg}</div>
           )}
+
+          <label className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-input"
+              checked={freeMode}
+              onChange={(e) => setFreeMode(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Free Queue Mode</span>
+              <span className="ml-2 text-muted-foreground">
+                1 image at a time, 120 seconds between requests, no parallel requests, Generate All disabled.
+              </span>
+            </span>
+          </label>
 
           {/* Required image sanity test — batch generation is locked until this
               produces ONE image with the active provider. */}
@@ -338,7 +350,7 @@ function QueuePage() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" onClick={startSafeQueue} disabled={running || !testPassed}>
+            <Button size="sm" onClick={startSafeQueue} disabled={running || !testPassed || freeMode}>
               {running && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Generate All
             </Button>
             {running ? (
@@ -354,9 +366,9 @@ function QueuePage() {
               <FastForward className="mr-1 h-3.5 w-3.5" /> Continue From Last Scene
             </Button>
             <Button size="sm" variant="outline" onClick={generateOne} disabled={running || !testPassed}>
-              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate Next 1
+              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate One Image
             </Button>
-            <Button size="sm" variant="outline" onClick={generateNext5} disabled={running || !testPassed}>
+            <Button size="sm" variant="outline" onClick={generateNext5} disabled={running || !testPassed || freeMode}>
               <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate Next 5
             </Button>
             <Button size="sm" variant="ghost" onClick={retryCurrent} disabled={running || !testPassed}>
@@ -382,7 +394,7 @@ function QueuePage() {
               >
                 <span className="font-medium">Scene {i.sceneNumber}</span>
                 <span className={["rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_STYLE[i.status]].join(" ")}>
-                  {i.status === "pending" ? "waiting" : i.status === "rate-limited" ? "rate limited" : i.status}
+                  {i.status === "pending" ? "waiting" : i.status === "provider-limit" || i.status === "rate-limited" ? "Provider Limit" : i.status}
                 </span>
               </button>
             ))}
