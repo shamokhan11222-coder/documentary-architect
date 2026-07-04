@@ -131,7 +131,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
   }, "Image");
 }
 
-export async function testImageProvider(provider: ImageProviderPayload): Promise<void> {
+export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   const res = await fetch("/api/generate-image", {
     method: "POST",
