@@ -340,7 +340,7 @@ function ManagerPage() {
 
   async function retryStage(stage: StageKey) {
     if (!selected) return;
-    if (!prereqsMet(selected.id, stage)) {
+    if (!prereqsOk(selected.id, stage)) {
       toast.error("Complete the previous stage first.");
       return;
     }
@@ -357,7 +357,7 @@ function ManagerPage() {
   // Recovery: run ONLY the given stage (does not continue to later stages).
   async function runSingleStage(stage: StageKey) {
     if (!selected) return;
-    if (!prereqsMet(selected.id, stage)) {
+    if (!prereqsOk(selected.id, stage)) {
       toast.error("Complete the previous stage first.");
       return;
     }
@@ -389,13 +389,14 @@ function ManagerPage() {
   // failed/retry states win.
   function derivedStatus(stage: StageKey): TaskStatus {
     const raw: TaskStatus = pipeline?.stages[stage]?.status ?? "pending";
-    if (raw === "completed" || raw === "running" || raw === "failed" || raw === "retry") return raw;
-    if (selectedId && !prereqsMet(selectedId, stage)) return "locked";
+    if (raw === "completed" || raw === "running" || raw === "failed" || raw === "retry" || raw === "skipped")
+      return raw;
+    if (selectedId && !prereqsOk(selectedId, stage)) return "locked";
     return "ready";
   }
 
   const counts: Record<TaskStatus, number> = {
-    completed: 0, pending: 0, failed: 0, running: 0, locked: 0, ready: 0, retry: 0,
+    completed: 0, pending: 0, failed: 0, running: 0, locked: 0, ready: 0, retry: 0, skipped: 0,
   };
   if (pipeline) {
     for (const s of PIPELINE) {
