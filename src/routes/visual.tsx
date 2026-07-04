@@ -49,6 +49,22 @@ export const Route = createFileRoute("/visual")({
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
+/** Human-readable label for the Puter AI provider status. */
+function puterStatusLabel(s: PuterStatus): string {
+  switch (s) {
+    case "connected":
+      return "Connected";
+    case "generating":
+      return "Generating";
+    case "rate-limited":
+      return "Rate Limited";
+    case "offline":
+      return "Offline";
+    default:
+      return "Ready";
+  }
+}
+
 /** A stored image only counts as "generated" if it's a real, non-empty
  *  data/http image URL. Empty strings or junk left over from a failed run
  *  must NOT be treated as done, or scenes get skipped forever. */
