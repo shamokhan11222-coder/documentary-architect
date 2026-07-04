@@ -472,9 +472,17 @@ function VisualPage() {
         </Button>
         {hasMap && (
           <>
-            <Button onClick={generateAll} disabled={!!busy || !canGenerateImages}>
+            <Button onClick={generateAll} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Images className="mr-2 h-4 w-4" /> Generate All Images
+            </Button>
+            <Button variant="secondary" onClick={generateOne} disabled={!!busy || !canGenerateImages}>
+              {busy === "one" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <ImagePlus className="mr-2 h-4 w-4" /> Generate 1 Image
+            </Button>
+            <Button variant="secondary" onClick={generateNextAvailable} disabled={!!busy || !canGenerateImages}>
+              {busy === "next-available" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <PlayCircle className="mr-2 h-4 w-4" /> Generate Next Available Image
             </Button>
             <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
