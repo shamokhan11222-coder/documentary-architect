@@ -115,13 +115,22 @@ function ApiKeysPage() {
       return;
     }
     saveApiKey({ provider, apiKey: apiKey.trim(), purpose: purpose.trim(), modelName: modelName.trim() });
+    // Saving a key immediately activates that provider by pointing the relevant
+    // routing at it. No Gemini requirement — any supported provider activates.
+    if (provider === "Google Gemini") {
+      saveProviderSettings({ text: "gemini" });
+    } else if (provider === "OpenAI") {
+      applyPurposeRouting("openai", purpose.trim() || "text");
+    } else if (provider === "Recraft") {
+      saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
+    }
     setApiKey("");
     setPurpose("");
     setModelName("");
     setStatus("idle");
     toast.success(
-      provider === "Google Gemini"
-        ? "Gemini key saved — it is now the active provider"
+      provider === "Google Gemini" || provider === "OpenAI" || provider === "Recraft"
+        ? `${provider} saved — it is now active`
         : "Saved locally",
     );
   }
