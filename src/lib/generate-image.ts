@@ -270,6 +270,46 @@ export async function testImageProvider(provider: ImageProviderPayload | null): 
   recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
 }
 
+export type GeminiModelInfo = { id: string; displayName: string };
+export type GeminiModelList = {
+  endpoint: string;
+  apiVersion: string;
+  imageModels: GeminiModelInfo[];
+  allModels: string[];
+};
+
+/** Diagnostic: list the Gemini models a key can access, filtered to image-capable
+ *  ones. Returns the exact endpoint + API version used for debugging. */
+export async function listGeminiModels(apiKey: string): Promise<GeminiModelList> {
+  const res = await fetchWithTimeout(
+    "/api/generate-image",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "listGeminiModels", apiKey }),
+    },
+    IMAGE_TIMEOUT_MS,
+  );
+  if (!res.ok) {
+    let msg = `Could not list Gemini models (${res.status})`;
+    let code: string | null = null;
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+      if (j?.code) code = j.code;
+    } catch {
+      /* ignore */
+    }
+    throw new ImageGenError(msg, code, res.status);
+  }
+  return (await res.json()) as GeminiModelList;
+}
+
+/** Validate a specific Gemini image model exists and works before saving it. */
+export async function validateGeminiImageModel(apiKey: string, imageModel: string): Promise<void> {
+  await testImageProvider({ name: "gemini", apiKey, imageModel, fallback: false });
+}
+
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter, images } = await collectDnaReferences();
   const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);

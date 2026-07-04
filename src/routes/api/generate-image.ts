@@ -3,7 +3,18 @@ import { createFileRoute } from "@tanstack/react-router";
 // Silent, internal image generation. Images are routed only through the user's
 // selected external image provider (Recraft is primary). The built-in AI is
 // never used for images.
-const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
+// Gemini API version is NOT hardcoded at every call site — it is resolved from
+// this single constant and we probe alternate versions when a model 404s.
+const GEMINI_HOST = "https://generativelanguage.googleapis.com";
+// Ordered by preference. When a model is missing on one version we try the next.
+const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
+const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
+// Legacy alias kept for the non-Gemini helpers below.
+const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
+// Current, existing Gemini image model. NOT the old preview id that 404s.
+// Only used as a starting point — the real model is resolved dynamically and
+// validated against the live models list before generating.
+const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
@@ -18,6 +29,7 @@ type Provider = {
   fallback?: boolean;
 };
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
+type ListBody = { action?: "listGeminiModels"; apiKey?: string };
 
 function jsonError(error: string, status = 400, code?: string) {
   console.error("[image] error", { status, code: code ?? null, error });
@@ -63,12 +75,30 @@ async function validateProvider(provider: Provider): Promise<Response> {
     }
     if (name === "gemini") {
       // Image/thumbnail providers must be validated against the actual Gemini
-      // IMAGE model endpoint — never the text/models-list activation path.
+      // IMAGE model — never the text/models-list activation path. We resolve the
+      // API version that serves the model instead of hardcoding v1beta.
       const imageModel = provider.imageModel?.trim();
       if (imageModel && imageModel.toLowerCase().includes("image")) {
-        const r = await fetch(`${GOOGLE}/${imageModel}?key=${encodeURIComponent(provider.apiKey)}`);
+        const version = await resolveGeminiModelVersion(provider.apiKey, imageModel);
+        if (!version) {
+          const listed = await fetchGeminiModels(provider.apiKey);
+          const available =
+            "models" in listed
+              ? listed.models.filter(isImageCapable).map((m) => bareModelId(m.name))
+              : [];
+          const hint = available.length ? ` Available image models: ${available.join(", ")}.` : "";
+          return jsonError(
+            `Gemini image model "${imageModel}" does not exist on any supported API version.${hint}`,
+            404,
+            "MODEL_NOT_FOUND",
+          );
+        }
+        const r = await fetch(
+          `${geminiModelsUrl(version)}/${imageModel}?key=${encodeURIComponent(provider.apiKey)}`,
+        );
         return validationResult(r, "Gemini Image");
       }
+      // Text-only validation: lightweight models-list check.
       const r = await fetch(`${GOOGLE}?key=${encodeURIComponent(provider.apiKey)}&pageSize=1`);
       return validationResult(r, "Gemini");
     }
@@ -136,45 +166,169 @@ function toInlineData(ref: string) {
   return { inlineData: { mimeType: m[1], data: m[2] } };
 }
 
+type GeminiModel = {
+  name: string;
+  displayName?: string;
+  supportedGenerationMethods?: string[];
+  supportedActions?: string[];
+};
+
+/** Bare model id (strip the "models/" prefix Google returns). */
+function bareModelId(name: string): string {
+  return name.replace(/^models\//, "");
+}
+
+/** A model is image-capable if its id/displayName mentions "image" or it lists
+ *  image generation among its supported methods/actions. */
+function isImageCapable(m: GeminiModel): boolean {
+  const hay = `${m.name} ${m.displayName ?? ""}`.toLowerCase();
+  if (hay.includes("image")) return true;
+  const methods = [...(m.supportedGenerationMethods ?? []), ...(m.supportedActions ?? [])]
+    .join(" ")
+    .toLowerCase();
+  return methods.includes("image") || methods.includes("predict");
+}
+
+/** List all Gemini models the key can see, across API versions. Returns the
+ *  raw list plus the endpoint used so callers can surface it for debugging. */
+async function fetchGeminiModels(
+  apiKey: string,
+): Promise<{ models: GeminiModel[]; endpoint: string; version: string } | { error: string; status: number }> {
+  let lastErr = "Unknown error";
+  let lastStatus = 502;
+  for (const version of GEMINI_API_VERSIONS) {
+    const endpoint = `${geminiModelsUrl(version)}?key=${encodeURIComponent(apiKey)}&pageSize=200`;
+    try {
+      const r = await fetch(endpoint);
+      if (r.ok) {
+        const data = (await r.json()) as { models?: GeminiModel[] };
+        return { models: data.models ?? [], endpoint: geminiModelsUrl(version), version };
+      }
+      lastStatus = r.status;
+      lastErr = (await r.text().catch(() => "")).slice(0, 200) || `HTTP ${r.status}`;
+      // Auth errors won't be fixed by trying another version.
+      if (r.status === 400 || r.status === 401 || r.status === 403) break;
+    } catch (e) {
+      lastErr = String(e).slice(0, 200);
+    }
+  }
+  return { error: lastErr, status: lastStatus };
+}
+
+/** Resolve which API version actually serves a given model id. Returns null if
+ *  no version has it (i.e. the configured model does not exist). */
+async function resolveGeminiModelVersion(
+  apiKey: string,
+  model: string,
+): Promise<string | null> {
+  for (const version of GEMINI_API_VERSIONS) {
+    const endpoint = `${geminiModelsUrl(version)}/${model}?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const r = await fetch(endpoint);
+      if (r.ok) return version;
+    } catch {
+      /* try next version */
+    }
+  }
+  return null;
+}
+
+/** Diagnostic endpoint — return the image-capable Gemini models for a key so
+ *  the UI can let the user pick a real, existing model. */
+async function listGeminiModels(apiKey: string): Promise<Response> {
+  if (!apiKey?.trim()) return jsonError("Add a Google Gemini API key first.", 400, "NO_PROVIDER");
+  const res = await fetchGeminiModels(apiKey.trim());
+  if ("error" in res) {
+    const msg =
+      res.status === 400 || res.status === 401 || res.status === 403
+        ? "Invalid API key — Gemini rejected the request."
+        : `Could not list Gemini models (${res.status}): ${res.error}`;
+    return jsonError(msg, res.status, res.status === 400 ? "AUTH_ERROR" : codeForStatus(res.status));
+  }
+  const imageModels = res.models.filter(isImageCapable).map((m) => ({
+    id: bareModelId(m.name),
+    displayName: m.displayName ?? bareModelId(m.name),
+  }));
+  const allModels = res.models.map((m) => bareModelId(m.name));
+  return Response.json({
+    endpoint: res.endpoint,
+    apiVersion: res.version,
+    imageModels,
+    allModels,
+  });
+}
+
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
+  const apiKey = provider.apiKey ?? "";
   // Force an image-capable model. Never use a text model (e.g. gemini-2.5-flash).
-  let model = provider.imageModel || "";
+  let model = (provider.imageModel || "").trim();
   if (!model.toLowerCase().includes("image")) {
-    model = "gemini-2.0-flash-preview-image-generation";
+    model = GEMINI_IMAGE_MODEL_DEFAULT;
   }
   const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
     const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineData(ref) : null;
     if (inline) parts.push(inline);
   }
-  // AUDIT: exactly ONE outbound Gemini API request per call. No preview,
-  // verification, or duplicate request is ever made here.
-  const endpoint = `${GOOGLE}/${model}:generateContent`;
-  const auditStart = Date.now();
-  console.log("[AUDIT][gemini] outbound request", {
-    endpoint,
-    model,
-    time: new Date(auditStart).toISOString(),
-    references: parts.length - 1,
+  const reqBody = JSON.stringify({
+    contents: [{ role: "user", parts }],
+    generationConfig: { responseModalities: ["IMAGE"] },
   });
-  const upstream = await fetch(
-    `${endpoint}?key=${encodeURIComponent(provider.apiKey ?? "")}`,
-    {
+  // AUDIT: exactly ONE outbound generateContent request per call in the normal
+  // case. The API version is NOT hardcoded — we try the preferred version and
+  // only fall through to the next version if the model returns 404 there (i.e.
+  // that version doesn't serve this model). No preview/verification requests.
+  let upstream: Response | null = null;
+  let usedVersion: string = GEMINI_API_VERSIONS[0];
+  let notFoundText = "";
+  for (const version of GEMINI_API_VERSIONS) {
+    const endpoint = `${geminiModelsUrl(version)}/${model}:generateContent`;
+    const auditStart = Date.now();
+    console.log("[AUDIT][gemini] outbound request", {
+      endpoint,
+      model,
+      apiVersion: version,
+      time: new Date(auditStart).toISOString(),
+      references: parts.length - 1,
+    });
+    const r = await fetch(`${endpoint}?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: { responseModalities: ["IMAGE"] },
-      }),
-    },
-  );
-  console.log("[AUDIT][gemini] outbound response", {
-    endpoint,
-    model,
-    responseCode: upstream.status,
-    ms: Date.now() - auditStart,
-  });
+      body: reqBody,
+    });
+    console.log("[AUDIT][gemini] outbound response", {
+      endpoint,
+      model,
+      apiVersion: version,
+      responseCode: r.status,
+      ms: Date.now() - auditStart,
+    });
+    // Only a 404 means "wrong API version for this model" — try the next one.
+    if (r.status === 404) {
+      notFoundText = (await r.text().catch(() => "")).slice(0, 200);
+      continue;
+    }
+    upstream = r;
+    usedVersion = version;
+    break;
+  }
+  // Model genuinely not found on any version — surface the real available models.
+  if (!upstream) {
+    const listed = await fetchGeminiModels(apiKey);
+    const available =
+      "models" in listed
+        ? listed.models.filter(isImageCapable).map((m) => bareModelId(m.name))
+        : [];
+    const hint = available.length
+      ? ` Available image models: ${available.join(", ")}.`
+      : " No image-capable models were returned for this key.";
+    return jsonError(
+      `Gemini model "${model}" was not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).${hint} Pick one in API Settings › List Available Gemini Models.${notFoundText ? ` Details: ${notFoundText}` : ""}`,
+      404,
+      "MODEL_NOT_FOUND",
+    );
+  }
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
@@ -184,7 +338,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
         ? "Rate limit exceeded (Gemini). Please wait and try again."
         : status === 400 || status === 403
           ? "Invalid API key — Gemini rejected the request. Check your key in API Settings."
-          : `Gemini image generation failed (${status}): ${text.slice(0, 200)}`;
+          : `Gemini image generation failed (${status}) [${usedVersion}]: ${text.slice(0, 200)}`;
     return jsonError(msg, status, status === 400 ? "AUTH_ERROR" : codeForStatus(status));
   }
   const data = await upstream.json();
@@ -399,7 +553,10 @@ export const Route = createFileRoute("/api/generate-image")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as Body;
+        const raw = (await request.json()) as Body & ListBody;
+        // Diagnostic action: list available Gemini models for a key.
+        if (raw.action === "listGeminiModels") return listGeminiModels(raw.apiKey ?? "");
+        const body = raw as Body;
         const { provider } = body;
         if (!provider?.name) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
 

@@ -38,7 +38,10 @@ export const GEMINI_UNSUPPORTED_MESSAGE =
 // Separate Gemini models per task. The text model must never be used for image
 // generation, and the image model must never be used for text.
 export const GEMINI_TEXT_MODEL_DEFAULT = "gemini-2.5-flash";
-export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.0-flash-preview-image-generation";
+// Current, existing Gemini image model. The old
+// "gemini-2.0-flash-preview-image-generation" id no longer exists on v1beta
+// (404). The real model is resolved dynamically before every request.
+export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
 
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
@@ -205,12 +208,17 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate" && choice !== "recraft")
     return null;
 
-  // For Gemini image, ONLY use models containing "image" in the name.
-  // The user's text modelName (e.g. gemini-2.5-flash) must NOT be used for image gen.
+  // For Gemini image, prefer the dedicated image model the user picked via the
+  // "List Available Gemini Models" diagnostic (stored separately from the text
+  // modelName). Never use the text modelName (e.g. gemini-2.5-flash) for images.
   let imageModel = entry.modelName?.trim() || "";
   if (choice === "gemini") {
-    // Force an image-capable model. Ignore text model names.
-    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : GEMINI_IMAGE_MODEL_DEFAULT;
+    const picked = entry.imageModelName?.trim() || "";
+    imageModel = picked.toLowerCase().includes("image")
+      ? picked
+      : imageModel.toLowerCase().includes("image")
+        ? imageModel
+        : GEMINI_IMAGE_MODEL_DEFAULT;
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";

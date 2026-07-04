@@ -28,7 +28,13 @@ import {
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
-import { testImageProvider, imageErrorMessage } from "@/lib/generate-image";
+import {
+  testImageProvider,
+  imageErrorMessage,
+  listGeminiModels,
+  validateGeminiImageModel,
+  type GeminiModelList,
+} from "@/lib/generate-image";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
@@ -260,6 +266,7 @@ function ApiKeysPage() {
               onChange={(v) => saveProviderSettings({ image: v })}
             />
             <GeminiImageTest keys={keys} />
+            <GeminiModelDiagnostic keys={keys} />
             <RecraftTest keys={keys} />
             <ImageRouteRow
               label="Thumbnail Provider"
@@ -500,10 +507,11 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
     saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
     setTesting(true);
     try {
+      const imageModel = geminiKey.imageModelName?.trim() || GEMINI_IMAGE_MODEL_DEFAULT;
       await testImageProvider({
         name: "gemini",
         apiKey: geminiKey.apiKey.trim(),
-        imageModel: GEMINI_IMAGE_MODEL_DEFAULT,
+        imageModel,
         fallback: false,
       });
       toast.success("Gemini Image connected — set as active Image Provider");
@@ -520,7 +528,7 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
       <div className="min-w-0 text-xs text-muted-foreground">
         {geminiKey
           ? activeImage?.name === "gemini"
-            ? `Gemini Image active · ${GEMINI_IMAGE_MODEL_DEFAULT}`
+            ? `Gemini Image active · ${activeImage.imageModel}`
             : "Gemini key detected — test to activate Gemini Image."
           : "No Gemini key yet — add one above (Provider: Google Gemini)."}
       </div>
@@ -535,6 +543,106 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
 /** Test Recraft Connection — validates the saved Recraft key with a minimal
  *  request and, on success, sets Recraft as the active Image Provider. */
 function ImageKeyTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
+  return <RecraftKeyTestInner keys={keys} />;
+}
+
+/** Diagnostic: list the real image-capable Gemini models a key can access, let
+ *  the user pick one, validate it against the live endpoint, then save it as the
+ *  active Gemini image model. Never hardcodes a model that Gemini can't confirm. */
+function GeminiModelDiagnostic({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
+  const geminiKey = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim());
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<GeminiModelList | null>(null);
+  const [selected, setSelected] = useState("");
+
+  async function listModels() {
+    if (!geminiKey) {
+      toast.error("Add a Google Gemini API key first (Provider: Google Gemini).");
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    try {
+      const r = await listGeminiModels(geminiKey.apiKey.trim());
+      setResult(r);
+      setSelected(r.imageModels[0]?.id ?? "");
+      toast.success(`Found ${r.imageModels.length} image-capable Gemini model(s)`);
+    } catch (e) {
+      toast.error(imageErrorMessage(e, "Could not list Gemini models"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function validateAndSave() {
+    if (!geminiKey || !selected) return;
+    setSaving(true);
+    try {
+      // Validate the selected model against the live endpoint BEFORE saving.
+      await validateGeminiImageModel(geminiKey.apiKey.trim(), selected);
+      saveApiKey({ ...geminiKey, imageModelName: selected });
+      saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
+      markTested(geminiKey.id, IMAGE_PROVIDER_TEST_PASSED);
+      toast.success(`Gemini image model set: ${selected}`);
+    } catch (e) {
+      toast.error(imageErrorMessage(e, "Selected Gemini model failed validation"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-dashed border-border p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 text-xs text-muted-foreground">
+          List Available Gemini Models — pick a real image model instead of guessing.
+        </div>
+        <Button size="sm" variant="outline" onClick={listModels} disabled={loading || !geminiKey}>
+          {loading && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+          List Available Gemini Models
+        </Button>
+      </div>
+      {result && (
+        <div className="mt-3 space-y-2 border-t border-border pt-3">
+          <div className="font-mono text-[11px] text-muted-foreground">
+            <div>Endpoint: {result.endpoint}</div>
+            <div>API version: {result.apiVersion}</div>
+            <div>Image models: {result.imageModels.length} · Total: {result.allModels.length}</div>
+          </div>
+          {result.imageModels.length > 0 ? (
+            <div className="flex items-center gap-2">
+              <select
+                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                value={selected}
+                onChange={(e) => setSelected(e.target.value)}
+              >
+                {result.imageModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.displayName} ({m.id})
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" onClick={validateAndSave} disabled={saving || !selected}>
+                {saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                Validate &amp; Save
+              </Button>
+            </div>
+          ) : (
+            <div className="text-xs text-amber-600">
+              No image-capable models were returned for this key. This key may not have image
+              generation access.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Test Recraft Connection — validates the saved Recraft key with a minimal
+ *  request and, on success, sets Recraft as the active Image Provider. */
+function RecraftKeyTestInner({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
   const activeImage = useActiveImageProvider();
   const [testing, setTesting] = useState(false);
   const recraftKey = keys.find((k) => k.provider === "Recraft" && k.apiKey.trim());
