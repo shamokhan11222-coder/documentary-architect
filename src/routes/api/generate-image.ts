@@ -129,42 +129,6 @@ function toInlineData(ref: string) {
   return { inlineData: { mimeType: m[1], data: m[2] } };
 }
 
-// Generate through the studio's built-in AI (Lovable AI Gateway). Used when no
-// external image provider is connected so image generation is never disabled.
-async function generateWithBuiltin(body: Body): Promise<Response> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) return jsonError("Built-in AI is not configured (missing LOVABLE_API_KEY).", 500, "PROVIDER_ERROR");
-  const model = "google/gemini-2.5-flash-image";
-  console.log("[image] request → built-in AI", { model, promptLength: (body.prompt ?? "").length });
-  const upstream = await fetch(LOVABLE_IMAGE, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      prompt: body.prompt,
-    }),
-  });
-  if (!upstream.ok) {
-    const text = await upstream.text().catch(() => "");
-    const status = upstream.status;
-    logProviderCall("builtin", model, undefined, status, false, text);
-    const msg =
-      status === 429
-        ? "Rate limit exceeded on built-in AI. Please wait and try again."
-        : status === 402
-          ? "Built-in AI credits exhausted. Add credits in workspace settings, or connect your own image provider (Gemini, OpenAI, Fal.ai, Replicate) in API Settings."
-          : `Built-in AI image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, codeForStatus(status));
-  }
-  const data = await upstream.json();
-  const b64 = data?.data?.[0]?.b64_json;
-  const url = firstUrl(data?.data) ?? firstUrl(data);
-  logProviderCall("builtin", model, undefined, upstream.status, true, b64 ? "b64 image" : url ? "url image" : "no image");
-  if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
-  if (url) return Response.json({ image: url });
-  return jsonError("Built-in AI returned no image.", 502, "PROVIDER_ERROR");
-}
-
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
   // Force an image-capable model. Never use a text model (e.g. gemini-2.5-flash).
