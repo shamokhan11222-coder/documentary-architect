@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { useSelectedProject } from "@/components/ProjectPicker";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { hasUnlimitedAccess } from "@/lib/account";
-import { PIPELINE, stageDone, completionPercent, prereqsMet, STAGE_DEPS, type StageKey } from "@/lib/manager";
+import { PIPELINE, stageDone, completionPercent, STAGE_DEPS, type StageKey } from "@/lib/manager";
 import {
   usePipeline,
   getPipeline,
