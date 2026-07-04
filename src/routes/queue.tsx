@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Play, Pause, RotateCcw, ListChecks, ImagePlus, FastForward } from "lucide-react";
+import { Loader2, Play, Pause, RotateCcw, ListChecks, ImagePlus, FastForward, CheckCircle2, XCircle, FlaskConical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useVisualMap } from "@/lib/store";
 import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
-import { generateSceneImage, isRateLimitError } from "@/lib/generate-image";
+import { generateSceneImage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, type ImageSanityResult } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
@@ -43,6 +43,24 @@ function QueuePage() {
   const [currentScene, setCurrentScene] = useState<number | null>(null);
   const [rateMsg, setRateMsg] = useState<string>("");
   const rateHitsRef = useRef(0);
+  // Required image sanity test. Batch generation stays locked until ONE test
+  // image succeeds with the active provider.
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState<ImageSanityResult | null>(null);
+  const testPassed = test?.ok === true;
+
+  async function runSanityTest() {
+    setTesting(true);
+    setTest(null);
+    try {
+      const r = await generateTestImage();
+      setTest(r);
+      if (r.ok) toast.success(`Test image OK via ${r.provider} (${(r.ms / 1000).toFixed(1)}s)`);
+      else toast.error(r.error ?? "Test image failed");
+    } finally {
+      setTesting(false);
+    }
+  }
 
   function buildQueue() {
     if (!selected || !map) return;
@@ -268,31 +286,34 @@ function QueuePage() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" onClick={startSafeQueue} disabled={running}>
-              {running && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Start Safe Queue
+            <Button size="sm" onClick={startSafeQueue} disabled={running || !testPassed}>
+              {running && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Generate All
             </Button>
             {running ? (
               <Button size="sm" variant="secondary" onClick={pause}>
                 <Pause className="mr-1 h-3.5 w-3.5" /> Pause Queue
               </Button>
             ) : (
-              <Button size="sm" variant="secondary" onClick={startSafeQueue}>
+              <Button size="sm" variant="secondary" onClick={startSafeQueue} disabled={!testPassed}>
                 <Play className="mr-1 h-3.5 w-3.5" /> Resume Queue
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={continueFromLast} disabled={running}>
+            <Button size="sm" variant="outline" onClick={continueFromLast} disabled={running || !testPassed}>
               <FastForward className="mr-1 h-3.5 w-3.5" /> Continue From Last Scene
             </Button>
-            <Button size="sm" variant="outline" onClick={generateOne} disabled={running}>
-              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate One Image
+            <Button size="sm" variant="outline" onClick={generateOne} disabled={running || !testPassed}>
+              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate Next 1
             </Button>
-            <Button size="sm" variant="ghost" onClick={retryCurrent} disabled={running}>
+            <Button size="sm" variant="outline" onClick={generateNext5} disabled={running || !testPassed}>
+              <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate Next 5
+            </Button>
+            <Button size="sm" variant="ghost" onClick={retryCurrent} disabled={running || !testPassed}>
               <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry Current
             </Button>
-            <Button size="sm" variant="ghost" onClick={retryFailed} disabled={running}>
+            <Button size="sm" variant="ghost" onClick={retryFailed} disabled={running || !testPassed}>
               <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry Failed
             </Button>
-            <Button size="sm" variant="ghost" onClick={retrySelected} disabled={running}>
+            <Button size="sm" variant="ghost" onClick={retrySelected} disabled={running || !testPassed}>
               Retry Selected ({selectedNums.size})
             </Button>
           </div>
