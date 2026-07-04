@@ -14,8 +14,8 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError } from "@/lib/generate-image";
-import { useFreeMode, setFreeMode } from "@/lib/free-mode";
+import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE } from "@/lib/generate-image";
+import { useFreeMode, setFreeMode, FREE_QUEUE_DELAY_SEC } from "@/lib/free-mode";
 import { usePuterStatus, type PuterStatus } from "@/lib/puter-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
@@ -48,6 +48,7 @@ export const Route = createFileRoute("/visual")({
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const pad3 = (n: number) => String(n).padStart(3, "0");
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Human-readable label for the Puter AI provider status. */
 function puterStatusLabel(s: PuterStatus): string {
@@ -255,7 +256,8 @@ function VisualPage() {
 
   // Generate a batch of images, running only over the scenes passed in. Stops
   // early and saves progress if credits run out.
-  async function runBatch(key: string, scenes: VisualScene[]) {
+  async function runBatch(key: string, requestedScenes: VisualScene[]) {
+    const scenes = freeMode ? requestedScenes.slice(0, 1) : requestedScenes;
     if (!scenes.length) {
       toast.info("Nothing to generate — every image in range is already done.");
       return;
@@ -280,7 +282,7 @@ function VisualPage() {
           // the user can continue from the next pending scene later.
           if (isRateLimitError(e)) {
             setRateLimited((prev) => new Set(prev).add(scenes[i].sceneNumber));
-            toast.warning("Free provider limit reached. Continue later.");
+            toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
             break;
           }
           setFailed((prev) => new Set(prev).add(scenes[i].sceneNumber));
@@ -291,6 +293,7 @@ function VisualPage() {
           toast.error(`Scene ${scenes[i].sceneNumber}: ${msg}`);
         }
         setProgress({ done: i + 1, total: scenes.length, current: scenes[i].sceneNumber });
+        if (freeMode && i < scenes.length - 1) await sleep(FREE_QUEUE_DELAY_SEC * 1000);
       }
       setProgress(null);
       void refreshHave();
@@ -504,31 +507,31 @@ function VisualPage() {
             </Button>
             <Button variant="secondary" onClick={generateOne} disabled={!!busy || !canGenerateImages}>
               {busy === "one" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <ImagePlus className="mr-2 h-4 w-4" /> Generate 1 Image
+              <ImagePlus className="mr-2 h-4 w-4" /> Generate One Image
             </Button>
             <Button variant="secondary" onClick={generateNextAvailable} disabled={!!busy || !canGenerateImages}>
               {busy === "next-available" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <PlayCircle className="mr-2 h-4 w-4" /> Generate Next Available Image
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages}>
+            <Button variant="secondary" onClick={() => generateNext(5)} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "next-5" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <ImagePlus className="mr-2 h-4 w-4" /> Next 5
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy || !canGenerateImages}>
+            <Button variant="secondary" onClick={() => generateNext(10)} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "next-10" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next 10
             </Button>
-            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy || !canGenerateImages}>
+            <Button variant="secondary" onClick={() => generateNext(20)} disabled={!!busy || !canGenerateImages || freeMode}>
               {busy === "next-20" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Next 20
             </Button>
             {failed.size > 0 && (
               <>
-                <Button variant="outline" onClick={retryFailed} disabled={!!busy || !canGenerateImages}>
+                <Button variant="outline" onClick={retryFailed} disabled={!!busy || !canGenerateImages || freeMode}>
                   {busy === "retry" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed ({failed.size})
                 </Button>
-                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy || !canGenerateImages}>
+                <Button variant="outline" onClick={continueFromFailed} disabled={!!busy || !canGenerateImages || freeMode}>
                   {busy === "continue" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <PlayCircle className="mr-2 h-4 w-4" /> Continue From Failed Scene
                 </Button>
@@ -589,7 +592,7 @@ function VisualPage() {
             />
             <span className="font-medium">Free Mode</span>
             <span className="text-muted-foreground">
-              Generates 1 image at a time, waits 60s between requests, and auto-retries rate limits (1m / 3m / 5m). "Generate All" is disabled.
+              Generates 1 image at a time, waits 120 seconds between requests, no parallel requests, no automatic retries. "Generate All" is disabled.
             </span>
           </label>
           {rateLimited.size > 0 && (
