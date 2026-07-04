@@ -63,6 +63,7 @@ interface InternalTask extends QueueTask {
   run: () => Promise<unknown>;
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
+  retryRateLimits: boolean;
 }
 
 const tasks: InternalTask[] = [];
@@ -125,7 +126,7 @@ function emit() {
 
 function isRateLimit(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
-  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota|tier limit exceeded/i.test(msg);
 }
 
 function setStatus(t: InternalTask, status: QueueTaskStatus, message?: string) {
@@ -188,7 +189,7 @@ async function startTask(task: InternalTask) {
     setStatus(task, "completed", undefined);
     task.resolve(result);
   } catch (e) {
-    if (isRateLimit(e) && task.attempt < BACKOFF.length) {
+    if (task.retryRateLimits && isRateLimit(e) && task.attempt < BACKOFF.length) {
       const wait = BACKOFF[task.attempt];
       task.attempt++;
       setStatus(task, "retrying", "Rate limited. Waiting before retry…");
@@ -217,7 +218,11 @@ let idc = 0;
  * Enqueue an AI request. Returns a promise that resolves with the task result
  * (or rejects if it fails after all retries). All AI calls should go through here.
  */
-export function enqueueAi<T>(run: () => Promise<T>, label = "AI request"): Promise<T> {
+export function enqueueAi<T>(
+  run: () => Promise<T>,
+  label = "AI request",
+  options: { retryRateLimits?: boolean } = {},
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const task: InternalTask = {
       id: `q${++idc}-${Date.now()}`,
@@ -229,6 +234,7 @@ export function enqueueAi<T>(run: () => Promise<T>, label = "AI request"): Promi
       run: run as () => Promise<unknown>,
       resolve: resolve as (v: unknown) => void,
       reject,
+      retryRateLimits: options.retryRateLimits !== false,
     };
     tasks.push(task);
     emit();
