@@ -507,10 +507,11 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
     saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
     setTesting(true);
     try {
+      const imageModel = geminiKey.imageModelName?.trim() || GEMINI_IMAGE_MODEL_DEFAULT;
       await testImageProvider({
         name: "gemini",
         apiKey: geminiKey.apiKey.trim(),
-        imageModel: GEMINI_IMAGE_MODEL_DEFAULT,
+        imageModel,
         fallback: false,
       });
       toast.success("Gemini Image connected — set as active Image Provider");
