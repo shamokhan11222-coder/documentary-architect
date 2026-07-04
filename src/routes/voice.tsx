@@ -277,6 +277,16 @@ function VoicePage() {
             <Button onClick={buildBlocks}>
               <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
+            {selectedProfile && (
+              <Button variant="outline" onClick={previewClone} disabled={!!busy}>
+                {busy === "preview" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                Preview Clone
+              </Button>
+            )}
             {voice?.blocks.length ? (
               <Button variant="secondary" onClick={genAll} disabled={!!busy}>
                 {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -287,6 +297,61 @@ function VoicePage() {
 
           {profiles.length > 0 && !settings.clonedProfileId && (
             <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
+          )}
+
+          {selectedProfile && (
+            <div className="mt-3 rounded-lg border border-border p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-medium">Active Voice Profile:</span>
+                <span>{selectedProfile.name}</span>
+                <span className="text-muted-foreground">Voice ID: {selectedProfile.id.slice(0, 8)}</span>
+                <span
+                  className={[
+                    "rounded-full px-2 py-0.5 font-medium",
+                    selectedProfile.status && selectedProfile.status !== "ready"
+                      ? "bg-amber-500/15 text-amber-600"
+                      : "bg-green-500/15 text-green-600 dark:text-green-400",
+                  ].join(" ")}
+                >
+                  {selectedProfile.status && selectedProfile.status !== "ready"
+                    ? "Processing"
+                    : "Ready"}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4">
+                <ValRow label="Gender" ok={selectedProfile.gender !== "unknown"} value={selectedProfile.gender ?? "unknown"} />
+                <ValRow
+                  label="Pitch"
+                  ok={!!selectedProfile.pitchHz}
+                  value={selectedProfile.pitchHz ? `${selectedProfile.pitchHz} Hz` : "—"}
+                />
+                <ValRow
+                  label="Sample length"
+                  ok={(selectedProfile.sampleSeconds ?? 0) >= 30}
+                  value={selectedProfile.sampleSeconds ? `${Math.round(selectedProfile.sampleSeconds)}s` : "—"}
+                />
+                <ValRow
+                  label="Confidence"
+                  ok={(selectedProfile.analysisConfidence ?? 0) >= 0.5}
+                  value={
+                    selectedProfile.analysisConfidence != null
+                      ? `${Math.round(selectedProfile.analysisConfidence * 100)}%`
+                      : "—"
+                  }
+                />
+              </div>
+              {(selectedProfile.sampleSeconds ?? 60) < 30 && (
+                <p className="mt-2 text-amber-600">
+                  For higher accuracy, use 30–60s of clean speech with no music or background noise.
+                </p>
+              )}
+              {previewUrl && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-muted-foreground">Clone preview:</span>
+                  <audio controls src={previewUrl} className="h-8" />
+                </div>
+              )}
+            </div>
           )}
 
           {voice?.blocks.length ? (
