@@ -137,6 +137,7 @@ function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [autoId, setAutoId] = useState<string | null>(null);
   const [autoStep, setAutoStep] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     // Data is read synchronously from local storage, so keep this minimal — just
