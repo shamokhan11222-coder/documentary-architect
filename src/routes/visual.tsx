@@ -48,7 +48,6 @@ export const Route = createFileRoute("/visual")({
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const pad3 = (n: number) => String(n).padStart(3, "0");
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Human-readable label for the Puter AI provider status. */
 function puterStatusLabel(s: PuterStatus): string {
@@ -297,7 +296,6 @@ function VisualPage() {
           toast.error(`Scene ${scenes[i].sceneNumber}: ${msg}`);
         }
         setProgress({ done: i + 1, total: scenes.length, current: scenes[i].sceneNumber });
-        if (freeMode && i < scenes.length - 1) await sleep(FREE_QUEUE_DELAY_SEC * 1000);
       }
       setProgress(null);
       void refreshHave();
