@@ -291,6 +291,52 @@ function QueuePage() {
             <div className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">{rateMsg}</div>
           )}
 
+          {/* Required image sanity test — batch generation is locked until this
+              produces ONE image with the active provider. */}
+          <div className="mt-4 rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <FlaskConical className="h-4 w-4" /> Image Sanity Test
+              </div>
+              <Button size="sm" onClick={runSanityTest} disabled={testing}>
+                {testing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="mr-1 h-3.5 w-3.5" />}
+                Generate 1 Test Image
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Prompt: “{IMAGE_SANITY_PROMPT}”. Batch buttons unlock only after this succeeds.
+            </p>
+            {test && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-[auto,1fr]">
+                {test.image && (
+                  <img src={test.image} alt="Test" className="h-24 w-24 rounded-md border border-border object-cover" />
+                )}
+                <div className="text-xs">
+                  <div className={`flex items-center gap-1.5 font-medium ${test.ok ? "text-green-600" : "text-red-600"}`}>
+                    {test.ok ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    {test.ok ? "Success" : "Failed"}
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-[auto,1fr] gap-x-3 gap-y-0.5 text-muted-foreground">
+                    <span>Provider</span><span className="font-medium text-foreground">{test.provider}</span>
+                    <span>Model</span><span className="font-medium text-foreground">{test.model}</span>
+                    <span>Request time</span><span className="font-medium text-foreground">{(test.ms / 1000).toFixed(1)}s</span>
+                  </div>
+                  {!test.ok && test.error && (
+                    <div className="mt-2 rounded-md bg-red-500/10 px-2 py-1.5 text-red-600">
+                      {test.rateLimited ? "Provider rate limit: " : "Error: "}{test.error}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!testPassed && (
+            <p className="mt-3 text-xs text-amber-600">
+              Run the sanity test above and get one successful image before batch generation unlocks.
+            </p>
+          )}
+
           <div className="mt-4 flex flex-wrap gap-2">
             <Button size="sm" onClick={startSafeQueue} disabled={running || !testPassed}>
               {running && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Generate All
