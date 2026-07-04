@@ -52,6 +52,7 @@ import { nextStage, type StageKey } from "@/lib/manager";
 import { loadImage } from "@/lib/images";
 import { Reveal, AIThinking } from "@/components/motion";
 import { LogoLoading } from "@/components/Logo";
+import { CreateProjectModal } from "@/components/CreateProjectModal";
 import type { GeneratedIdea, IdeaCategory, Story, VisualMap } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 
