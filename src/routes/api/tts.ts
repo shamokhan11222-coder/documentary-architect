@@ -179,6 +179,13 @@ export const Route = createFileRoute("/api/tts")({
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
         const voice = VOICE_MAP[body.profile ?? "deep"] ?? "onyx";
+        // Keep built-in AI narration gender-consistent with a selected clone.
+        const lockedVoice =
+          body.clone?.gender === "male"
+            ? "onyx"
+            : body.clone?.gender === "female"
+              ? "shimmer"
+              : voice;
         const speed = Math.min(1.2, Math.max(0.7, body.speed ?? 1));
 
         const upstream = await fetch(GATEWAY, {
@@ -187,7 +194,7 @@ export const Route = createFileRoute("/api/tts")({
           body: JSON.stringify({
             model: MODEL,
             input: body.text.slice(0, 4000),
-            voice,
+            voice: lockedVoice,
             response_format: "mp3",
             speed,
             instructions: buildInstructions(body),
