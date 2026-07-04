@@ -20,10 +20,6 @@ export const Route = createFileRoute("/queue")({
 
 const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// If this many scenes hit the provider limit in one run, assume the daily quota
-// is exhausted and surface a stronger message.
-const REPEAT_LIMIT_THRESHOLD = 3;
-
 const STATUS_STYLE: Record<QueueStatus, string> = {
   pending: "bg-muted text-muted-foreground",
   generating: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -44,7 +40,6 @@ function QueuePage() {
   const freeMode = useFreeMode();
   const [currentScene, setCurrentScene] = useState<number | null>(null);
   const [rateMsg, setRateMsg] = useState<string>("");
-  const rateHitsRef = useRef(0);
   // Required image sanity test. Batch generation stays locked until ONE test
   // image succeeds with the active provider.
   const [testing, setTesting] = useState(false);
@@ -85,17 +80,14 @@ function QueuePage() {
     return map?.scenes.find((s) => s.sceneNumber === n);
   }
 
-  // Slow, safe, sequential runner. Generates ONE image at a time, waits the
-  // configured delay between requests, saves each image immediately, and on a
-  // Gemini rate limit retries after 30s → 60s → 120s before pausing (so scenes
-  // are never permanently failed and the queue resumes from where it stopped).
+  // Sequential runner. Saves each completed image immediately. Provider limits
+  // stop the queue immediately and mark the scene Provider Limit, not Failed.
   async function runNumbers(nums: number[]) {
     if (!selected) return;
     const runList = freeMode ? nums.slice(0, 1) : nums;
     setRunning(true);
     pausedRef.current = false;
     setRateMsg("");
-    rateHitsRef.current = 0;
     const delayMs = (freeMode ? FREE_QUEUE_DELAY_SEC : getSafeDelaySec()) * 1000;
 
     for (let idx = 0; idx < runList.length; idx++) {
@@ -115,10 +107,8 @@ function QueuePage() {
         completed = true;
       } catch (e) {
         if (isRateLimitError(e)) {
-          // Provider limit reached — do NOT wait or mark failed. Stop loading,
-          // mark this scene "Rate Limited" (resumable), keep all completed work,
-          // and pause the queue automatically so the user can resume later.
-          rateHitsRef.current += 1;
+          // Provider limit reached — do NOT retry or mark failed. Stop loading,
+          // mark this scene Provider Limit, keep all completed work, and pause.
           setQueueItem(selected.id, { sceneNumber: n, status: "provider-limit", error: PROVIDER_FREE_TIER_LIMIT_MESSAGE });
           setRateMsg(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
           toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
@@ -215,7 +205,7 @@ function QueuePage() {
   const pending = (counts.pending ?? 0) + (counts.generating ?? 0);
   const waiting = pending + providerLimited;
   // Rough ETA: remaining scenes × (delay + ~10s average generation time).
-  const etaSec = waiting * (delaySec + 10);
+  const etaSec = waiting * ((freeMode ? FREE_QUEUE_DELAY_SEC : delaySec) + 10);
   const fmtEta = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
