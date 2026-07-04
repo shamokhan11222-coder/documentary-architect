@@ -414,6 +414,37 @@ function ImageRouteRow({
   );
 }
 
+/** Text-task routing row. Offers Gemini, OpenAI or the built-in AI. */
+function TextRouteRow({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: ProviderChoice;
+  onChange: (v: ProviderChoice) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">{hint}</div>
+      </div>
+      <select
+        className="h-8 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value as ProviderChoice)}
+      >
+        <option value="gemini">Gemini</option>
+        <option value="openai">OpenAI</option>
+        <option value="builtin">Built-in AI</option>
+      </select>
+    </div>
+  );
+}
+
 /** Test Recraft Connection — validates the saved Recraft key with a minimal
  *  request and, on success, sets Recraft as the active Image Provider. */
 function RecraftTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
