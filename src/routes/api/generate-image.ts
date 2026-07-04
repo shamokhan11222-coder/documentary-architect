@@ -3,7 +3,14 @@ import { createFileRoute } from "@tanstack/react-router";
 // Silent, internal image generation. Images are routed only through the user's
 // selected external image provider (Recraft is primary). The built-in AI is
 // never used for images.
-const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
+// Gemini API version is NOT hardcoded at every call site — it is resolved from
+// this single constant and we probe alternate versions when a model 404s.
+const GEMINI_HOST = "https://generativelanguage.googleapis.com";
+// Ordered by preference. When a model is missing on one version we try the next.
+const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
+const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
+// Legacy alias kept for the non-Gemini helpers below.
+const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
