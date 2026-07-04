@@ -447,12 +447,15 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
       oaMessage = text;
     }
 
+    const providerLimited = isProviderLimit(status, `${oaMessage} ${oaType} ${oaCode} ${text}`);
+
     // Only treat it as an auth/key problem when OpenAI actually says so.
     const isAuth =
-      status === 401 ||
-      oaCode === "invalid_api_key" ||
-      oaType === "authentication_failed" ||
-      oaType === "invalid_request_error" && /api key/i.test(oaMessage);
+      !providerLimited &&
+      (status === 401 ||
+        oaCode === "invalid_api_key" ||
+        oaType === "authentication_failed" ||
+        (oaType === "invalid_request_error" && /api key/i.test(oaMessage)));
 
     if (isAuth) {
       return jsonError(
@@ -469,8 +472,8 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
       ? `${oaMessage}${oaCode ? ` [${oaCode}]` : ""}`
       : text.slice(0, 300) || `OpenAI Images request failed (${status}).`;
     const prefix =
-      status === 429
-        ? "Rate limit exceeded (OpenAI Images): "
+      providerLimited
+        ? "Provider free tier limit reached. Try later or switch provider. "
         : status === 402 || oaCode === "insufficient_quota"
           ? "Insufficient quota (OpenAI Images): "
           : status === 403
@@ -480,7 +483,7 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
     // PROVIDER_ERROR otherwise so the client surfaces the exact message rather
     // than a generic "Invalid API key".
     const code =
-      status === 429
+      providerLimited
         ? "RATE_LIMIT"
         : oaCode === "insufficient_quota" || status === 402
           ? "CREDITS_EXHAUSTED"
