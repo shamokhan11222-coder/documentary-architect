@@ -22,6 +22,7 @@ import {
   useProviderSettings,
   saveProviderSettings,
   useActiveImageProvider,
+  useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
   type ProviderChoice,
 } from "@/lib/provider";
