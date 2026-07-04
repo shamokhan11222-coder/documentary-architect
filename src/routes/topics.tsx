@@ -418,17 +418,31 @@ function ProjectsPage() {
                   <CardSkeleton key={i} />
                 ))}
               </div>
+            ) : active.length === 0 ? (
+              <div className="mt-16 flex flex-col items-center gap-4 text-center">
+                <span className="grid h-16 w-16 place-items-center rounded-2xl bg-brand/12 text-brand">
+                  <Sparkles className="h-8 w-8" />
+                </span>
+                <h3 className="text-2xl font-semibold tracking-tight">No projects yet</h3>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Create your first AI documentary and Stickmax will guide you through
+                  research, story, visuals, voice and more.
+                </p>
+                <Button size="lg" onClick={() => setCreateOpen(true)} className="mt-2">
+                  <FolderPlus className="mr-2 h-4 w-4" /> Create Project
+                </Button>
+              </div>
             ) : filtered.length === 0 ? (
               <div className="mt-16 flex flex-col items-center gap-3 text-center">
                 <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand/12 text-brand">
                   <FolderKanban className="h-7 w-7" />
                 </span>
-                <h3 className="text-lg">No projects here yet</h3>
+                <h3 className="text-lg">No projects match</h3>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Generate an idea from the Studio feed to start your first documentary project.
+                  Try a different filter or search, or start a new documentary.
                 </p>
-                <Button onClick={() => router.navigate({ to: "/" })} className="mt-1">
-                  Go to Studio
+                <Button onClick={() => setCreateOpen(true)} className="mt-1">
+                  <FolderPlus className="mr-2 h-4 w-4" /> New Project
                 </Button>
               </div>
             ) : (
