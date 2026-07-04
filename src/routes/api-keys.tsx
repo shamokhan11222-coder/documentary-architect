@@ -194,16 +194,16 @@ function ApiKeysPage() {
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">API Settings</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Add a Google Gemini API key to route every supported task to Gemini using
-        your own key. With no Gemini key saved, the studio uses its built-in AI.
+        Add an API key for Gemini, OpenAI or Recraft and it activates immediately.
+        With no external provider connected, the studio uses its built-in AI.
       </p>
 
-      <ProviderStatus
-        state={providerState}
-        message={statusMsg}
-        active={!!active}
-        onTest={testConnection}
-        testing={status === "testing"}
+      <ActiveProviderStatus
+        keys={keys}
+        geminiMessage={statusMsg}
+        onTestGemini={testConnection}
+        geminiTesting={status === "testing"}
+        geminiState={status}
       />
 
       <DebugStatus />
