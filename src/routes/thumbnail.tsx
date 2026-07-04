@@ -16,7 +16,7 @@ import {
 } from "@/lib/store";
 import { useImage, putImage, loadImage } from "@/lib/images";
 import { generateThumbnailImage, isRateLimitError } from "@/lib/generate-image";
-import { getFreeMode } from "@/lib/free-mode";
+import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
