@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useVisualMap } from "@/lib/store";
 import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
-import { generateSceneImage, imageErrorMessage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, PROVIDER_FREE_TIER_LIMIT_MESSAGE, type ImageSanityResult } from "@/lib/generate-image";
+import { generateSceneImage, imageErrorMessage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs, type ImageSanityResult } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 import { SAFE_DELAY_OPTIONS, useSafeDelaySec, setSafeDelaySec, getSafeDelaySec, useFreeMode, setFreeMode, FREE_QUEUE_DELAY_SEC } from "@/lib/free-mode";
@@ -84,6 +84,11 @@ function QueuePage() {
   async function runNumbers(nums: number[]) {
     if (!selected) return;
     const runList = freeMode ? nums.slice(0, 1) : nums;
+    const cooldownMs = getImageCooldownRemainingMs();
+    if (cooldownMs > 0) {
+      toast.info(`Free Queue Mode cooldown: try again in ${Math.ceil(cooldownMs / 1000)}s.`);
+      return;
+    }
     setRunning(true);
     pausedRef.current = false;
     setRateMsg("");
