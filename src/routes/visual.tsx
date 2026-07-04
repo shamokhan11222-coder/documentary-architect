@@ -542,6 +542,8 @@ function VisualPage() {
                 value={imageProviderStatus.choice}
                 onChange={(e) => handleImageProviderChange(e.target.value as ProviderChoice)}
               >
+                <option value="puter">Puter AI</option>
+                <option value="recraft">Recraft V4.1 Utility Pro</option>
                 <option value="gemini">Gemini Image</option>
                 <option value="openai">OpenAI Images</option>
                 <option value="fal">Fal.ai</option>
