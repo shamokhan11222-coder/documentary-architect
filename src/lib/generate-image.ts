@@ -13,7 +13,7 @@ import {
 } from "./provider";
 import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
-import { getFreeMode, FREE_MODE_DELAY_MS, FREE_MODE_RETRY_MS } from "./free-mode";
+import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
@@ -204,24 +204,11 @@ async function generate(prompt: string, references: string[], provider = imagePr
       lastImageRequestAt = Date.now();
       return img;
     } catch (e) {
-      // Outside Free Mode (or non-rate-limit errors), let the shared queue's
-      // own backoff handle it.
-      if (!free || !isRateLimitError(e)) throw e;
-      // Free Mode: auto-retry rate-limited requests on a slow schedule.
-      for (const wait of FREE_MODE_RETRY_MS) {
-        await sleep(wait);
-        try {
-          const img = await callImageApi(prompt, references, active);
-          lastImageRequestAt = Date.now();
-          return img;
-        } catch (e2) {
-          if (!isRateLimitError(e2)) throw e2;
-        }
-      }
+      // Never block for minutes on a rate limit. Surface it immediately so the
+      // queue can stop loading, mark the scene "Rate Limited", and pause — the
+      // user resumes later. The per-request 90s timeout guarantees no long hang.
       lastImageRequestAt = Date.now();
-      // Message intentionally avoids the "rate limit" wording so the shared
-      // queue does NOT retry again — the scene is left to resume later.
-      throw new ImageGenError("Free provider limit reached. Continue later.", "RATE_LIMIT", 429);
+      throw e;
     }
   }, "Image");
 }

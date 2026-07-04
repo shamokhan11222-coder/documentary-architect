@@ -291,7 +291,7 @@ export interface SubtitlePack {
   generatedAt: number;
 }
 
-export type QueueStatus = "pending" | "generating" | "completed" | "failed";
+export type QueueStatus = "pending" | "generating" | "completed" | "failed" | "rate-limited";
 
 export interface QueueItem {
   sceneNumber: number;
