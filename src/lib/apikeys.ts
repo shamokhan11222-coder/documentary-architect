@@ -10,6 +10,7 @@ export const API_PROVIDERS: ApiProvider[] = [
   "Google Gemini",
   "Fal.ai",
   "Replicate",
+  "Recraft",
   "ElevenLabs",
   "Custom Provider",
 ];
