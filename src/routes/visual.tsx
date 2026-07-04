@@ -316,11 +316,9 @@ function VisualPage() {
     return runBatch("one", pendingScenes().slice(0, 1));
   }
 
-  // Generate the next available pending scene, skipping ones already deferred by
-  // a rate limit in this session so it moves forward.
+  // Resume from the first pending scene, including scenes marked Provider Limit.
   function generateNextAvailable() {
-    const next = pendingScenes().filter((s) => !rateLimited.has(s.sceneNumber)).slice(0, 1);
-    return runBatch("next-available", next.length ? next : pendingScenes().slice(0, 1));
+    return runBatch("next-available", pendingScenes().slice(0, 1));
   }
 
   // Generate every pending scene, in order (001, 002, 003 …). Sequential —
