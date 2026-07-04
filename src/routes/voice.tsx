@@ -45,6 +45,7 @@ function VoicePage() {
   const settings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
   const profiles = useVoiceProfiles();
   const [busy, setBusy] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // The cloned voice selected for this project (persisted per project via
   // settings.clonedProfileId). When profiles exist, one must be selected
@@ -150,6 +151,40 @@ function VoicePage() {
     if (!creditsOut) toast.success("Narration complete");
   }
 
+  /** Preview Clone — narrate a single sentence so the user can compare the
+   *  generated voice against the uploaded sample. */
+  async function previewClone() {
+    if (!selectedProfile) {
+      toast.error("Select a voice profile first.");
+      return;
+    }
+    const guard = voiceGuard();
+    if (guard) {
+      toast.error(guard);
+      return;
+    }
+    setBusy("preview");
+    setPreviewUrl(null);
+    const sentence = "This is a preview of the selected voice clone. Compare it with your uploaded sample.";
+    const key = `voicepreview:${selectedProfile.id}`;
+    try {
+      await generateVoiceBlock("__preview__", -1, sentence, {
+        ...genSettings(),
+        // reuse the preview slot instead of a real block index
+      });
+      // generateVoiceBlock stores under voice:__preview__:-1
+      const { loadImage } = await import("@/lib/images");
+      const url = await loadImage(voiceBlockId("__preview__", -1));
+      setPreviewUrl(url ?? null);
+      void key;
+      toast.success("Clone preview ready");
+    } catch (e) {
+      toast.error(humanizeError(e, "Preview failed"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function editText(index: number, text: string) {
     if (!voice) return;
     saveVoice({
@@ -242,6 +277,16 @@ function VoicePage() {
             <Button onClick={buildBlocks}>
               <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
+            {selectedProfile && (
+              <Button variant="outline" onClick={previewClone} disabled={!!busy}>
+                {busy === "preview" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                Preview Clone
+              </Button>
+            )}
             {voice?.blocks.length ? (
               <Button variant="secondary" onClick={genAll} disabled={!!busy}>
                 {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -252,6 +297,61 @@ function VoicePage() {
 
           {profiles.length > 0 && !settings.clonedProfileId && (
             <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
+          )}
+
+          {selectedProfile && (
+            <div className="mt-3 rounded-lg border border-border p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-medium">Active Voice Profile:</span>
+                <span>{selectedProfile.name}</span>
+                <span className="text-muted-foreground">Voice ID: {selectedProfile.id.slice(0, 8)}</span>
+                <span
+                  className={[
+                    "rounded-full px-2 py-0.5 font-medium",
+                    selectedProfile.status && selectedProfile.status !== "ready"
+                      ? "bg-amber-500/15 text-amber-600"
+                      : "bg-green-500/15 text-green-600 dark:text-green-400",
+                  ].join(" ")}
+                >
+                  {selectedProfile.status && selectedProfile.status !== "ready"
+                    ? "Processing"
+                    : "Ready"}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4">
+                <ValRow label="Gender" ok={selectedProfile.gender !== "unknown"} value={selectedProfile.gender ?? "unknown"} />
+                <ValRow
+                  label="Pitch"
+                  ok={!!selectedProfile.pitchHz}
+                  value={selectedProfile.pitchHz ? `${selectedProfile.pitchHz} Hz` : "—"}
+                />
+                <ValRow
+                  label="Sample length"
+                  ok={(selectedProfile.sampleSeconds ?? 0) >= 30}
+                  value={selectedProfile.sampleSeconds ? `${Math.round(selectedProfile.sampleSeconds)}s` : "—"}
+                />
+                <ValRow
+                  label="Confidence"
+                  ok={(selectedProfile.analysisConfidence ?? 0) >= 0.5}
+                  value={
+                    selectedProfile.analysisConfidence != null
+                      ? `${Math.round(selectedProfile.analysisConfidence * 100)}%`
+                      : "—"
+                  }
+                />
+              </div>
+              {(selectedProfile.sampleSeconds ?? 60) < 30 && (
+                <p className="mt-2 text-amber-600">
+                  For higher accuracy, use 30–60s of clean speech with no music or background noise.
+                </p>
+              )}
+              {previewUrl && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-muted-foreground">Clone preview:</span>
+                  <audio controls src={previewUrl} className="h-8" />
+                </div>
+              )}
+            </div>
           )}
 
           {voice?.blocks.length ? (
@@ -286,6 +386,14 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-border px-3 py-2">
       <div className="text-base font-semibold text-foreground">{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+function ValRow({ label, ok, value }: { label: string; ok: boolean; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-md border border-border px-2 py-1">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={ok ? "text-green-600 dark:text-green-400" : "text-amber-600"}>{value}</span>
     </div>
   );
 }

@@ -267,6 +267,14 @@ export interface VoiceProfile {
   status?: VoiceProfileStatus;
   isDefault?: boolean;
   settings?: VoiceSettings; // voice settings snapshot saved with the profile
+  // Acoustic fingerprint measured from the uploaded/recorded sample. Used to
+  // keep every generated voice consistent with the sample (esp. gender), since
+  // the current TTS provider synthesizes from prebuilt voices rather than
+  // reproducing the raw sample.
+  gender?: "male" | "female" | "unknown";
+  pitchHz?: number; // median fundamental frequency of the sample
+  sampleSeconds?: number; // measured clean-speech duration
+  analysisConfidence?: number; // 0-1 confidence of the gender/pitch estimate
 }
 
 export interface Subtitle {

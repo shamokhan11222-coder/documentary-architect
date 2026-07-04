@@ -23,6 +23,24 @@ const GEMINI_VOICE_MAP: Record<string, string> = {
   cinematic: "Fenrir",
 };
 
+// Gender-locked Gemini prebuilt voices. When a cloned sample is identified as
+// male or female, generation MUST stay in that gender — we never fall back to a
+// voice of the opposite gender.
+const GEMINI_MALE_VOICES: Record<string, string> = {
+  deep: "Charon",
+  calm: "Iapetus",
+  storyteller: "Puck",
+  educational: "Puck",
+  cinematic: "Fenrir",
+};
+const GEMINI_FEMALE_VOICES: Record<string, string> = {
+  deep: "Kore",
+  calm: "Kore",
+  storyteller: "Aoede",
+  educational: "Leda",
+  cinematic: "Zephyr",
+};
+
 type Body = {
   text?: string;
   profile?: string;
@@ -32,6 +50,7 @@ type Body = {
   pauseStrength?: number;
   pitch?: number;
   provider?: { name?: string; apiKey?: string; ttsModel?: string; fallback?: boolean };
+  clone?: { id?: string; name?: string; gender?: string; pitchHz?: number };
 };
 
 function buildInstructions(b: Body): string {
@@ -90,7 +109,17 @@ function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
 async function ttsWithGemini(body: Body): Promise<Response> {
   const provider = body.provider!;
   const model = provider.ttsModel || "gemini-2.5-flash-preview-tts";
-  const voice = GEMINI_VOICE_MAP[body.profile ?? "deep"] ?? "Charon";
+  // A selected clone locks the gender: a male sample never yields a female
+  // voice and vice-versa. Falls back to the profile map only when no clone.
+  const profileKey = body.profile ?? "deep";
+  let voice: string;
+  if (body.clone?.gender === "male") {
+    voice = GEMINI_MALE_VOICES[profileKey] ?? "Charon";
+  } else if (body.clone?.gender === "female") {
+    voice = GEMINI_FEMALE_VOICES[profileKey] ?? "Kore";
+  } else {
+    voice = GEMINI_VOICE_MAP[profileKey] ?? "Charon";
+  }
   const prompt = `${buildInstructions(body)}\n\nSay: ${body.text!.slice(0, 4000)}`;
   const upstream = await fetch(
     `${GOOGLE}/${model}:generateContent?key=${encodeURIComponent(provider.apiKey ?? "")}`,
@@ -150,6 +179,13 @@ export const Route = createFileRoute("/api/tts")({
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
         const voice = VOICE_MAP[body.profile ?? "deep"] ?? "onyx";
+        // Keep built-in AI narration gender-consistent with a selected clone.
+        const lockedVoice =
+          body.clone?.gender === "male"
+            ? "onyx"
+            : body.clone?.gender === "female"
+              ? "shimmer"
+              : voice;
         const speed = Math.min(1.2, Math.max(0.7, body.speed ?? 1));
 
         const upstream = await fetch(GATEWAY, {
@@ -158,7 +194,7 @@ export const Route = createFileRoute("/api/tts")({
           body: JSON.stringify({
             model: MODEL,
             input: body.text.slice(0, 4000),
-            voice,
+            voice: lockedVoice,
             response_format: "mp3",
             speed,
             instructions: buildInstructions(body),
