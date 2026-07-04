@@ -14,7 +14,7 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE } from "@/lib/generate-image";
+import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode, FREE_QUEUE_DELAY_SEC } from "@/lib/free-mode";
 import { usePuterStatus, type PuterStatus } from "@/lib/puter-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
@@ -260,6 +260,11 @@ function VisualPage() {
     const scenes = freeMode ? requestedScenes.slice(0, 1) : requestedScenes;
     if (!scenes.length) {
       toast.info("Nothing to generate — every image in range is already done.");
+      return;
+    }
+    const cooldownMs = getImageCooldownRemainingMs();
+    if (cooldownMs > 0) {
+      toast.info(`Free Queue Mode cooldown: try again in ${Math.ceil(cooldownMs / 1000)}s.`);
       return;
     }
     // Requirement: images must use the active Image Provider. If it isn't
