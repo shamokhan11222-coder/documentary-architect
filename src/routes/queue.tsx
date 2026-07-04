@@ -10,7 +10,6 @@ import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
 import { generateSceneImage, imageErrorMessage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, PROVIDER_FREE_TIER_LIMIT_MESSAGE, type ImageSanityResult } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
-import { humanizeError } from "@/lib/humanize-error";
 import { SAFE_DELAY_OPTIONS, useSafeDelaySec, setSafeDelaySec, getSafeDelaySec, useFreeMode, setFreeMode, FREE_QUEUE_DELAY_SEC } from "@/lib/free-mode";
 
 export const Route = createFileRoute("/queue")({
