@@ -155,13 +155,6 @@ function QueuePage() {
     void runNumbers([nums[0]]);
   }
 
-  function generateNext10() {
-    const q = readQueue(selected?.id ?? "");
-    if (!q) return;
-    const nums = q.items.filter((i) => i.status === "pending" || i.status === "generating").slice(0, 10).map((i) => i.sceneNumber);
-    if (!nums.length) return toast.info("Nothing pending");
-    void runNumbers(nums);
-  }
   function retryFailed() {
     const q = readQueue(selected?.id ?? "");
     if (!q) return;
