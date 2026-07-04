@@ -255,10 +255,13 @@ function QueuePage() {
             <Stat label="Current Scene" value={currentScene ?? "—"} />
             <Stat label="Total Scenes" value={total} />
             <Stat label="Completed" value={completed} />
+            <Stat label="Pending" value={pending} />
+            <Stat label="Rate Limited" value={rateLimited} />
             <Stat label="Failed" value={failed} />
-            <Stat label="Waiting" value={waiting} />
-            <Stat label="Est. Time Left" value={waiting ? fmtEta(etaSec) : "—"} />
           </div>
+          {waiting > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">Est. time left: {fmtEta(etaSec)}</p>
+          )}
 
           {rateMsg && (
             <div className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">{rateMsg}</div>
@@ -282,6 +285,9 @@ function QueuePage() {
             </Button>
             <Button size="sm" variant="outline" onClick={generateOne} disabled={running}>
               <ImagePlus className="mr-1 h-3.5 w-3.5" /> Generate One Image
+            </Button>
+            <Button size="sm" variant="ghost" onClick={retryCurrent} disabled={running}>
+              <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry Current
             </Button>
             <Button size="sm" variant="ghost" onClick={retryFailed} disabled={running}>
               <RotateCcw className="mr-1 h-3.5 w-3.5" /> Retry Failed
