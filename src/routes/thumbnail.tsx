@@ -54,6 +54,7 @@ function ThumbnailPage() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [dev, setDev] = useState(false);
   const [review, setReview] = useState<ThumbnailReview | null>(null);
+  const freeMode = useFreeMode();
 
   function handleReview() {
     if (!selected || !pack) return;
