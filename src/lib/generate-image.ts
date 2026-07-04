@@ -97,6 +97,7 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
 
 async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
+  const active: ImageProviderPayload = provider;
   const free = getFreeMode();
   return enqueueAi(async () => {
     // Free Mode: enforce a minimum 60s gap between image requests.
@@ -105,7 +106,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
       if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
     }
     try {
-      const img = await callImageApi(prompt, references, provider);
+      const img = await callImageApi(prompt, references, active);
       lastImageRequestAt = Date.now();
       return img;
     } catch (e) {
@@ -116,7 +117,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
       for (const wait of FREE_MODE_RETRY_MS) {
         await sleep(wait);
         try {
-          const img = await callImageApi(prompt, references, provider);
+          const img = await callImageApi(prompt, references, active);
           lastImageRequestAt = Date.now();
           return img;
         } catch (e2) {
