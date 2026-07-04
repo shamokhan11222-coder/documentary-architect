@@ -139,6 +139,7 @@ function VisualPage() {
   const activeImageProvider = useActiveImageProvider();
   const telemetry = useTelemetry();
   const freeMode = useFreeMode();
+  const puterStatus = usePuterStatus();
   const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
