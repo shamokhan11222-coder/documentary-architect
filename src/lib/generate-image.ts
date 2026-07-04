@@ -119,8 +119,8 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Pro
 let lastImageRequestAt = 0;
 
 // AUDIT: monotonic counter of image API requests actually sent from the client.
-// One user click of "Generate Image" must produce exactly ONE increment here
-// (retries only happen after a 429 and are logged with attempt info).
+// One user click of "Generate Image" must produce exactly ONE increment here;
+// provider limits are surfaced immediately and never retried endlessly.
 let imageRequestAuditCount = 0;
 
 async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
@@ -211,8 +211,8 @@ async function generate(prompt: string, references: string[], provider = imagePr
   const active: ImageProviderPayload = provider;
   const free = getFreeMode();
   return enqueueAi(async () => {
-    // Puter AI: try the browser SDK first; if it is unavailable or rate limited,
-    // automatically fall back to Gemini or Recraft when one is connected.
+    // Puter AI: try the browser SDK first; if it is unavailable, automatically
+    // fall back to Gemini or Recraft when one is connected. Provider limits stop.
     if (active.name === "puter") {
       try {
         return await callImageApi(prompt, references, active);
@@ -228,7 +228,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
         throw e;
       }
     }
-    // Free Mode: enforce a minimum 60s gap between image requests.
+    // Free Queue Mode: enforce a fixed 120s gap between image requests.
     if (free && lastImageRequestAt > 0) {
       const since = Date.now() - lastImageRequestAt;
       if (since < FREE_MODE_DELAY_MS) await sleep(FREE_MODE_DELAY_MS - since);
