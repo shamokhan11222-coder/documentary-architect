@@ -416,6 +416,20 @@ function VoicePage() {
                   For higher accuracy, use 30–60s of clean speech with no music or background noise.
                 </p>
               )}
+              {similarity != null && (
+                <div className="mt-2">
+                  {similarity < (genSettings().similarityTarget ?? 0.9) ? (
+                    <p className="font-medium text-red-600">
+                      Voice clone quality is insufficient. ({Math.round(similarity * 100)}% vs{" "}
+                      {Math.round((genSettings().similarityTarget ?? 0.9) * 100)}% required)
+                    </p>
+                  ) : (
+                    <p className="font-medium text-green-600 dark:text-green-400">
+                      Clone similarity: {Math.round(similarity * 100)}% — ready to generate.
+                    </p>
+                  )}
+                </div>
+              )}
               {previewUrl && (
                 <div className="mt-2 flex items-center gap-2">
                   <span className="text-muted-foreground">Clone preview:</span>
