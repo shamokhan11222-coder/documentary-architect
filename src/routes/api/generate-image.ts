@@ -280,7 +280,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   // only fall through to the next version if the model returns 404 there (i.e.
   // that version doesn't serve this model). No preview/verification requests.
   let upstream: Response | null = null;
-  let usedVersion = GEMINI_API_VERSIONS[0];
+  let usedVersion: string = GEMINI_API_VERSIONS[0];
   let notFoundText = "";
   for (const version of GEMINI_API_VERSIONS) {
     const endpoint = `${geminiModelsUrl(version)}/${model}:generateContent`;
