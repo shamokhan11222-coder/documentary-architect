@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
 import { useVisualMap } from "@/lib/store";
 import { useQueue, saveQueue, readQueue, setQueueItem } from "@/lib/production";
-import { generateSceneImage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, PROVIDER_FREE_TIER_LIMIT_MESSAGE, type ImageSanityResult } from "@/lib/generate-image";
+import { generateSceneImage, imageErrorMessage, isRateLimitError, generateTestImage, IMAGE_SANITY_PROMPT, PROVIDER_FREE_TIER_LIMIT_MESSAGE, type ImageSanityResult } from "@/lib/generate-image";
 import { putImage } from "@/lib/images";
 import type { QueueItem, QueueStatus, VisualScene } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
@@ -115,8 +115,9 @@ function QueuePage() {
           pausedRef.current = true;
           break;
         }
-        setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: humanizeError(e, "failed") });
-        toast.error(`Scene ${n}: ${humanizeError(e, "generation failed")}`);
+        const msg = imageErrorMessage(e, "generation failed");
+        setQueueItem(selected.id, { sceneNumber: n, status: "failed", error: msg });
+        toast.error(`Scene ${n}: ${msg}`);
       }
 
       // advance resume cursor after a completed scene
