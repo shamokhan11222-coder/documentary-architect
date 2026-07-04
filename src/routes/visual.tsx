@@ -552,6 +552,23 @@ function VisualPage() {
               Test Image Provider
             </Button>
           </div>
+          <label className="mt-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={freeMode}
+              onChange={(e) => setFreeMode(e.target.checked)}
+            />
+            <span className="font-medium">Free Mode</span>
+            <span className="text-muted-foreground">
+              Generates 1 image at a time, waits 60s between requests, and auto-retries rate limits (1m / 3m / 5m). "Generate All" is disabled.
+            </span>
+          </label>
+          {rateLimited.size > 0 && (
+            <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+              Free provider limit reached. Continue later. {rateLimited.size} scene(s) waiting — completed images are saved and you can resume from the next pending scene.
+            </p>
+          )}
           {!imageProviderStatus.connected && (
             <p className="mt-3 text-xs text-amber-600">
               Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.
