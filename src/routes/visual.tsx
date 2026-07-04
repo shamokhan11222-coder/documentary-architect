@@ -741,6 +741,7 @@ function VisualPage() {
               topicId={selected.id}
               busy={busy}
               providerReady={imageProviderStatus.ok}
+              providerLimited={rateLimited.has(s.sceneNumber)}
               onRegen={onCardRegen}
               onReplace={onCardReplace}
               onDelete={onCardDelete}
@@ -757,6 +758,7 @@ const SceneCard = memo(function SceneCard({
   topicId,
   busy,
   providerReady,
+  providerLimited,
   onRegen,
   onReplace,
   onDelete,
@@ -765,6 +767,7 @@ const SceneCard = memo(function SceneCard({
   topicId: string;
   busy: string | null;
   providerReady: boolean;
+  providerLimited: boolean;
   onRegen: (scene: VisualScene) => void;
   onReplace: (scene: VisualScene, file: File | null) => void;
   onDelete: (sceneNumber: number) => void;
@@ -772,7 +775,7 @@ const SceneCard = memo(function SceneCard({
   const img = useImage(sceneImageId(topicId, scene.sceneNumber));
   const inputId = `replace-${topicId}-${scene.sceneNumber}`;
   const generating = busy === `img-${scene.sceneNumber}`;
-  const status = generating ? "Generating…" : img ? "Ready" : providerReady ? "No image" : "Pending image provider setup";
+  const status = generating ? "Generating…" : img ? "Ready" : providerLimited ? "Provider Limit" : providerReady ? "No image" : "Pending image provider setup";
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       <div className="relative flex aspect-video items-center justify-center bg-muted/30">
@@ -800,9 +803,11 @@ const SceneCard = memo(function SceneCard({
               "rounded-full px-2 py-0.5 text-[11px] font-medium",
               generating
                 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                : img
-                  ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                  : "bg-muted text-muted-foreground",
+                  : img
+                    ? "bg-green-500/15 text-green-600 dark:text-green-400"
+                    : providerLimited
+                      ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+                      : "bg-muted text-muted-foreground",
             ].join(" ")}
           >
             {status}
