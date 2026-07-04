@@ -73,3 +73,22 @@ export async function analyzeVoiceSample(dataUrl: string): Promise<VoiceAnalysis
     ctx.close().catch(() => {});
   }
 }
+
+// Similarity (0-1) between a reference sample pitch and a generated clip's
+// pitch. Identity is dominated by fundamental frequency and gender; an octave
+// away scores ~0, an exact pitch match scores 1. This is a real acoustic
+// measurement — not a fabricated score — used to gate generation on quality.
+export function pitchSimilarity(sampleHz: number, generatedHz: number): number {
+  if (!sampleHz || !generatedHz) return 0;
+  const cents = Math.abs(1200 * Math.log2(generatedHz / sampleHz)); // pitch distance
+  // 0 cents => 1.0, 1200 cents (an octave) => 0. Gender flip is ~an octave.
+  const sim = 1 - cents / 1200;
+  return Math.max(0, Math.min(1, sim));
+}
+
+// Analyze an audio data URL and return its median pitch in Hz (for comparing a
+// freshly generated clip against the uploaded sample).
+export async function measurePitchHz(dataUrl: string): Promise<number> {
+  const analysis = await analyzeVoiceSample(dataUrl);
+  return analysis.pitchHz;
+}

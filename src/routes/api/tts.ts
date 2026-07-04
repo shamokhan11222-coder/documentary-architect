@@ -8,11 +8,25 @@ const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const VOICE_MAP: Record<string, string> = {
   deep: "onyx",
-  calm: "sage",
+  calm: "ash", // natural, warm — the default persona (NOT deep/bass)
   storyteller: "fable",
   educational: "alloy",
   cinematic: "ash",
 };
+
+// Natural male OpenAI voices ordered by how youthful/light they sound. We pick
+// by the sample's measured pitch so a young ~130 Hz male never gets the deep
+// bass "onyx" voice. We NEVER go lower than the sample's own register.
+function naturalMaleVoiceForPitch(pitchHz?: number): string {
+  if (!pitchHz) return "ash"; // natural young-adult male default
+  if (pitchHz >= 135) return "echo"; // brighter/younger
+  if (pitchHz >= 115) return "ash"; // natural mid
+  return "onyx"; // genuinely deep sample only
+}
+function naturalFemaleVoiceForPitch(pitchHz?: number): string {
+  if (!pitchHz) return "shimmer";
+  return pitchHz >= 210 ? "nova" : "shimmer";
+}
 
 // Gemini prebuilt voice names mapped to our narrator profiles.
 const GEMINI_VOICE_MAP: Record<string, string> = {
@@ -49,35 +63,64 @@ type Body = {
   emotion?: number;
   pauseStrength?: number;
   pitch?: number;
+  age?: number;
+  energy?: number;
+  style?: string;
   provider?: { name?: string; apiKey?: string; ttsModel?: string; fallback?: boolean };
   clone?: { id?: string; name?: string; gender?: string; pitchHz?: number };
 };
 
 function buildInstructions(b: Body): string {
-  const parts = ["Narrate as a professional YouTube documentary voiceover."];
-  switch (b.profile) {
-    case "deep":
-      parts.push("Deep, authoritative, resonant tone.");
+  const parts: string[] = [];
+  // Default identity: young adult male, calm, friendly, natural — modern
+  // YouTube documentary creator. This is the base persona for a clone match.
+  const isClone = !!b.clone;
+  if (isClone) {
+    parts.push(
+      "Reproduce the speaker's natural voice identity as closely as possible: keep their apparent age, energy and youthful timbre.",
+    );
+  }
+  parts.push(
+    "Speak as a young-adult, natural, conversational documentary narrator, similar to modern YouTube creators.",
+  );
+  parts.push("Calm, friendly, warm and clear.");
+  // Hard constraints requested by the user.
+  parts.push("Do NOT deepen the voice. Do NOT add bass or a movie-trailer effect. Keep the pitch natural and youthful.");
+
+  // Age: lower value = younger. Never make the voice sound old/deep.
+  const age = b.age ?? 0.3;
+  if (age < 0.35) parts.push("Sound young and fresh.");
+  else if (age > 0.65) parts.push("Sound mature but never elderly or overly deep.");
+
+  // Energy.
+  const energy = b.energy ?? 0.5;
+  if (energy > 0.65) parts.push("Bring lively, upbeat energy and momentum.");
+  else if (energy < 0.35) parts.push("Keep the delivery relaxed and easy-going.");
+
+  // Style.
+  switch (b.style) {
+    case "friendly":
+      parts.push("Casual, friendly and approachable, like talking to a friend.");
       break;
-    case "calm":
-      parts.push("Calm, warm, measured and soothing.");
-      break;
-    case "storyteller":
+    case "narrative":
       parts.push("Engaging storyteller cadence, natural and expressive.");
       break;
     case "educational":
-      parts.push("Clear, friendly, explanatory teaching tone.");
+      parts.push("Clear, explanatory teaching tone.");
       break;
-    case "cinematic":
-      parts.push("Cinematic, dramatic, trailer-like gravitas.");
+    case "energetic":
+      parts.push("Punchy, energetic creator delivery.");
       break;
+    default:
+      parts.push("Modern documentary narration style.");
   }
+
   if ((b.emotion ?? 0) > 0.6) parts.push("Use noticeable emotional expression.");
   else if ((b.emotion ?? 0) < 0.3) parts.push("Keep emotion subtle and even.");
   if ((b.stability ?? 0.6) > 0.7) parts.push("Keep delivery very steady and consistent.");
   if ((b.pauseStrength ?? 0.5) > 0.6) parts.push("Use deliberate, longer pauses between sentences.");
-  if ((b.pitch ?? 0.5) > 0.65) parts.push("Use a slightly higher pitch.");
-  else if ((b.pitch ?? 0.5) < 0.35) parts.push("Use a slightly lower pitch.");
+  // Pitch: allow raising toward the sample, never lowering below natural.
+  if ((b.pitch ?? 0.5) > 0.6) parts.push("Use a slightly higher, brighter pitch.");
   return parts.join(" ");
 }
 
@@ -179,13 +222,17 @@ export const Route = createFileRoute("/api/tts")({
         if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
 
         const voice = VOICE_MAP[body.profile ?? "deep"] ?? "onyx";
-        // Keep built-in AI narration gender-consistent with a selected clone.
+        // Keep built-in AI narration consistent with a selected clone. Match the
+        // sample's PITCH, not just gender, so a natural young male never gets the
+        // deep bass "onyx" voice.
         const lockedVoice =
           body.clone?.gender === "male"
-            ? "onyx"
+            ? naturalMaleVoiceForPitch(body.clone?.pitchHz)
             : body.clone?.gender === "female"
-              ? "shimmer"
-              : voice;
+              ? naturalFemaleVoiceForPitch(body.clone?.pitchHz)
+              : body.clone
+                ? "ash"
+                : voice;
         const speed = Math.min(1.2, Math.max(0.7, body.speed ?? 1));
 
         const upstream = await fetch(GATEWAY, {

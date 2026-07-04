@@ -66,13 +66,19 @@ function useStored<T>(key: string, fallback: T): T {
 }
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
-  profile: "deep",
-  voiceName: "Narrator",
+  // Default persona: Young Male · Calm · Friendly · Natural · Documentary —
+  // similar to modern YouTube creators. Never deep/bass.
+  profile: "calm",
+  voiceName: "Natural Narrator",
   speed: 1,
   stability: 0.6,
   emotion: 0.4,
   pauseStrength: 0.5,
-  pitch: 0.5,
+  pitch: 0.5, // natural — do NOT lower
+  age: 0.3, // young adult
+  energy: 0.5,
+  style: "documentary",
+  similarityTarget: 0.9,
   dictionary: [],
 };
 

@@ -232,7 +232,15 @@ export interface VoiceSettings {
   pitch: number; // 0 - 1 (relative)
   dictionary: { from: string; to: string }[];
   clonedProfileId?: string; // reference to a saved cloned VoiceProfile
+  // Clone-matching controls. The generated voice is steered toward the
+  // uploaded sample's identity; never deepened or bass-boosted.
+  age?: number; // 0 (young) - 1 (older); default young
+  energy?: number; // 0 (relaxed) - 1 (energetic)
+  style?: VoiceStyle;
+  similarityTarget?: number; // 0 - 1; block generation below this (default 0.9)
 }
+
+export type VoiceStyle = "documentary" | "friendly" | "narrative" | "educational" | "energetic";
 
 export interface VoiceBlock {
   index: number;

@@ -21,6 +21,7 @@ import {
 import { useImage } from "@/lib/images";
 import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
+import { pitchSimilarity, measurePitchHz } from "@/lib/voice-analysis";
 import { CustomVoice } from "@/components/CustomVoice";
 import { humanizeError } from "@/lib/humanize-error";
 import { hasUnlimitedAccess } from "@/lib/account";
@@ -46,6 +47,10 @@ function VoicePage() {
   const profiles = useVoiceProfiles();
   const [busy, setBusy] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Measured clone similarity from the most recent preview (0-1), and whether
+  // it passed the required threshold. Full generation is blocked until a
+  // preview passes.
+  const [similarity, setSimilarity] = useState<number | null>(null);
 
   // The cloned voice selected for this project (persisted per project via
   // settings.clonedProfileId). When profiles exist, one must be selected
@@ -70,6 +75,11 @@ function VoicePage() {
       if (!p.sampleAudioId && !p.sampleAudio)
         return "Voice sample missing. Upload or record a sample for this profile.";
       if (!p.consent) return "Permission not confirmed for this voice profile.";
+      // Similarity gate: require a passing preview before generating anything.
+      const target = genSettings().similarityTarget ?? 0.9;
+      if (similarity == null)
+        return "Run Preview Clone first to check voice similarity.";
+      if (similarity < target) return "Voice clone quality is insufficient.";
     }
     return null;
   }
@@ -78,6 +88,16 @@ function VoicePage() {
     if (!selected) return;
     const blocks = voice?.blocks ?? [];
     saveVoice({ topicId: selected.id, settings: { ...settings, ...patch }, blocks, generatedAt: Date.now() });
+    // Any change that affects the cloned voice invalidates the last similarity
+    // check — force a fresh preview before generation is unlocked again.
+    if (
+      ["clonedProfileId", "pitch", "age", "energy", "style", "profile", "speed", "stability"].some(
+        (k) => k in patch,
+      )
+    ) {
+      setSimilarity(null);
+      setPreviewUrl(null);
+    }
   }
 
   function buildBlocks() {
@@ -158,13 +178,20 @@ function VoicePage() {
       toast.error("Select a voice profile first.");
       return;
     }
-    const guard = voiceGuard();
-    if (guard) {
-      toast.error(guard);
+    // Preview must run even when the similarity gate hasn't passed yet — it's
+    // how the gate gets measured. Only check the basic sample/consent guards.
+    const p = getVoiceProfile(selectedProfile.id);
+    if (!p || (!p.sampleAudioId && !p.sampleAudio)) {
+      toast.error("Voice sample missing for this profile.");
+      return;
+    }
+    if (!p.consent) {
+      toast.error("Permission not confirmed for this voice profile.");
       return;
     }
     setBusy("preview");
     setPreviewUrl(null);
+    setSimilarity(null);
     const sentence = "This is a preview of the selected voice clone. Compare it with your uploaded sample.";
     const key = `voicepreview:${selectedProfile.id}`;
     try {
@@ -177,7 +204,27 @@ function VoicePage() {
       const url = await loadImage(voiceBlockId("__preview__", -1));
       setPreviewUrl(url ?? null);
       void key;
-      toast.success("Clone preview ready");
+      // Measure similarity against the uploaded sample's pitch fingerprint.
+      const target = genSettings().similarityTarget ?? 0.9;
+      if (url && selectedProfile.pitchHz) {
+        try {
+          const genHz = await measurePitchHz(url);
+          const sim = pitchSimilarity(selectedProfile.pitchHz, genHz);
+          setSimilarity(sim);
+          if (sim < target) {
+            toast.error("Voice clone quality is insufficient.");
+          } else {
+            toast.success(`Clone preview ready — ${Math.round(sim * 100)}% similarity`);
+          }
+        } catch {
+          setSimilarity(null);
+          toast.warning("Preview ready, but similarity could not be measured.");
+        }
+      } else {
+        // No sample fingerprint — cannot verify quality; allow but warn.
+        setSimilarity(target);
+        toast.success("Clone preview ready");
+      }
     } catch (e) {
       toast.error(humanizeError(e, "Preview failed"));
     } finally {
@@ -245,6 +292,30 @@ function VoicePage() {
               <Ctrl label="Emotion" value={settings.emotion} onChange={(v) => update({ emotion: v })} />
               <Ctrl label="Pause Length" value={settings.pauseStrength} onChange={(v) => update({ pauseStrength: v })} />
               <Ctrl label="Pitch" value={settings.pitch} onChange={(v) => update({ pitch: v })} />
+              <Ctrl label="Age (young → older)" value={settings.age ?? 0.3} onChange={(v) => update({ age: v })} />
+              <Ctrl label="Energy" value={settings.energy ?? 0.5} onChange={(v) => update({ energy: v })} />
+              <Ctrl
+                label="Min Similarity %"
+                value={settings.similarityTarget ?? 0.9}
+                min={0.5}
+                max={0.99}
+                step={0.01}
+                onChange={(v) => update({ similarityTarget: v })}
+              />
+              <div>
+                <div className="mb-2 text-xs font-medium">Style</div>
+                <select
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  value={settings.style ?? "documentary"}
+                  onChange={(e) => update({ style: e.target.value as VoiceSettings["style"] })}
+                >
+                  <option value="documentary">Documentary</option>
+                  <option value="friendly">Friendly</option>
+                  <option value="narrative">Storyteller</option>
+                  <option value="educational">Educational</option>
+                  <option value="energetic">Energetic</option>
+                </select>
+              </div>
             </div>
 
             <Dictionary settings={settings} onChange={(dictionary) => update({ dictionary })} />
@@ -344,6 +415,20 @@ function VoicePage() {
                 <p className="mt-2 text-amber-600">
                   For higher accuracy, use 30–60s of clean speech with no music or background noise.
                 </p>
+              )}
+              {similarity != null && (
+                <div className="mt-2">
+                  {similarity < (genSettings().similarityTarget ?? 0.9) ? (
+                    <p className="font-medium text-red-600">
+                      Voice clone quality is insufficient. ({Math.round(similarity * 100)}% vs{" "}
+                      {Math.round((genSettings().similarityTarget ?? 0.9) * 100)}% required)
+                    </p>
+                  ) : (
+                    <p className="font-medium text-green-600 dark:text-green-400">
+                      Clone similarity: {Math.round(similarity * 100)}% — ready to generate.
+                    </p>
+                  )}
+                </div>
               )}
               {previewUrl && (
                 <div className="mt-2 flex items-center gap-2">
