@@ -16,6 +16,7 @@ import {
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
+import { usePuterStatus, type PuterStatus } from "@/lib/puter-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
   imageProviderPayload,
