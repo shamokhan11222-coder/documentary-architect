@@ -79,6 +79,7 @@ import { downloadJson, slugify } from "@/lib/io";
 import type { Research, Story, ThumbnailIdea, VisualScene, Topic } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { CreateProjectModal } from "@/components/CreateProjectModal";
 
 const STAGE_ROUTE: Record<StageKey, string> = {
   research: "/research",
