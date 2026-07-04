@@ -179,6 +179,10 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
+  } else if (choice === "openai") {
+    // Force an OpenAI image model. A text model (e.g. gpt-4o-mini) must never
+    // be used for image generation — default to gpt-image-1.
+    imageModel = imageModel.toLowerCase().includes("image") ? imageModel : "gpt-image-1";
   } else if (!imageModel) {
     imageModel = defaultImageModel(choice);
   }
