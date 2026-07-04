@@ -5,10 +5,16 @@ import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
 import { getCreditConfig } from "./credit-mode";
-import { imageProviderPayload, thumbnailProviderPayload, IMAGE_PROVIDER_NOT_CONNECTED } from "./provider";
+import {
+  imageProviderPayload,
+  thumbnailProviderPayload,
+  fallbackImageProviderPayload,
+  IMAGE_PROVIDER_NOT_CONNECTED,
+} from "./provider";
 import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS, FREE_MODE_RETRY_MS } from "./free-mode";
+import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
@@ -86,6 +92,19 @@ let lastImageRequestAt = 0;
 
 async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
   recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
+  // Puter AI generates entirely client-side via the browser SDK — no server call.
+  if (provider.name === "puter") {
+    try {
+      const img = await puterGenerateImage(prompt);
+      recordTelemetry({ lastProvider: "puter", lastStatus: "success", lastError: null });
+      return img;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Puter image generation failed";
+      recordTelemetry({ lastProvider: "puter", lastStatus: "error", lastError: msg });
+      const rateLimited = e instanceof PuterError && e.kind === "rate-limit";
+      throw new ImageGenError(rateLimited ? `429 ${msg}` : msg, rateLimited ? "RATE_LIMIT" : "PROVIDER_ERROR", rateLimited ? 429 : null);
+    }
+  }
   const res = await fetch("/api/generate-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -115,6 +134,22 @@ async function generate(prompt: string, references: string[], provider = imagePr
   const active: ImageProviderPayload = provider;
   const free = getFreeMode();
   return enqueueAi(async () => {
+    // Puter AI: try the browser SDK first; if it is unavailable or rate limited,
+    // automatically fall back to Gemini or Recraft when one is connected.
+    if (active.name === "puter") {
+      try {
+        return await callImageApi(prompt, references, active);
+      } catch (e) {
+        const fb = fallbackImageProviderPayload();
+        if (fb && fb.name !== "puter") {
+          console.error("[Puter] falling back to", fb.name, e);
+          const img = await callImageApi(prompt, references, fb);
+          setPuterStatus("connected");
+          return img;
+        }
+        throw e;
+      }
+    }
     // Free Mode: enforce a minimum 60s gap between image requests.
     if (free && lastImageRequestAt > 0) {
       const since = Date.now() - lastImageRequestAt;
