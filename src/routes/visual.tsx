@@ -339,6 +339,7 @@ function VisualPage() {
 
   function handleImageProviderChange(choice: ProviderChoice) {
     saveProviderSettings({ image: choice });
+    setRateLimited(new Set());
   }
 
   function handleTestImageProvider() {
