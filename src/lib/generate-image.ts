@@ -217,6 +217,7 @@ async function generate(prompt: string, references: string[], provider = imagePr
       try {
         return await callImageApi(prompt, references, active);
       } catch (e) {
+        if (isRateLimitError(e)) throw e;
         const fb = fallbackImageProviderPayload();
         if (fb && fb.name !== "puter") {
           console.error("[Puter] falling back to", fb.name, e);
