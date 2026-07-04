@@ -117,7 +117,7 @@ function buildSnapshot(): Snapshot {
     counts,
     paused: isPaused(),
     speed,
-    concurrency: SPEED_CONCURRENCY[speed],
+    concurrency: getFreeMode() ? 1 : SPEED_CONCURRENCY[speed],
   };
 }
 
@@ -128,7 +128,7 @@ function emit() {
 
 function isRateLimit(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
-  return /\b429\b|rate.?limit|too many requests|resource_exhausted|quota|tier limit exceeded/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|resource_exhausted|tier limit exceeded/i.test(msg);
 }
 
 function setStatus(t: InternalTask, status: QueueTaskStatus, message?: string) {
