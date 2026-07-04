@@ -21,6 +21,7 @@ import {
 import { useImage } from "@/lib/images";
 import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
+import { pitchSimilarity, measurePitchHz } from "@/lib/voice-analysis";
 import { CustomVoice } from "@/components/CustomVoice";
 import { humanizeError } from "@/lib/humanize-error";
 import { hasUnlimitedAccess } from "@/lib/account";
@@ -46,6 +47,10 @@ function VoicePage() {
   const profiles = useVoiceProfiles();
   const [busy, setBusy] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Measured clone similarity from the most recent preview (0-1), and whether
+  // it passed the required threshold. Full generation is blocked until a
+  // preview passes.
+  const [similarity, setSimilarity] = useState<number | null>(null);
 
   // The cloned voice selected for this project (persisted per project via
   // settings.clonedProfileId). When profiles exist, one must be selected
@@ -70,6 +75,11 @@ function VoicePage() {
       if (!p.sampleAudioId && !p.sampleAudio)
         return "Voice sample missing. Upload or record a sample for this profile.";
       if (!p.consent) return "Permission not confirmed for this voice profile.";
+      // Similarity gate: require a passing preview before generating anything.
+      const target = genSettings().similarityTarget ?? 0.9;
+      if (similarity == null)
+        return "Run Preview Clone first to check voice similarity.";
+      if (similarity < target) return "Voice clone quality is insufficient.";
     }
     return null;
   }
