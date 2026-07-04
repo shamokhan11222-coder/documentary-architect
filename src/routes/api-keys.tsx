@@ -222,7 +222,7 @@ function ApiKeysPage() {
           <Button size="sm" onClick={save}>
             <Plug className="mr-1 h-4 w-4" /> Save
           </Button>
-          {provider === "Recraft" && (
+          {(provider === "Recraft" || provider === "OpenAI") && (
             <Button size="sm" variant="outline" onClick={testFormConnection} disabled={!canTestForm || formTesting}>
               {formTesting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
               Test Connection
