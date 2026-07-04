@@ -528,7 +528,7 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
       <div className="min-w-0 text-xs text-muted-foreground">
         {geminiKey
           ? activeImage?.name === "gemini"
-            ? `Gemini Image active · ${GEMINI_IMAGE_MODEL_DEFAULT}`
+            ? `Gemini Image active · ${activeImage.imageModel}`
             : "Gemini key detected — test to activate Gemini Image."
           : "No Gemini key yet — add one above (Provider: Google Gemini)."}
       </div>
