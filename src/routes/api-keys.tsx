@@ -20,7 +20,6 @@ import {
   useProviderSettings,
   saveProviderSettings,
   useActiveImageProvider,
-  imageProviderPayload,
   IMAGE_PROVIDER_TEST_PASSED,
   type ProviderChoice,
 } from "@/lib/provider";
@@ -282,6 +281,8 @@ function DebugStatus() {
           ? "Fal.ai"
           : tele.lastProvider === "replicate"
             ? "Replicate"
+      : tele.lastProvider === "recraft"
+        ? "Recraft V4.1 Utility Pro"
       : tele.lastProvider === "builtin"
         ? "Built-in AI"
         : "—";
