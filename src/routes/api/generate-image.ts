@@ -75,12 +75,30 @@ async function validateProvider(provider: Provider): Promise<Response> {
     }
     if (name === "gemini") {
       // Image/thumbnail providers must be validated against the actual Gemini
-      // IMAGE model endpoint — never the text/models-list activation path.
+      // IMAGE model — never the text/models-list activation path. We resolve the
+      // API version that serves the model instead of hardcoding v1beta.
       const imageModel = provider.imageModel?.trim();
       if (imageModel && imageModel.toLowerCase().includes("image")) {
-        const r = await fetch(`${GOOGLE}/${imageModel}?key=${encodeURIComponent(provider.apiKey)}`);
+        const version = await resolveGeminiModelVersion(provider.apiKey, imageModel);
+        if (!version) {
+          const listed = await fetchGeminiModels(provider.apiKey);
+          const available =
+            "models" in listed
+              ? listed.models.filter(isImageCapable).map((m) => bareModelId(m.name))
+              : [];
+          const hint = available.length ? ` Available image models: ${available.join(", ")}.` : "";
+          return jsonError(
+            `Gemini image model "${imageModel}" does not exist on any supported API version.${hint}`,
+            404,
+            "MODEL_NOT_FOUND",
+          );
+        }
+        const r = await fetch(
+          `${geminiModelsUrl(version)}/${imageModel}?key=${encodeURIComponent(provider.apiKey)}`,
+        );
         return validationResult(r, "Gemini Image");
       }
+      // Text-only validation: lightweight models-list check.
       const r = await fetch(`${GOOGLE}?key=${encodeURIComponent(provider.apiKey)}&pageSize=1`);
       return validationResult(r, "Gemini");
     }
