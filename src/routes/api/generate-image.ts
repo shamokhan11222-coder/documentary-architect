@@ -134,7 +134,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   // Force an image-capable model. Never use a text model (e.g. gemini-2.5-flash).
   let model = provider.imageModel || "";
   if (!model.toLowerCase().includes("image")) {
-    model = "gemini-2.5-flash-image";
+    model = "gemini-2.0-flash-preview-image-generation";
   }
   const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
