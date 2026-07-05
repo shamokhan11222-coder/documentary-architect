@@ -10,6 +10,7 @@ export interface ErrorDetails extends Partial<ProviderErrorDetail> {
   message: string;
   at: number;
   hadResponse: boolean; // false only when literally no response from any provider
+  code?: string | null;
 }
 
 /** Record an error for the debug panel. Extracts structured provider detail
