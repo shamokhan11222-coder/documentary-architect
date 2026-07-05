@@ -60,14 +60,12 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
 
   // 1. API key is present / well-formed.
   if (!apiKey) {
-    push(1, "FAIL", "No API key provided.");
+    push("API key is valid (format)", "FAIL", "No API key provided.");
   } else if (!/^AIza[0-9A-Za-z_-]{10,}$/.test(apiKey)) {
-    push(1, "UNKNOWN", `Key present (${apiKey.length} chars) but does not match the typical Google API key format (AIza…). It may still be valid.`);
+    push("API key is valid (format)", "UNKNOWN", `Key present (${apiKey.length} chars) but does not match the typical Google API key format (AIza…). It may still be valid.`);
   } else {
-    push(1, "PASS", `Key present and well-formed (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…).`);
+    push("API key is valid (format)", "PASS", `Key present and well-formed (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…).`);
   }
-  // Relabel check 1 title after the fact
-  if (checks[0]) checks[0] = { ...checks[0], label: "API key is valid (format)" };
 
   // Live models-list request (auth + connectivity + endpoint reachability).
   let listStatus = 0;
