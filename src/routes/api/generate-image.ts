@@ -65,12 +65,12 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
     checks.push({ id: checks.length + 1, label, status, detail });
 
   const version = GEMINI_API_VERSIONS[0];
-  const listUrl = `${geminiModelsUrl(version)}?key=${encodeURIComponent(apiKey)}&pageSize=200`;
-  const listUrlRedacted = `${geminiModelsUrl(version)}?key=***REDACTED***&pageSize=200`;
-  const modelUrl = `${geminiModelsUrl(version)}/${model}?key=${encodeURIComponent(apiKey)}`;
-  const modelUrlRedacted = `${geminiModelsUrl(version)}/${model}?key=***REDACTED***`;
+  const listUrl = `${geminiModelsUrl(version)}?pageSize=200`;
+  const listUrlRedacted = listUrl;
+  const modelUrl = `${geminiModelsUrl(version)}/${model}`;
+  const modelUrlRedacted = modelUrl;
 
-  const requestHeaders = { "Content-Type": "application/json", "x-goog-api-key": "***REDACTED***" };
+  const requestHeaders = { "Content-Type": "application/json", "x-goog-api-key": `${maskKey(apiKey)}` };
 
   // 1. API key is present / well-formed.
   if (!apiKey) {
@@ -92,7 +92,7 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   let listStarted = Date.now();
   try {
     listStarted = Date.now();
-    const r = await fetch(listUrl);
+    const r = await fetch(listUrl, { headers: geminiAuthHeaders(apiKey) });
     networkOk = true;
     listStatus = r.status;
     r.headers.forEach((v, k) => (listHeaders[k] = v));
@@ -144,7 +144,7 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   let modelJson: GeminiModel | null = null;
   if (apiKey) {
     try {
-      const r = await fetch(modelUrl);
+      const r = await fetch(modelUrl, { headers: geminiAuthHeaders(apiKey) });
       modelStatus = r.status;
       r.headers.forEach((v, k) => (modelHeaders[k] = v));
       modelBody = await r.text();
