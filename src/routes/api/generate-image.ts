@@ -535,6 +535,51 @@ function toInlineData(ref: string) {
   return { inlineData: { mimeType: m[1], data: m[2] } };
 }
 
+function toInteractionImageInput(ref: string) {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(ref);
+  if (!m) return null;
+  return { type: "image", mime_type: m[1], data: m[2] };
+}
+
+function extractGeminiInteractionImage(data: unknown): { data?: string; mimeType?: string } | null {
+  const visit = (value: unknown): { data?: string; mimeType?: string } | null => {
+    if (!value || typeof value !== "object") return null;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = visit(item);
+        if (found) return found;
+      }
+      return null;
+    }
+    const obj = value as Record<string, unknown>;
+    const type = typeof obj.type === "string" ? obj.type.toLowerCase() : "";
+    const mime = typeof obj.mime_type === "string"
+      ? obj.mime_type
+      : typeof obj.mimeType === "string"
+        ? obj.mimeType
+        : undefined;
+    if (type === "image" && typeof obj.data === "string" && obj.data.length > 100) {
+      return { data: obj.data, mimeType: mime };
+    }
+    if (obj.inlineData && typeof obj.inlineData === "object") {
+      const inline = obj.inlineData as { data?: unknown; mimeType?: string; mime_type?: string };
+      if (typeof inline.data === "string") {
+        return { data: inline.data, mimeType: inline.mimeType ?? inline.mime_type ?? mime };
+      }
+    }
+    if (obj.output_image && typeof obj.output_image === "object") {
+      const output = obj.output_image as { data?: unknown; mime_type?: string; mimeType?: string };
+      if (typeof output.data === "string") return { data: output.data, mimeType: output.mime_type ?? output.mimeType ?? mime };
+    }
+    for (const nested of Object.values(obj)) {
+      const found = visit(nested);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(data);
+}
+
 type GeminiModel = {
   name: string;
   displayName?: string;
