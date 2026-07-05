@@ -62,11 +62,15 @@ export interface ImageErrorDebug {
   provider: string;
   model: string;
   endpoint: string;
+  httpMethod?: string;
   httpStatus: number | null;
   requestId: string | null;
   retryAfter: string | null;
   code: string | null;
+  errorType?: string | null;
   providerMessage: string;
+  responseHeaders?: Record<string, string>;
+  rawJson?: unknown;
   rawBody: string;
 }
 
