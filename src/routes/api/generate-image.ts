@@ -711,12 +711,14 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       endpoint,
       model,
       apiVersion: version,
+      auth: "x-goog-api-key header",
+      apiKey: maskKey(apiKey),
       time: new Date(auditStart).toISOString(),
       references: parts.length - 1,
     });
-    const r = await fetch(`${endpoint}?key=${encodeURIComponent(apiKey)}`, {
+    const r = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
       body: reqBody,
     });
     console.log("[AUDIT][gemini] outbound response", {
