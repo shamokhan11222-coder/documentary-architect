@@ -115,7 +115,7 @@ function GeminiDiagnosticsPage() {
           <Row label="Gemini SDK version" value="None — direct REST (fetch), no SDK" />
           <Row label="API endpoint" value="https://generativelanguage.googleapis.com" mono />
           <Row label="API version" value="v1beta (falls back to v1)" mono />
-          <Row label="Authentication method" value="API key via ?key= query parameter" />
+          <Row label="Authentication method" value="x-goog-api-key header (official Google AI Studio auth)" />
           <Row
             label="Active API key detected"
             value={
