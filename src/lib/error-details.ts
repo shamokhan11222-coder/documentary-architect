@@ -40,6 +40,33 @@ export function clearErrorDetails() {
   writeLocal<ErrorDetails | null>(KEY, null);
 }
 
+/** Record a structured image/thumbnail provider error for the debug panel. */
+export function recordImageErrorDetails(debug: {
+  provider: string;
+  model: string;
+  endpoint: string;
+  httpStatus: number | null;
+  requestId: string | null;
+  retryAfter: string | null;
+  code: string | null;
+  providerMessage: string;
+  rawBody: string;
+}) {
+  const value: ErrorDetails = {
+    provider: debug.provider,
+    model: debug.model,
+    endpoint: debug.endpoint,
+    httpStatus: debug.httpStatus,
+    requestId: debug.requestId,
+    retryAfter: debug.retryAfter,
+    message: `${debug.provider}${debug.httpStatus ? ` ${debug.httpStatus}` : ""}: ${debug.providerMessage}`,
+    rawBody: debug.rawBody,
+    at: Date.now(),
+    hadResponse: debug.httpStatus != null,
+  };
+  writeLocal<ErrorDetails>(KEY, value);
+}
+
 export function getErrorDetails(): ErrorDetails | null {
   return readLocal<ErrorDetails | null>(KEY, null);
 }
