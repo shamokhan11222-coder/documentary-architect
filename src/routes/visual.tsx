@@ -194,7 +194,6 @@ function VisualPage() {
 
   // ---- Gemini multi-key rotation queue wiring ----
   const geminiImageKeys = useGeminiImageKeys();
-  const queue = useImageQueue();
   const haveRef = useRef(have);
   haveRef.current = have;
   useEffect(() => {
