@@ -24,7 +24,6 @@ import {
   useActiveImageProvider,
   useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
-  GEMINI_IMAGE_MODEL_DEFAULT,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
