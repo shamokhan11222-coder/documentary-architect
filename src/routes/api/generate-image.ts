@@ -31,6 +31,20 @@ const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
 // Only used as a starting point — the real model is resolved dynamically and
 // validated against the live models list before generating.
 const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
+// Official Google Gemini image-capable models. A selected model must match one
+// of these (exact id or a versioned/suffixed variant of it) — never a custom
+// string. If it doesn't, we fall back to the default image model.
+const OFFICIAL_GEMINI_IMAGE_MODELS = [
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image",
+  "gemini-3.1-flash-image",
+] as const;
+function isOfficialGeminiImageModel(id: string): boolean {
+  const m = id.trim().toLowerCase().replace(/^models\//, "");
+  return OFFICIAL_GEMINI_IMAGE_MODELS.some(
+    (base) => m === base || m.startsWith(`${base}-`),
+  );
+}
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
