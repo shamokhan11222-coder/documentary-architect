@@ -924,11 +924,17 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
   const version = "v1beta";
   const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${provider.textModel}:generateContent`;
   try {
-    // AI Studio auth via x-goog-api-key header. Newer AQ… format keys are
-    // rejected on the ?key= query param but accepted via this header.
+    // Google AI Studio issues two credential formats that authenticate
+    // differently: legacy "AIza…" API keys use the x-goog-api-key header,
+    // while newer "AQ…" tokens are OAuth-style and must be sent as a Bearer
+    // token (Google rejects them on the API-key path with 401).
+    const key = provider.apiKey.trim();
+    const authHeaders: Record<string, string> = key.startsWith("AIza")
+      ? { "x-goog-api-key": key }
+      : { Authorization: `Bearer ${key}` };
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": provider.apiKey },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
     });
     const text = await res.text().catch(() => "");
