@@ -39,7 +39,6 @@ export const Route = createFileRoute("/thumbnail")({
 
 const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
-const PROVIDER_LIMIT_MESSAGE = "Thumbnail not generated — provider limit reached.";
 const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
 
 /** A lightweight SVG placeholder thumbnail encoded as a data URL. Lets the user
