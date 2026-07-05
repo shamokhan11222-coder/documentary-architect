@@ -165,6 +165,7 @@ function ApiKeysPage() {
         apiVersion?: string;
         modelId?: string;
         authHeaderName?: string;
+        authMethod?: string;
         authScheme?: string;
         usesBearer?: boolean;
         queryParameterUsage?: string;
@@ -182,6 +183,7 @@ function ApiKeysPage() {
           d.requestUrl ? `Full request URL: ${d.requestUrl}` : "",
           d.apiVersion ? `API version: ${d.apiVersion}` : "",
           d.modelId ? `Model ID: ${d.modelId}` : "",
+          d.authMethod ? `Authentication method used: ${d.authMethod}` : "",
           d.authHeaderName ? `Auth header: ${d.authHeaderName}` : "",
           d.authScheme ? `Auth scheme: ${d.authScheme}` : "",
           typeof d.usesBearer === "boolean"
