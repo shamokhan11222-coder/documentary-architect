@@ -348,6 +348,42 @@ export async function validateGeminiImageModel(apiKey: string, imageModel: strin
   await testImageProvider({ name: "gemini", apiKey, imageModel, fallback: false });
 }
 
+export type ImageDiagCheck = {
+  id: number;
+  label: string;
+  status: "PASS" | "FAIL" | "UNKNOWN";
+  detail: string;
+};
+export type ImageDiagRaw = {
+  requestUrl: string;
+  requestHeaders: Record<string, string>;
+  requestBody: string;
+  responseCode: number;
+  responseHeaders: Record<string, string>;
+  responseBody: string;
+};
+export type ImageDiagnostics = {
+  model: string;
+  checks: ImageDiagCheck[];
+  modelsList: ImageDiagRaw;
+  modelLookup: ImageDiagRaw;
+};
+
+/** Run the comprehensive Gemini IMAGE provider diagnostics (no image is
+ *  generated). Returns PASS/FAIL checks plus the exact raw Google responses. */
+export async function geminiImageDiagnostics(apiKey: string, imageModel?: string): Promise<ImageDiagnostics> {
+  const res = await fetchWithTimeout(
+    "/api/generate-image",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "geminiImageDiagnostics", apiKey, imageModel }),
+    },
+    IMAGE_TIMEOUT_MS,
+  );
+  return (await res.json()) as ImageDiagnostics;
+}
+
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter, images } = await collectDnaReferences();
   const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
