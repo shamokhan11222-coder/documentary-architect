@@ -249,6 +249,74 @@ function jsonError(error: string, status = 400, code?: string) {
   });
 }
 
+/** Pull the exact provider error message out of a raw JSON error body. */
+function extractProviderMessage(text: string): string {
+  try {
+    const j = JSON.parse(text);
+    return (
+      j?.error?.message ||
+      j?.message ||
+      j?.error?.status ||
+      (typeof j?.error === "string" ? j.error : "") ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+export interface ImageErrorDebug {
+  provider: string;
+  model: string;
+  endpoint: string;
+  httpStatus: number | null;
+  requestId: string | null;
+  retryAfter: string | null;
+  code: string | null;
+  providerMessage: string;
+  rawBody: string;
+}
+
+/** Emergency Debug failure. Returns the EXACT provider response — provider,
+ *  model, endpoint, HTTP status, raw body, request id, retry-after, error code
+ *  and the verbatim provider error message. Never a generic UI message. */
+function providerFail(args: {
+  provider: string;
+  model: string;
+  endpoint: string;
+  status: number;
+  rawBody: string;
+  headers?: Headers;
+  code?: string;
+}): Response {
+  const { provider, model, endpoint, status, rawBody, headers } = args;
+  const requestId =
+    headers?.get("x-request-id") ??
+    headers?.get("x-goog-request-id") ??
+    headers?.get("x-goog-request-log-id") ??
+    null;
+  const retryAfter = headers?.get("retry-after") ?? null;
+  const providerMessage = extractProviderMessage(rawBody) || rawBody.slice(0, 800) || `HTTP ${status}`;
+  const code = args.code ?? codeForProviderResponse(status, rawBody);
+  const debug: ImageErrorDebug = {
+    provider,
+    model,
+    endpoint,
+    httpStatus: status,
+    requestId,
+    retryAfter,
+    code,
+    providerMessage,
+    rawBody: rawBody.slice(0, 20000),
+  };
+  const error = `${provider} ${status}: ${providerMessage}`;
+  console.error("[image][DEBUG] provider error", debug);
+  return new Response(JSON.stringify({ error, code, status, debug }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 /** Classify an upstream HTTP status into a stable machine code the frontend
  *  maps to a specific, human-readable message. */
 function codeForStatus(status: number): string {
