@@ -771,19 +771,12 @@ async function generateWithFal(body: Body, provider: Provider): Promise<Response
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("fal", model, provider.apiKey, status, false, text);
-    const providerLimited = isProviderLimit(status, text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 401 || status === 403
-          ? "Invalid API key — Fal.ai rejected the request. Check your key and image model in API Settings."
-          : `Fal.ai image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
+    return providerFail({ provider: "fal", model, endpoint: `${FAL}/${model}`, status, rawBody: text, headers: upstream.headers });
   }
   const data = await upstream.json();
   const url = firstUrl(data);
   if (url) return Response.json({ image: url });
-  return jsonError("Fal.ai returned no image.", 502);
+  return providerFail({ provider: "fal", model, endpoint: `${FAL}/${model}`, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
 async function generateWithReplicate(body: Body, provider: Provider): Promise<Response> {
@@ -797,14 +790,7 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
     const text = await create.text().catch(() => "");
     const status = create.status;
     logProviderCall("replicate", model, provider.apiKey, status, false, text);
-    const providerLimited = isProviderLimit(status, text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 401 || status === 403
-          ? "Invalid API key — Replicate rejected the request. Check your key and image model in API Settings."
-          : `Replicate image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
+    return providerFail({ provider: "replicate", model, endpoint: `${REPLICATE}/${model}/predictions`, status, rawBody: text, headers: create.headers });
   }
   let data = await create.json();
   for (let i = 0; i < 20 && data?.status !== "succeeded" && data?.status !== "failed" && data?.status !== "canceled"; i++) {
@@ -814,10 +800,11 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
     if (!poll.ok) break;
     data = await poll.json();
   }
-  if (data?.status === "failed" || data?.status === "canceled") return jsonError("Replicate image generation failed.", 502);
+  if (data?.status === "failed" || data?.status === "canceled")
+    return providerFail({ provider: "replicate", model, endpoint: `${REPLICATE}/${model}/predictions`, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
   const url = firstUrl(data?.output ?? data);
   if (url) return Response.json({ image: url });
-  return jsonError("Replicate returned no image.", 502);
+  return providerFail({ provider: "replicate", model, endpoint: `${REPLICATE}/${model}/predictions`, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
 async function generateWithRecraft(body: Body, provider: Provider): Promise<Response> {
@@ -839,28 +826,7 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("recraft", model, provider.apiKey, status, false, text);
-    // Surface the REAL Recraft error message whenever the provider returns one.
-    let providerMsg = "";
-    try {
-      const j = JSON.parse(text);
-      providerMsg = j?.message || j?.error || j?.detail || "";
-    } catch {
-      providerMsg = text;
-    }
-    const providerLimited = isProviderLimit(status, providerMsg || text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 401 || status === 403
-          ? `Recraft rejected the request: ${providerMsg || "invalid API key."}`
-          : `Recraft image generation failed (${status}): ${(providerMsg || text).slice(0, 300)}`;
-    return jsonError(
-      msg,
-      status,
-      (status === 400 || status === 401 || status === 403) && !providerLimited
-        ? "AUTH_ERROR"
-        : codeForProviderResponse(status, providerMsg || text),
-    );
+    return providerFail({ provider: "recraft", model, endpoint: RECRAFT, status, rawBody: text, headers: upstream.headers });
   }
   const data = await upstream.json();
   const b64 = data?.data?.[0]?.b64_json;
@@ -868,7 +834,7 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
   logProviderCall("recraft", model, provider.apiKey, upstream.status, true, url ? "url image" : b64 ? "b64 image" : "no image");
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
   if (url) return Response.json({ image: url });
-  return jsonError("Recraft returned no image.", 502, "PROVIDER_ERROR");
+  return providerFail({ provider: "recraft", model, endpoint: RECRAFT, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
 export const Route = createFileRoute("/api/generate-image")({
