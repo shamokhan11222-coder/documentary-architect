@@ -9,23 +9,18 @@ const GEMINI_HOST = "https://generativelanguage.googleapis.com";
 // Ordered by preference. When a model is missing on one version we try the next.
 const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
-// Gemini (Google AI Studio) auth. Google AI Studio issues TWO credential
-// formats and they authenticate differently against generativelanguage:
-//   • Legacy API keys (start with "AIza…") → API-key auth via x-goog-api-key.
-//   • Newer AI Studio tokens (start with "AQ…") → OAuth-style bearer tokens;
-//     Google routes them through OAuth validation and REJECTS them on the
-//     ?key= / x-goog-api-key path with 401 UNAUTHENTICATED. They must be sent
-//     as `Authorization: Bearer <token>`.
-// We never use an OpenAI-compatible endpoint for Gemini image generation.
-function isGeminiApiKey(key: string): boolean {
-  return key.trim().startsWith("AIza");
-}
+// Gemini (Google AI Studio) auth — per the official Google docs
+// (https://ai.google.dev/api): "All requests to the Gemini API must include a
+// x-goog-api-key header with your API key." This is true for BOTH legacy
+// "AIza…" keys and newer AI Studio auth keys ("AQ…"). `Authorization: Bearer`
+// is ONLY for OAuth 2.0 access tokens, NOT for AI Studio API keys — sending an
+// AI Studio key as a Bearer token returns 401 UNAUTHENTICATED. We never use
+// the ?key= query param and never use an OpenAI-compatible endpoint.
+const GEMINI_AUTH_HEADER = "x-goog-api-key";
+const GEMINI_AUTH_SCHEME = "x-goog-api-key (API key)";
 const geminiAuthHeaders = (apiKey: string, extra?: Record<string, string>) => {
   const key = (apiKey ?? "").trim();
-  const auth: Record<string, string> = isGeminiApiKey(key)
-    ? { "x-goog-api-key": key }
-    : { Authorization: `Bearer ${key}` };
-  return { ...auth, ...(extra ?? {}) };
+  return { [GEMINI_AUTH_HEADER]: key, ...(extra ?? {}) };
 };
 /** Mask an API key, keeping only the first 6 and last 4 characters. */
 const maskKey = (k?: string) =>
