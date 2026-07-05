@@ -384,6 +384,27 @@ function validationResult(r: Response, label: string): Response {
   return jsonError(msg, r.status, r.status === 400 ? "AUTH_ERROR" : codeForStatus(r.status));
 }
 
+/** Gemini-specific validation. Surfaces the EXACT raw Google response body
+ *  instead of a generic "Invalid API key." — only reports an invalid key when
+ *  Google actually returns API_KEY_INVALID. */
+async function geminiValidationResult(r: Response, label: string): Promise<Response> {
+  if (r.ok) return Response.json({ ok: true });
+  const text = (await r.text().catch(() => "")) || `HTTP ${r.status}`;
+  const providerMessage = extractProviderMessage(text) || text.slice(0, 800) || `HTTP ${r.status}`;
+  const keyInvalid = /API_KEY_INVALID|API key not valid/i.test(text);
+  const code = keyInvalid ? "AUTH_ERROR" : codeForProviderResponse(r.status, text);
+  return providerFail({
+    provider: "gemini",
+    model: label,
+    endpoint: r.url || GEMINI_HOST,
+    status: r.status,
+    rawBody: `${providerMessage}\n\n${text}`,
+    headers: r.headers,
+    code,
+    httpMethod: "GET",
+  });
+}
+
 /** Validate a provider with the smallest possible request — never generates a
  *  full image. Uses each provider's lightweight auth/list endpoint. */
 async function validateProvider(provider: Provider): Promise<Response> {
