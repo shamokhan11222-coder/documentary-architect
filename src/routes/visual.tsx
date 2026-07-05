@@ -192,6 +192,41 @@ function VisualPage() {
     void refreshHave();
   }, [refreshHave]);
 
+  // ---- Gemini multi-key rotation queue wiring ----
+  const geminiImageKeys = useGeminiImageKeys();
+  const queue = useImageQueue();
+  const haveRef = useRef(have);
+  haveRef.current = have;
+  useEffect(() => {
+    const sel = selected;
+    if (!sel) return;
+    configureImageQueue({
+      done: (n) => haveRef.current.has(n),
+      save: async (scene, image) => {
+        await putImage(sceneImageId(sel.id, scene.sceneNumber), image);
+        setHave((prev) => new Set(prev).add(scene.sceneNumber));
+        setFailed((prev) => {
+          const s = new Set(prev);
+          s.delete(scene.sceneNumber);
+          return s;
+        });
+      },
+    });
+  }, [selected]);
+
+  function startQueue() {
+    if (!hasGeminiImageKeyPool()) {
+      toast.error("Add at least one Gemini image key in API Settings to use the rotation queue.");
+      return;
+    }
+    const pending = [...scenes].sort((a, b) => a.sceneNumber - b.sceneNumber);
+    if (!pending.length) {
+      toast.info("No storyboard scenes to generate.");
+      return;
+    }
+    startImageQueue(pending);
+  }
+
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
     try {
