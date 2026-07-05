@@ -9,6 +9,17 @@ const GEMINI_HOST = "https://generativelanguage.googleapis.com";
 // Ordered by preference. When a model is missing on one version we try the next.
 const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
+// Gemini (Google AI Studio) auth. Newer AQ… format keys are rejected when
+// passed as a ?key= query parameter but accepted via the x-goog-api-key
+// header, so ALL Gemini calls authenticate with this header only. Never use
+// Bearer auth for AI Studio keys, and never use an OpenAI-compatible endpoint.
+const geminiAuthHeaders = (apiKey: string, extra?: Record<string, string>) => ({
+  "x-goog-api-key": apiKey,
+  ...(extra ?? {}),
+});
+/** Mask an API key, keeping only the first 6 and last 4 characters. */
+const maskKey = (k?: string) =>
+  !k ? "(none)" : k.length <= 10 ? "****" : `${k.slice(0, 6)}…${k.slice(-4)}`;
 // Legacy alias kept for the non-Gemini helpers below.
 const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
 // Current, existing Gemini image model. NOT the old preview id that 404s.
