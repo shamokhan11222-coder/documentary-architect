@@ -32,7 +32,6 @@ import { ImageQueuePanel } from "@/components/ImageQueuePanel";
 import {
   configureImageQueue,
   startImageQueue,
-  useImageQueue,
 } from "@/lib/image-queue";
 import { hasGeminiImageKeyPool } from "@/lib/generate-image";
 import { useGeminiImageKeys } from "@/lib/gemini-image-keys";
