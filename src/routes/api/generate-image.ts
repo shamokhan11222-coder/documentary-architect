@@ -75,10 +75,10 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   const modelUrl = `${geminiModelsUrl(version)}/${model}`;
   const modelUrlRedacted = modelUrl;
 
-  const authLabel = isGeminiApiKey(apiKey)
-    ? { "x-goog-api-key": maskKey(apiKey) }
-    : { Authorization: `Bearer ${maskKey(apiKey)}` };
-  const requestHeaders = { "Content-Type": "application/json", ...authLabel };
+  const requestHeaders = {
+    "Content-Type": "application/json",
+    [GEMINI_AUTH_HEADER]: maskKey(apiKey),
+  };
 
   // 1. API key is present / well-formed.
   if (!apiKey) {
