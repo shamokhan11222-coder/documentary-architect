@@ -3,20 +3,17 @@ import { createFileRoute } from "@tanstack/react-router";
 // Silent, internal image generation. Images are routed only through the user's
 // selected external image provider (Recraft is primary). The built-in AI is
 // never used for images.
-// Gemini API version is NOT hardcoded at every call site — it is resolved from
-// this single constant and we probe alternate versions when a model 404s.
+// Gemini API version is resolved from this single constant and model availability
+// is read from Google's models list for the user's key.
 const GEMINI_HOST = "https://generativelanguage.googleapis.com";
 // Ordered by preference. When a model is missing on one version we try the next.
 const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
 const geminiInteractionsUrl = (version: string) => `${GEMINI_HOST}/${version}/interactions`;
 // Gemini (Google AI Studio) auth — per the official Google docs
-// (https://ai.google.dev/api): "All requests to the Gemini API must include a
-// x-goog-api-key header with your API key." This is true for BOTH legacy
-// "AIza…" keys and newer AI Studio auth keys ("AQ…"). `Authorization: Bearer`
-// is ONLY for OAuth 2.0 access tokens, NOT for AI Studio API keys — sending an
-// AI Studio key as a Bearer token returns 401 UNAUTHENTICATED. We never use
-// the ?key= query param and never use an OpenAI-compatible endpoint.
+// (https://ai.google.dev/api): Google AI Studio keys are API keys (including AQ
+// keys), not OAuth bearer tokens. We support API-key auth via x-goog-api-key and
+// ?key=; Authorization: Bearer is only for OAuth access tokens.
 const GEMINI_AUTH_HEADER = "x-goog-api-key";
 const GEMINI_AUTH_SCHEME = "x-goog-api-key (API key)";
 const GEMINI_QUERY_PARAM_USAGE = "none — API key is sent only in the x-goog-api-key header";
@@ -29,25 +26,9 @@ const maskKey = (k?: string) =>
   !k ? "(none)" : k.length <= 10 ? "****" : `${k.slice(0, 6)}…${k.slice(-4)}`;
 // Legacy alias kept for the non-Gemini helpers below.
 const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
-// Current, existing Gemini image model. NOT the old preview id that 404s.
-// Only used as a starting point — the real model is resolved dynamically and
-// validated against the live models list before generating.
+// UI fallback label only. Actual generation selects from Google's live models
+// list for the key before sending an image request.
 const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-3.1-flash-image";
-// Official Google Gemini image-capable models. A selected model must match one
-// of these (exact id or a versioned/suffixed variant of it) — never a custom
-// string. If it doesn't, we fall back to the default image model.
-const OFFICIAL_GEMINI_IMAGE_MODELS = [
-  "gemini-3.1-flash-lite-image",
-  "gemini-3.1-flash-image",
-  "gemini-3-pro-image",
-  "gemini-2.5-flash-image",
-] as const;
-function isOfficialGeminiImageModel(id: string): boolean {
-  const m = id.trim().toLowerCase().replace(/^models\//, "");
-  return OFFICIAL_GEMINI_IMAGE_MODELS.some(
-    (base) => m === base || m.startsWith(`${base}-`),
-  );
-}
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
