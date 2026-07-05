@@ -194,17 +194,32 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     });
     let msg = `Image generation failed (${res.status})`;
     let code: string | null = null;
+    let debug: ImageErrorDebug | null = null;
     try {
       const j = await res.json();
       if (j?.error) msg = j.error;
       if (j?.code) code = j.code;
+      if (j?.debug) debug = j.debug as ImageErrorDebug;
     } catch {
       /* ignore */
     }
+    // Emergency Debug: log the exact provider response verbatim.
+    console.error("[image][DEBUG] provider error", {
+      provider: debug?.provider ?? provider.name,
+      model: debug?.model ?? provider.imageModel ?? "(default)",
+      endpoint: debug?.endpoint ?? "/api/generate-image",
+      httpStatus: debug?.httpStatus ?? res.status,
+      requestId: debug?.requestId ?? null,
+      retryAfter: debug?.retryAfter ?? null,
+      code: debug?.code ?? code,
+      providerMessage: debug?.providerMessage ?? msg,
+      rawBody: debug?.rawBody ?? msg,
+      durationMs: Date.now() - auditStart,
+    });
     recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
     console.error("[image] request failed", { provider: provider.name, status: res.status, error: msg });
     // Keep a 429 prefix for legacy rate-limit detectors, but image queue retry is disabled.
-    throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
+    throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status, debug);
   }
   console.info("[AUDIT][image] response received", {
     totalRequestsSent: auditNo,
