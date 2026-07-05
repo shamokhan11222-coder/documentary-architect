@@ -363,6 +363,7 @@ function ThumbnailPage() {
               recommended={review?.recommendedIndex === i}
               onRegen={() => handleRegen(i)}
               onChoose={() => handleChoose(i)}
+              onUpload={() => openUpload(i)}
             />
           ))}
         </div>
@@ -381,6 +382,7 @@ function ThumbCard({
   recommended,
   onRegen,
   onChoose,
+  onUpload,
 }: {
   idea: ThumbnailIdea;
   index: number;
@@ -391,6 +393,7 @@ function ThumbCard({
   recommended: boolean;
   onRegen: () => void;
   onChoose: () => void;
+  onUpload: () => void;
 }) {
   const img = useImage(thumbImageId(topicId, index));
   const working = busy === `i-${index}`;
@@ -400,7 +403,7 @@ function ThumbCard({
         {img ? (
           <img src={img} alt={idea.thumbnailTitle} className="h-full w-full object-cover" />
         ) : (
-          <span className="text-xs text-muted-foreground">No image</span>
+          <span className="px-3 text-center text-xs text-amber-600">Concept ready, image pending.</span>
         )}
         {working && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/60">
@@ -442,14 +445,14 @@ function ThumbCard({
           </p>
         )}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <Button size="sm" onClick={onChoose} disabled={!!busy}>
+          <Button size="sm" onClick={onChoose} disabled={!!busy || !img}>
             <Check className="mr-1 h-3.5 w-3.5" /> Choose
           </Button>
           <Button size="sm" variant="secondary" onClick={onRegen} disabled={!!busy}>
             <RefreshCw className="mr-1 h-3.5 w-3.5" /> Regenerate
           </Button>
-          <Button size="sm" variant="ghost" onClick={onRegen} disabled={!!busy}>
-            <Sparkles className="mr-1 h-3.5 w-3.5" /> Upscale
+          <Button size="sm" variant="ghost" onClick={onUpload} disabled={!!busy}>
+            <Upload className="mr-1 h-3.5 w-3.5" /> Upload
           </Button>
         </div>
       </div>
