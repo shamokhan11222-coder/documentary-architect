@@ -622,7 +622,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
       error: "No Gemini API key detected. Add one in API Settings.",
       host: GEMINI_HOST,
       apiVersions: GEMINI_API_VERSIONS,
-      authMethod: "AIza… keys: x-goog-api-key header · AQ… tokens: Authorization: Bearer",
+      authMethod: `${GEMINI_AUTH_SCHEME} — documented Google AI Studio auth for all key formats`,
     });
   }
   const version = GEMINI_API_VERSIONS[0];
@@ -635,9 +635,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   const model = imageModel?.trim() || null;
   const requestMethod = "GET";
   const requestHeaders: Record<string, string> = {
-    ...(isGeminiApiKey(key)
-      ? { "x-goog-api-key": maskKey(key) }
-      : { Authorization: `Bearer ${maskKey(key)}` }),
+    [GEMINI_AUTH_HEADER]: maskKey(key),
     accept: "application/json",
   };
   const responseHeaders: Record<string, string> = {};
@@ -672,9 +670,9 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     endpoint: geminiModelsUrl(version),
     apiVersion: version,
     apiVersions: GEMINI_API_VERSIONS,
-    authMethod: isGeminiApiKey(key)
-      ? "x-goog-api-key header (AIza… API key)"
-      : "Authorization: Bearer (AQ… AI Studio token)",
+    authMethod: GEMINI_AUTH_SCHEME,
+    authHeaderName: GEMINI_AUTH_HEADER,
+    usesBearer: false,
     requestUrl: redactedUrl,
     requestMethod,
     requestHeaders,
