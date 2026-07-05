@@ -146,7 +146,11 @@ function GeminiDiagnosticsPage() {
         {diag && (
           <div className="mt-4 divide-y divide-border/50">
             <Row label="Full request URL" value={diag.requestUrl ?? "—"} mono />
+            <Row label="Endpoint URL" value={diag.endpoint ?? "—"} mono />
             <Row label="API version used" value={diag.apiVersion ?? "—"} mono />
+            <Row label="Model name" value={diag.model ?? diag.imageModel ?? "—"} mono />
+            <Row label="Authentication method" value={diag.authMethod ?? "—"} />
+            <Row label="HTTP method" value={diag.requestMethod ?? "—"} mono />
             <Row
               label="HTTP status code"
               value={
@@ -156,7 +160,9 @@ function GeminiDiagnosticsPage() {
                   ) : (
                     <XCircle className="h-4 w-4 text-destructive" />
                   )}
-                  <span className="font-mono">{diag.httpStatus ?? "—"}</span>
+                  <span className="font-mono">
+                    {diag.httpStatus ?? "—"} {diag.statusText ?? ""}
+                  </span>
                   {typeof diag.ms === "number" && (
                     <span className="text-muted-foreground">({diag.ms} ms)</span>
                   )}
@@ -164,7 +170,19 @@ function GeminiDiagnosticsPage() {
               }
             />
             <div className="py-2">
-              <span className="text-sm font-medium text-muted-foreground">Full response body</span>
+              <span className="text-sm font-medium text-muted-foreground">Full HTTP request</span>
+              <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs whitespace-pre-wrap break-all">
+                {diag.fullRequest || "—"}
+              </pre>
+            </div>
+            <div className="py-2">
+              <span className="text-sm font-medium text-muted-foreground">Full HTTP response</span>
+              <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs whitespace-pre-wrap break-all">
+                {diag.fullResponse || diag.error || "—"}
+              </pre>
+            </div>
+            <div className="py-2">
+              <span className="text-sm font-medium text-muted-foreground">Raw response body</span>
               <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-muted p-3 text-xs">
                 {diag.responseBody || diag.error || "(empty)"}
               </pre>
