@@ -714,62 +714,28 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
     const status = upstream.status;
     logProviderCall("openai", model, provider.apiKey, status, false, text);
     console.error("[image] OpenAI full error response", { httpStatus: status, body: text });
-
-    // Parse the real OpenAI error object: { error: { message, type, code } }.
-    let oaMessage = "";
-    let oaType = "";
+    // Emergency Debug: surface the EXACT OpenAI response — no custom UI text.
     let oaCode = "";
     try {
-      const j = JSON.parse(text);
-      oaMessage = j?.error?.message || j?.message || "";
-      oaType = j?.error?.type || "";
-      oaCode = j?.error?.code || "";
+      oaCode = JSON.parse(text)?.error?.code || "";
     } catch {
-      oaMessage = text;
+      /* raw body used as-is */
     }
-
-    const providerLimited = isProviderLimit(status, `${oaMessage} ${oaType} ${oaCode} ${text}`);
-
-    // Only treat it as an auth/key problem when OpenAI actually says so.
-    const isAuth =
-      !providerLimited &&
-      (status === 401 ||
-        oaCode === "invalid_api_key" ||
-        oaType === "authentication_failed" ||
-        (oaType === "invalid_request_error" && /api key/i.test(oaMessage)));
-
-    if (isAuth) {
-      return jsonError(
-        oaMessage || "OpenAI rejected the API key (authentication failed).",
-        status,
-        "AUTH_ERROR",
-      );
-    }
-
-    // Surface the exact OpenAI error for everything else (model not found,
-    // insufficient quota, permission denied, unsupported endpoint, malformed
-    // request, rate limit, etc.).
-    const detail = oaMessage
-      ? `${oaMessage}${oaCode ? ` [${oaCode}]` : ""}`
-      : text.slice(0, 300) || `OpenAI Images request failed (${status}).`;
-    const prefix =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider. "
-        : status === 402 || oaCode === "insufficient_quota"
-          ? "Insufficient quota (OpenAI Images): "
-          : status === 403
-            ? "Permission denied (OpenAI Images): "
-            : `OpenAI Images error (${status}): `;
-    // Non-auth path: use RATE_LIMIT for 429, CREDITS_EXHAUSTED for quota, and
-    // PROVIDER_ERROR otherwise so the client surfaces the exact message rather
-    // than a generic "Invalid API key".
     const code =
-      providerLimited
-        ? "RATE_LIMIT"
+      status === 401 || oaCode === "invalid_api_key"
+        ? "AUTH_ERROR"
         : oaCode === "insufficient_quota" || status === 402
           ? "CREDITS_EXHAUSTED"
-          : "PROVIDER_ERROR";
-    return jsonError(`${prefix}${detail}`, status, code);
+          : codeForProviderResponse(status, text);
+    return providerFail({
+      provider: "openai",
+      model,
+      endpoint: OPENAI,
+      status,
+      rawBody: text,
+      headers: upstream.headers,
+      code,
+    });
   }
 
   const data = await upstream.json();
@@ -783,7 +749,15 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
   const url = data?.data?.[0]?.url;
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
   if (typeof url === "string" && url.trim()) return Response.json({ image: url });
-  return jsonError("OpenAI Images returned no image.", 502, "PROVIDER_ERROR");
+  return providerFail({
+    provider: "openai",
+    model,
+    endpoint: OPENAI,
+    status: 502,
+    rawBody: JSON.stringify(data).slice(0, 20000),
+    headers: upstream.headers,
+    code: "PROVIDER_ERROR",
+  });
 }
 
 async function generateWithFal(body: Body, provider: Provider): Promise<Response> {
