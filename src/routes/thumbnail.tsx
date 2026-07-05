@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Check, Sparkles, Code } from "lucide-react";
+import { Loader2, RefreshCw, Check, Sparkles, Code, Upload, Clock, ImageOff } from "lucide-react";
 
 import { generateThumbnails, regenerateThumbnail, reviewThumbnails } from "@/lib/ai.functions";
 import {
@@ -14,7 +14,7 @@ import {
   useThumbnails,
   saveThumbnails,
 } from "@/lib/store";
-import { useImage, putImage, loadImage } from "@/lib/images";
+import { useImage, putImage, loadImage, fileToDataUrl } from "@/lib/images";
 import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
@@ -38,6 +38,17 @@ export const Route = createFileRoute("/thumbnail")({
 
 const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
+const PROVIDER_LIMIT_MESSAGE = "Thumbnail not generated — provider limit reached.";
+const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
+
+/** A lightweight SVG placeholder thumbnail encoded as a data URL. Lets the user
+ *  unblock export/SEO without a generated image. */
+function placeholderThumbnail(title: string): string {
+  const safe = (title || "Thumbnail").slice(0, 40).replace(/[<>&]/g, "");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#1f2937"/><rect x="24" y="24" width="1232" height="672" fill="none" stroke="#475569" stroke-width="4" stroke-dasharray="16 12"/><text x="640" y="360" fill="#e2e8f0" font-family="sans-serif" font-size="52" font-weight="700" text-anchor="middle">${safe}</text><text x="640" y="430" fill="#94a3b8" font-family="sans-serif" font-size="28" text-anchor="middle">Placeholder — image pending</text></svg>`;
+  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+}
+
 function ThumbnailPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
@@ -56,6 +67,9 @@ function ThumbnailPage() {
   const [review, setReview] = useState<ThumbnailReview | null>(null);
   const freeMode = useFreeMode();
   const [providerLimit, setProviderLimit] = useState(false);
+  const [conceptPending, setConceptPending] = useState(false);
+  const uploadIndexRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function handleReview() {
     if (!selected || !pack) return;
@@ -79,7 +93,7 @@ function ThumbnailPage() {
 
   // Generate images for thumbnail ideas from `start` up to `count` total ideas,
   // skipping any that already have an image. Never redoes finished thumbnails.
-  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false): Promise<"ok" | "provider-limit"> {
+  async function renderImages(ideas: ThumbnailIdea[], start: number, end: number, force = false): Promise<"ok" | "provider-limit" | "no-image"> {
     if (!selected) return "ok";
     const cooldownMs = getImageCooldownRemainingMs();
     if (cooldownMs > 0) {
@@ -90,15 +104,18 @@ function ThumbnailPage() {
     // variations — to avoid provider rate-limit spam.
     if (getFreeMode()) end = Math.min(end, start + 1);
     setProgress({ done: start, total: end });
+    let wrote = 0;
     for (let i = start; i < end; i++) {
       // Smart cache: skip thumbnails that already have an image.
       if (!force && (await loadImage(thumbImageId(selected.id, i)))) {
+        wrote++;
         setProgress({ done: i + 1, total: end });
         continue;
       }
       try {
         const url = await generateThumbnailImage(ideas[i]);
         await putImage(thumbImageId(selected.id, i), url);
+        wrote++;
       } catch (e) {
         // Provider limit reached — stop immediately, keep completed thumbnails,
         // and show a clear resumable message instead of hanging or failing all.
@@ -115,7 +132,9 @@ function ThumbnailPage() {
       setProgress({ done: i + 1, total: end });
     }
     setProgress(null);
-    return "ok";
+    // Only report success when an actual image was stored. Otherwise the concept
+    // exists but no image was generated.
+    return wrote > 0 ? "ok" : "no-image";
   }
 
   // First click: create ideas and render only ONE thumbnail (or a few in Best
@@ -124,6 +143,7 @@ function ThumbnailPage() {
     if (!selected) return;
     return withBusy("gen", async () => {
       setProviderLimit(false);
+      setConceptPending(false);
       const ideas = (await gen({
         data: {
           topic: selected.topic,
@@ -134,7 +154,12 @@ function ThumbnailPage() {
       })) as ThumbnailIdea[];
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
       const status = await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
-      if (status === "ok") toast.success("First thumbnail ready. Not happy? Generate alternatives.");
+      if (status === "ok") {
+        toast.success("First thumbnail ready. Not happy? Generate alternatives.");
+      } else if (status === "no-image") {
+        setConceptPending(true);
+        toast.warning(CONCEPT_ONLY_MESSAGE);
+      }
     });
   }
 
@@ -143,8 +168,13 @@ function ThumbnailPage() {
     if (!selected || !pack) return;
     return withBusy("alt", async () => {
       setProviderLimit(false);
+      setConceptPending(false);
       const status = await renderImages(pack.ideas, 0, pack.ideas.length);
       if (status === "ok") toast.success("Alternatives generated");
+      else if (status === "no-image") {
+        setConceptPending(true);
+        toast.warning(CONCEPT_ONLY_MESSAGE);
+      }
     });
   }
 
@@ -176,6 +206,57 @@ function ThumbnailPage() {
     toast.success("Thumbnail chosen");
   }
 
+  // Generate the concept now, render the image later — keeps the concept saved
+  // without attempting (and possibly failing) image generation.
+  function handleGenerateLater() {
+    if (!selected) return;
+    return withBusy("later", async () => {
+      setProviderLimit(false);
+      const ideas = (await gen({
+        data: {
+          topic: selected.topic,
+          script: story?.script,
+          angle: research?.storyAngles?.[0],
+          ...buildInjection(["thumbnail"]),
+        },
+      })) as ThumbnailIdea[];
+      saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
+      setConceptPending(true);
+      toast.success("Concept saved. Generate the image whenever you're ready.");
+    });
+  }
+
+  // Manual upload: store the user's own image for a specific thumbnail slot.
+  function openUpload(index: number) {
+    uploadIndexRef.current = index;
+    fileInputRef.current?.click();
+  }
+
+  async function onUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !selected) return;
+    try {
+      const url = await fileToDataUrl(file);
+      await putImage(thumbImageId(selected.id, uploadIndexRef.current), url);
+      setProviderLimit(false);
+      setConceptPending(false);
+      toast.success("Thumbnail uploaded");
+    } catch {
+      toast.error("Could not read that image file");
+    }
+  }
+
+  // Placeholder: store a generated SVG placeholder so export/SEO aren't blocked.
+  async function handlePlaceholder() {
+    if (!selected) return;
+    const idea = pack?.ideas?.[0];
+    await putImage(thumbImageId(selected.id, 0), placeholderThumbnail(idea?.thumbnailTitle ?? selected.topic));
+    setProviderLimit(false);
+    setConceptPending(false);
+    toast.success("Placeholder thumbnail added");
+  }
+
   return (
     <StageShell stage="thumbnail" maxWidth="max-w-5xl">
       <div className="flex items-center justify-between">
@@ -205,6 +286,17 @@ function ThumbnailPage() {
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
+        <Button variant="secondary" onClick={handleGenerateLater} disabled={!selected || !!busy}>
+          {busy === "later" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Clock className="mr-2 h-4 w-4" /> Generate Thumbnail Later
+        </Button>
+        <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
+          <Upload className="mr-2 h-4 w-4" /> Upload Thumbnail Manually
+        </Button>
+        <Button variant="outline" onClick={handlePlaceholder} disabled={!selected || !!busy}>
+          <ImageOff className="mr-2 h-4 w-4" /> Use Placeholder Thumbnail
+        </Button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onUploadFile} />
         {pack && !freeMode && (
           <Button variant="secondary" onClick={handleAlternatives} disabled={!!busy}>
             {busy === "alt" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -227,7 +319,13 @@ function ThumbnailPage() {
 
       {providerLimit && (
         <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-          {PROVIDER_FREE_TIER_LIMIT_MESSAGE} Completed thumbnails are saved.
+          {PROVIDER_LIMIT_MESSAGE} Completed thumbnails are saved. You can upload one manually or use a placeholder.
+        </p>
+      )}
+
+      {conceptPending && !providerLimit && (
+        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+          {CONCEPT_ONLY_MESSAGE} Retry generation, upload a thumbnail, or use a placeholder.
         </p>
       )}
 
