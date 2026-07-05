@@ -647,32 +647,27 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   }
   // Model genuinely not found on any version — surface the real available models.
   if (!upstream) {
-    const listed = await fetchGeminiModels(apiKey);
-    const available =
-      "models" in listed
-        ? listed.models.filter(isImageCapable).map((m) => bareModelId(m.name))
-        : [];
-    const hint = available.length
-      ? ` Available image models: ${available.join(", ")}.`
-      : " No image-capable models were returned for this key.";
-    return jsonError(
-      `Gemini model "${model}" was not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).${hint} Pick one in API Settings › List Available Gemini Models.${notFoundText ? ` Details: ${notFoundText}` : ""}`,
-      404,
-      "MODEL_NOT_FOUND",
-    );
+    return providerFail({
+      provider: "gemini",
+      model,
+      endpoint: `${geminiModelsUrl(GEMINI_API_VERSIONS[0])}/${model}:generateContent`,
+      status: 404,
+      rawBody: notFoundText || `Model "${model}" not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).`,
+      code: "MODEL_NOT_FOUND",
+    });
   }
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("gemini", model, provider.apiKey, status, false, text);
-    const providerLimited = isProviderLimit(status, text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 403
-          ? "Invalid API key — Gemini rejected the request. Check your key in API Settings."
-          : `Gemini image generation failed (${status}) [${usedVersion}]: ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
+    return providerFail({
+      provider: "gemini",
+      model,
+      endpoint: `${geminiModelsUrl(usedVersion)}/${model}:generateContent`,
+      status,
+      rawBody: text,
+      headers: upstream.headers,
+    });
   }
   const data = await upstream.json();
   const partsOut = data?.candidates?.[0]?.content?.parts ?? [];
@@ -680,7 +675,15 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   const b64 = inline?.inlineData?.data;
   logProviderCall("gemini", model, provider.apiKey, upstream.status, true, b64 ? "b64 image" : "no image");
   if (!b64)
-    return jsonError("Gemini returned no image for this prompt.", 502, "PROVIDER_ERROR");
+    return providerFail({
+      provider: "gemini",
+      model,
+      endpoint: `${geminiModelsUrl(usedVersion)}/${model}:generateContent`,
+      status: 502,
+      rawBody: JSON.stringify(data).slice(0, 20000),
+      headers: upstream.headers,
+      code: "PROVIDER_ERROR",
+    });
   const mime = inline.inlineData.mimeType || "image/png";
   return Response.json({ image: `data:${mime};base64,${b64}` });
 }
