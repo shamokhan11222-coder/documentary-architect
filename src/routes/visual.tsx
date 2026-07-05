@@ -28,6 +28,14 @@ import {
   type ProviderChoice,
 } from "@/lib/provider";
 import { markTested } from "@/lib/apikeys";
+import { ImageQueuePanel } from "@/components/ImageQueuePanel";
+import {
+  configureImageQueue,
+  startImageQueue,
+  useImageQueue,
+} from "@/lib/image-queue";
+import { hasGeminiImageKeyPool } from "@/lib/generate-image";
+import { useGeminiImageKeys } from "@/lib/gemini-image-keys";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
