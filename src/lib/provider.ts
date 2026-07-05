@@ -397,8 +397,9 @@ export function imageProviderPayload() {
  *  automatic fallback when Puter AI is unavailable or rate limited. */
 export function fallbackImageProviderPayload() {
   const list = readLocal<ApiKeyEntry[]>(KEY, []);
+  const pool = getGeminiImageKeys();
   for (const choice of ["gemini", "recraft"] as ProviderChoice[]) {
-    const p = toImageProvider(choice, findImageKey(choice, list));
+    const p = resolveImageProvider(choice, list, pool);
     if (p) return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
   }
   return null;
