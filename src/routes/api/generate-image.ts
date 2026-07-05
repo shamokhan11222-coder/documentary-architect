@@ -459,9 +459,7 @@ function validationResult(r: Response, label: string): Response {
   return jsonError(msg, r.status, r.status === 400 ? "AUTH_ERROR" : codeForStatus(r.status));
 }
 
-/** Gemini-specific validation. Surfaces the EXACT raw Google response body
- *  instead of a generic "Invalid API key." — only reports an invalid key when
- *  Google actually returns API_KEY_INVALID. */
+/** Gemini-specific validation. Surfaces the EXACT raw Google response body. */
 async function geminiValidationResult(r: Response, label: string): Promise<Response> {
   if (r.ok) return Response.json({ ok: true });
   const text = (await r.text().catch(() => "")) || `HTTP ${r.status}`;
@@ -473,7 +471,7 @@ async function geminiValidationResult(r: Response, label: string): Promise<Respo
     model: label,
     endpoint: r.url || GEMINI_HOST,
     status: r.status,
-    rawBody: `${providerMessage}\n\n${text}`,
+    rawBody: text,
     headers: r.headers,
     code,
     httpMethod: "GET",
@@ -785,6 +783,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     authMethod: GEMINI_AUTH_SCHEME,
     authHeaderName: GEMINI_AUTH_HEADER,
     usesBearer: false,
+    queryParameterUsage: GEMINI_QUERY_PARAM_USAGE,
     requestUrl: redactedUrl,
     requestMethod,
     requestHeaders,
