@@ -839,17 +839,42 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
   const apiKey = provider.apiKey ?? "";
-  // Enforce an OFFICIAL Google Gemini image model — never a custom string and
-  // never a text model (e.g. gemini-2.5-flash).
-  const requested = (provider.imageModel || "").trim().replace(/^models\//, "");
-  let model = requested;
-  if (!isOfficialGeminiImageModel(model)) {
-    console.warn("[image][gemini] non-official image model rejected", {
-      requested: requested || "(empty)",
-      fallback: GEMINI_IMAGE_MODEL_DEFAULT,
-      officialModels: OFFICIAL_GEMINI_IMAGE_MODELS,
+  const listed = await fetchGeminiModels(apiKey);
+  if ("error" in listed) {
+    return providerFail({
+      provider: "gemini",
+      model: "models list",
+      endpoint: listed.requestUrl || `${GOOGLE}?pageSize=200`,
+      status: listed.status,
+      rawBody: listed.rawBody || listed.error,
+      code: codeForProviderResponse(listed.status, listed.rawBody || listed.error),
+      httpMethod: "GET",
+      requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
     });
-    model = GEMINI_IMAGE_MODEL_DEFAULT;
+  }
+  const availableImageModels = listed.models.filter(isImageCapable).map((m) => bareModelId(m.name));
+  if (availableImageModels.length === 0) {
+    return providerFail({
+      provider: "gemini",
+      model: "models list",
+      endpoint: listed.requestUrl,
+      status: listed.status,
+      rawBody: listed.rawBody,
+      code: "MODEL_NOT_FOUND",
+      httpMethod: "GET",
+      requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
+    });
+  }
+  // Enforce a Gemini image model returned by Google's models list for this key —
+  // never a custom string and never a text model (e.g. gemini-2.5-flash).
+  const requested = (provider.imageModel || "").trim().replace(/^models\//, "");
+  let model = availableImageModels.includes(requested) ? requested : availableImageModels[0];
+  if (requested !== model) {
+    console.warn("[image][gemini] image model not returned by Google; using first returned image model", {
+      requested: requested || "(empty)",
+      selected: model,
+      availableImageModels,
+    });
   }
   const input: unknown[] = [{ type: "text", text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
