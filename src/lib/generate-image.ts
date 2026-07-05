@@ -16,7 +16,91 @@ import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
+import {
+  getGeminiImageKeys,
+  pickAvailableKey,
+  markKeyUsed,
+  markKeyCooldown,
+  markKeyDisabled,
+  isLimitError,
+  isDailyLimit,
+  isInvalidKeyOrModel,
+} from "./gemini-image-keys";
+import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
 import type { VisualScene, ThumbnailIdea } from "./types";
+
+/** Thrown when every Gemini image key is cooling down or disabled. The queue
+ *  pauses and auto-resumes when a key becomes available. */
+export const ALL_KEYS_COOLING_CODE = "ALL_COOLING";
+export const ALL_KEYS_COOLING_MESSAGE =
+  "All Gemini image keys are cooling down. Resume automatically when one becomes available.";
+
+/** Result of a rotated image request — carries the key name used for live status. */
+export interface RotatedImage {
+  image: string;
+  keyName: string;
+}
+
+/** Generate ONE image using the Gemini image key pool. Picks the first available
+ *  key, and on RESOURCE_EXHAUSTED / quota / rate-limit cools it down and tries the
+ *  next key; on invalid key / missing model disables it and tries the next.
+ *  Throws ImageGenError(ALL_COOLING) when no key is available. */
+async function callWithRotation(prompt: string, references: string[]): Promise<RotatedImage> {
+  // Try keys until one succeeds or all are cooling/disabled.
+  for (;;) {
+    const key = pickAvailableKey();
+    if (!key) {
+      throw new ImageGenError(ALL_KEYS_COOLING_MESSAGE, ALL_KEYS_COOLING_CODE, null);
+    }
+    const payload: ImageProviderPayload = {
+      name: "gemini",
+      apiKey: key.key.trim(),
+      imageModel: key.imageModel?.trim() || GEMINI_IMAGE_MODEL_DEFAULT,
+      fallback: false,
+    };
+    try {
+      console.info("[image][rotation] using key", { key: key.name });
+      const image = await callImageApi(prompt, references, payload);
+      markKeyUsed(key.id);
+      lastImageRequestAt = Date.now();
+      return { image, keyName: key.name };
+    } catch (e) {
+      lastImageRequestAt = Date.now();
+      const status = e instanceof ImageGenError ? e.status : null;
+      const code = e instanceof ImageGenError ? e.code : null;
+      const msg =
+        (e instanceof ImageGenError && e.debug?.providerMessage) ||
+        (e instanceof Error ? e.message : String(e));
+      // Invalid key / model not found → disable this key and move on.
+      if (isInvalidKeyOrModel(msg, code, status) && !isLimitError(msg, code, status)) {
+        console.warn("[image][rotation] disabling key", { key: key.name, reason: msg });
+        markKeyDisabled(key.id, msg);
+        continue;
+      }
+      // Quota / rate-limit / resource exhausted → cool this key down and move on.
+      if (isLimitError(msg, code, status)) {
+        markKeyCooldown(key.id, isDailyLimit(msg) ? "daily" : "limit");
+        console.warn("[image][rotation] cooling key", { key: key.name, daily: isDailyLimit(msg) });
+        continue;
+      }
+      // Any other error (timeout, network, server) is not key-specific — surface it.
+      throw e;
+    }
+  }
+}
+
+/** True when the user has configured the Gemini image key pool (rotation on). */
+export function hasGeminiImageKeyPool(): boolean {
+  return getGeminiImageKeys().length > 0;
+}
+
+/** Generate a scene image through the key pool, returning the used key name. */
+export async function generateSceneImageRotating(scene: VisualScene): Promise<RotatedImage> {
+  const { hasCharacter, images } = await collectDnaReferences();
+  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
+  const refs = images.slice(0, getCreditConfig().dnaReferences);
+  return enqueueAi(() => callWithRotation(prompt, refs), "Image", { retryRateLimits: false });
+}
 
 function combinedArtDirection(): string {
   return [getVisualInstructions(), getInstructionText(), selectedVisualStyle()]
