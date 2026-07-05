@@ -11,6 +11,11 @@ export interface ErrorDetails extends Partial<ProviderErrorDetail> {
   at: number;
   hadResponse: boolean; // false only when literally no response from any provider
   code?: string | null;
+  httpMethod?: string | null;
+  errorType?: string | null;
+  responseHeaders?: Record<string, string> | null;
+  rawJson?: unknown;
+  stack?: string | null;
 }
 
 /** Record an error for the debug panel. Extracts structured provider detail
@@ -19,8 +24,9 @@ export function recordErrorDetails(err: unknown, context?: { provider?: string; 
   const detail = parseProviderError(err);
   const raw = err instanceof Error ? err.message : typeof err === "string" ? err : String(err ?? "");
   const isNetwork = /failed to fetch|networkerror|load failed|ECONN/i.test(raw);
+  const stack = err instanceof Error ? err.stack ?? null : null;
   const value: ErrorDetails = detail
-    ? { ...detail, hadResponse: detail.httpStatus != null }
+    ? { ...detail, hadResponse: detail.httpStatus != null, stack }
     : {
         provider: context?.provider ?? "unknown",
         model: context?.model ?? "unknown",
@@ -33,6 +39,7 @@ export function recordErrorDetails(err: unknown, context?: { provider?: string; 
         message: raw || "Unknown error",
         at: Date.now(),
         hadResponse: !isNetwork,
+        stack,
       };
   writeLocal<ErrorDetails>(KEY, value);
 }
@@ -52,6 +59,10 @@ export function recordImageErrorDetails(debug: {
   code: string | null;
   providerMessage: string;
   rawBody: string;
+  httpMethod?: string;
+  errorType?: string | null;
+  responseHeaders?: Record<string, string>;
+  rawJson?: unknown;
 }) {
   const value: ErrorDetails = {
     provider: debug.provider,
@@ -60,6 +71,11 @@ export function recordImageErrorDetails(debug: {
     httpStatus: debug.httpStatus,
     requestId: debug.requestId,
     retryAfter: debug.retryAfter,
+    code: debug.code,
+    httpMethod: debug.httpMethod ?? "POST",
+    errorType: debug.errorType ?? null,
+    responseHeaders: debug.responseHeaders ?? null,
+    rawJson: debug.rawJson ?? null,
     message: `${debug.provider}${debug.httpStatus ? ` ${debug.httpStatus}` : ""}: ${debug.providerMessage}`,
     rawBody: debug.rawBody,
     at: Date.now(),
