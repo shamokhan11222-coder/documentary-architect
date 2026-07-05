@@ -64,10 +64,13 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   // 1. API key is present / well-formed.
   if (!apiKey) {
     push("API key is valid (format)", "FAIL", "No API key provided.");
-  } else if (!/^AIza[0-9A-Za-z_-]{10,}$/.test(apiKey)) {
-    push("API key is valid (format)", "UNKNOWN", `Key present (${apiKey.length} chars) but does not match the typical Google API key format (AIza…). It may still be valid.`);
+  } else if (!/^[0-9A-Za-z_-]{20,}$/.test(apiKey)) {
+    // Format is informational only — Google decides validity. Both AI Studio
+    // formats (legacy AIza… and newer AQ…) are accepted; only reject strings
+    // that clearly cannot be a key (too short / illegal chars).
+    push("API key is valid (format)", "UNKNOWN", `Key present (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…) but is unusually short or has unexpected characters. Google will make the final decision.`);
   } else {
-    push("API key is valid (format)", "PASS", `Key present and well-formed (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…).`);
+    push("API key is valid (format)", "PASS", `Key present (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…). Accepts both AIza… and newer AQ… Google AI Studio formats.`);
   }
 
   // Live models-list request (auth + connectivity + endpoint reachability).
