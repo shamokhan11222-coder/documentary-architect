@@ -924,9 +924,11 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
   const version = "v1beta";
   const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${provider.textModel}:generateContent`;
   try {
-    const res = await fetch(`${endpoint}?key=${encodeURIComponent(provider.apiKey)}`, {
+    // AI Studio auth via x-goog-api-key header. Newer AQ… format keys are
+    // rejected on the ?key= query param but accepted via this header.
+    const res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": provider.apiKey },
       body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
     });
     const text = await res.text().catch(() => "");
