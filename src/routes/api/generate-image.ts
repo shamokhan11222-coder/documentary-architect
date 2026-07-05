@@ -815,66 +815,42 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     });
     model = GEMINI_IMAGE_MODEL_DEFAULT;
   }
-  const parts: unknown[] = [{ text: body.prompt }];
+  const input: unknown[] = [{ type: "text", text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
-    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineData(ref) : null;
-    if (inline) parts.push(inline);
+    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInteractionImageInput(ref) : null;
+    if (inline) input.push(inline);
   }
-  const reqBody = JSON.stringify({
-    contents: [{ role: "user", parts }],
-    generationConfig: { responseModalities: ["IMAGE"] },
+  const reqBodyObj = { model, input };
+  const reqBody = JSON.stringify(reqBodyObj);
+  const version = GEMINI_API_VERSIONS[0];
+  const endpoint = geminiInteractionsUrl(version);
+  const redactedHeaders = { "Content-Type": "application/json", [GEMINI_AUTH_HEADER]: maskKey(apiKey) };
+  const auditStart = Date.now();
+  console.log("[AUDIT][gemini] outbound request", {
+    endpoint,
+    model,
+    apiVersion: version,
+    authenticationMethod: GEMINI_AUTH_SCHEME,
+    authHeaderName: GEMINI_AUTH_HEADER,
+    usesBearer: false,
+    queryParameterUsage: GEMINI_QUERY_PARAM_USAGE,
+    headers: redactedHeaders,
+    body: reqBodyObj,
+    time: new Date(auditStart).toISOString(),
+    references: input.length - 1,
   });
-  // AUDIT: exactly ONE outbound generateContent request per call in the normal
-  // case. The API version is NOT hardcoded — we try the preferred version and
-  // only fall through to the next version if the model returns 404 there (i.e.
-  // that version doesn't serve this model). No preview/verification requests.
-  let upstream: Response | null = null;
-  let usedVersion: string = GEMINI_API_VERSIONS[0];
-  let notFoundText = "";
-  for (const version of GEMINI_API_VERSIONS) {
-    const endpoint = `${geminiModelsUrl(version)}/${model}:generateContent`;
-    const auditStart = Date.now();
-    console.log("[AUDIT][gemini] outbound request", {
-      endpoint,
-      model,
-      apiVersion: version,
-      auth: "x-goog-api-key header",
-      apiKey: maskKey(apiKey),
-      time: new Date(auditStart).toISOString(),
-      references: parts.length - 1,
-    });
-    const r = await fetch(endpoint, {
-      method: "POST",
-      headers: geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
-      body: reqBody,
-    });
-    console.log("[AUDIT][gemini] outbound response", {
-      endpoint,
-      model,
-      apiVersion: version,
-      responseCode: r.status,
-      ms: Date.now() - auditStart,
-    });
-    // Only a 404 means "wrong API version for this model" — try the next one.
-    if (r.status === 404) {
-      notFoundText = (await r.text().catch(() => "")).slice(0, 200);
-      continue;
-    }
-    upstream = r;
-    usedVersion = version;
-    break;
-  }
-  // Model genuinely not found on any version — surface the real available models.
-  if (!upstream) {
-    return providerFail({
-      provider: "gemini",
-      model,
-      endpoint: `${geminiModelsUrl(GEMINI_API_VERSIONS[0])}/${model}:generateContent`,
-      status: 404,
-      rawBody: notFoundText || `Model "${model}" not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).`,
-      code: "MODEL_NOT_FOUND",
-    });
-  }
+  const upstream = await fetch(endpoint, {
+    method: "POST",
+    headers: geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
+    body: reqBody,
+  });
+  console.log("[AUDIT][gemini] outbound response", {
+    endpoint,
+    model,
+    apiVersion: version,
+    responseCode: upstream.status,
+    ms: Date.now() - auditStart,
+  });
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
@@ -882,28 +858,31 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     return providerFail({
       provider: "gemini",
       model,
-      endpoint: `${geminiModelsUrl(usedVersion)}/${model}:generateContent`,
+      endpoint,
       status,
       rawBody: text,
       headers: upstream.headers,
+      requestHeaders: redactedHeaders,
+      requestBody: reqBodyObj,
     });
   }
   const data = await upstream.json();
-  const partsOut = data?.candidates?.[0]?.content?.parts ?? [];
-  const inline = partsOut.find((p: { inlineData?: { data?: string } }) => p?.inlineData?.data);
-  const b64 = inline?.inlineData?.data;
+  const inline = extractGeminiInteractionImage(data);
+  const b64 = inline?.data;
   logProviderCall("gemini", model, provider.apiKey, upstream.status, true, b64 ? "b64 image" : "no image");
   if (!b64)
     return providerFail({
       provider: "gemini",
       model,
-      endpoint: `${geminiModelsUrl(usedVersion)}/${model}:generateContent`,
+      endpoint,
       status: 502,
       rawBody: JSON.stringify(data).slice(0, 20000),
       headers: upstream.headers,
       code: "PROVIDER_ERROR",
+      requestHeaders: redactedHeaders,
+      requestBody: reqBodyObj,
     });
-  const mime = inline.inlineData.mimeType || "image/png";
+  const mime = inline?.mimeType || "image/png";
   return Response.json({ image: `data:${mime};base64,${b64}` });
 }
 
