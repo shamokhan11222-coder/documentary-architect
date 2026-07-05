@@ -627,7 +627,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
       error: "No Gemini API key detected. Add one in API Settings.",
       host: GEMINI_HOST,
       apiVersions: GEMINI_API_VERSIONS,
-      authMethod: "API key via ?key= query parameter",
+      authMethod: "AIza… keys: x-goog-api-key header · AQ… tokens: Authorization: Bearer",
     });
   }
   const version = GEMINI_API_VERSIONS[0];
@@ -640,7 +640,9 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   const model = imageModel?.trim() || null;
   const requestMethod = "GET";
   const requestHeaders: Record<string, string> = {
-    "x-goog-api-key": maskKey(key),
+    ...(isGeminiApiKey(key)
+      ? { "x-goog-api-key": maskKey(key) }
+      : { Authorization: `Bearer ${maskKey(key)}` }),
     accept: "application/json",
   };
   const responseHeaders: Record<string, string> = {};
