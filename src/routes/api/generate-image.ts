@@ -830,7 +830,7 @@ export const Route = createFileRoute("/api/generate-image")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const raw = (await request.json()) as Body & ListBody & ImageDiagBody;
+        const raw = (await request.json()) as Body & ListBody;
         // Diagnostic action: list available Gemini models for a key.
         if (raw.action === "listGeminiModels") return listGeminiModels(raw.apiKey ?? "");
         // Diagnostic action: full raw Gemini connection diagnostics (no content).
