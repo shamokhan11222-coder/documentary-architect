@@ -520,9 +520,9 @@ async function fetchGeminiModels(
   let lastErr = "Unknown error";
   let lastStatus = 502;
   for (const version of GEMINI_API_VERSIONS) {
-    const endpoint = `${geminiModelsUrl(version)}?key=${encodeURIComponent(apiKey)}&pageSize=200`;
+    const endpoint = `${geminiModelsUrl(version)}?pageSize=200`;
     try {
-      const r = await fetch(endpoint);
+      const r = await fetch(endpoint, { headers: geminiAuthHeaders(apiKey) });
       if (r.ok) {
         const data = (await r.json()) as { models?: GeminiModel[] };
         return { models: data.models ?? [], endpoint: geminiModelsUrl(version), version };
