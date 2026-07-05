@@ -3,6 +3,8 @@
 // generation and must never be used as a silent fallback.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
+import { getGeminiImageKeys, useGeminiImageKeys } from "./gemini-image-keys";
+import type { GeminiImageKey } from "./gemini-image-keys";
 
 const KEY = "docos.apikeys";
 const SETTINGS_KEY = "docos.provider.settings";
@@ -29,7 +31,7 @@ export interface ActiveImageProvider {
 }
 
 export const IMAGE_PROVIDER_NOT_CONNECTED =
-  "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
+  "No image provider is connected. Add your Google Gemini image key in API Settings.";
 export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
 
 export const GEMINI_UNSUPPORTED_MESSAGE =
@@ -201,6 +203,42 @@ function puterImageProvider(): ActiveImageProvider {
   };
 }
 
+/** Resolve a connected Gemini image provider from the dedicated Gemini image
+ *  key pool (the "Gemini Image Keys" panel). This is the primary source for
+ *  Gemini image generation — no Recraft key is ever required. Prefers a usable
+ *  (non-disabled) key, then falls back to any key that has a value. */
+function poolToImageProvider(keys: GeminiImageKey[]): ActiveImageProvider | null {
+  const usable =
+    keys.find((k) => k.status !== "disabled" && k.key.trim()) ??
+    keys.find((k) => k.key.trim());
+  if (!usable) return null;
+  return {
+    id: usable.id,
+    name: "gemini",
+    label: "Gemini Image",
+    apiKey: usable.key.trim(),
+    imageModel: usable.imageModel?.trim() || GEMINI_IMAGE_MODEL_DEFAULT,
+    testPassed: true,
+  };
+}
+
+/** Resolve the active image provider for a given choice. For Gemini we accept
+ *  EITHER a Google Gemini key in the API vault OR a key from the Gemini image
+ *  key pool — so image generation never requires Recraft. Recraft (and every
+ *  other provider) is only ever consulted when it is the explicitly selected
+ *  choice. */
+function resolveImageProvider(
+  choice: ProviderChoice,
+  list: ApiKeyEntry[],
+  poolKeys: GeminiImageKey[],
+): ActiveImageProvider | null {
+  if (choice === "puter") return puterImageProvider();
+  const fromVault = toImageProvider(choice, findImageKey(choice, list));
+  if (fromVault) return fromVault;
+  if (choice === "gemini") return poolToImageProvider(poolKeys);
+  return null;
+}
+
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   // Puter requires no key — it is always available client-side.
   if (choice === "puter") return puterImageProvider();
@@ -265,13 +303,14 @@ export function useActiveProvider(): ActiveProvider | null {
 /** External image provider if the selected image choice has a connected key. */
 export function getActiveImageProvider(): ActiveImageProvider | null {
   const choice = getProviderSettings().image;
-  return toImageProvider(choice, findImageKey(choice, readLocal<ApiKeyEntry[]>(KEY, [])));
+  return resolveImageProvider(choice, readLocal<ApiKeyEntry[]>(KEY, []), getGeminiImageKeys());
 }
 
 export function useActiveImageProvider(): ActiveImageProvider | null {
   const settings = useProviderSettings();
   const list = useLocal<ApiKeyEntry[]>(KEY, []);
-  return toImageProvider(settings.image, findImageKey(settings.image, list));
+  const pool = useGeminiImageKeys();
+  return resolveImageProvider(settings.image, list, pool);
 }
 
 export function getImageProviderStatus(): {
@@ -288,11 +327,13 @@ export function getImageProviderStatus(): {
 export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
   const settings = useProviderSettings();
   const list = useLocal<ApiKeyEntry[]>(KEY, []);
-  return statusFor(settings.image, toImageProvider(settings.image, findImageKey(settings.image, list)));
+  const pool = useGeminiImageKeys();
+  return statusFor(settings.image, resolveImageProvider(settings.image, list, pool));
 }
 
-/** Image generation requires a connected external image provider (Recraft).
- *  The built-in AI is never used for images. */
+/** Image generation status for the SELECTED provider. The built-in AI is never
+ *  used for images. Messages are provider-specific — Recraft is only ever named
+ *  when Recraft is the selected choice. */
 function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null) {
   if (external) {
     return {
@@ -301,7 +342,7 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
       connected: true,
       testPassed: external.testPassed,
       ok: true,
-      message: external.testPassed ? "Ready" : "Connected — click Test to verify.",
+      message: "Connected",
     };
   }
   if (choice === "puter") {
@@ -316,12 +357,31 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
   }
   return {
     choice,
-    label: "Recraft V4.1 Utility Pro",
+    label: imageLabel(choice),
     connected: false,
     testPassed: false,
     ok: false,
-    message: IMAGE_PROVIDER_NOT_CONNECTED,
+    message: notConnectedMessage(choice),
   };
+}
+
+/** Provider-specific "not connected" copy. Never mentions Recraft unless
+ *  Recraft is the selected image provider. */
+function notConnectedMessage(choice: ProviderChoice): string {
+  switch (choice) {
+    case "gemini":
+      return "Google Gemini is not connected. Add a Gemini image key in API Settings.";
+    case "recraft":
+      return "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
+    case "fal":
+      return "Fal.ai is not connected. Add your Fal.ai API key in API Settings.";
+    case "replicate":
+      return "Replicate is not connected. Add your Replicate API key in API Settings.";
+    case "openai":
+      return "OpenAI Images is not connected. Add your OpenAI API key in API Settings.";
+    default:
+      return IMAGE_PROVIDER_NOT_CONNECTED;
+  }
 }
 
 /** Body payload passed to the image API route so the server can route. Returns
@@ -337,8 +397,9 @@ export function imageProviderPayload() {
  *  automatic fallback when Puter AI is unavailable or rate limited. */
 export function fallbackImageProviderPayload() {
   const list = readLocal<ApiKeyEntry[]>(KEY, []);
+  const pool = getGeminiImageKeys();
   for (const choice of ["gemini", "recraft"] as ProviderChoice[]) {
-    const p = toImageProvider(choice, findImageKey(choice, list));
+    const p = resolveImageProvider(choice, list, pool);
     if (p) return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
   }
   return null;
