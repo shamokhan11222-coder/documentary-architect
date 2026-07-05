@@ -269,11 +269,15 @@ export interface ImageErrorDebug {
   provider: string;
   model: string;
   endpoint: string;
+  httpMethod: string;
   httpStatus: number | null;
   requestId: string | null;
   retryAfter: string | null;
   code: string | null;
+  errorType: string | null;
   providerMessage: string;
+  responseHeaders: Record<string, string>;
+  rawJson: unknown;
   rawBody: string;
 }
 
@@ -288,6 +292,7 @@ function providerFail(args: {
   rawBody: string;
   headers?: Headers;
   code?: string;
+  httpMethod?: string;
 }): Response {
   const { provider, model, endpoint, status, rawBody, headers } = args;
   const requestId =
@@ -298,15 +303,32 @@ function providerFail(args: {
   const retryAfter = headers?.get("retry-after") ?? null;
   const providerMessage = extractProviderMessage(rawBody) || rawBody.slice(0, 800) || `HTTP ${status}`;
   const code = args.code ?? codeForProviderResponse(status, rawBody);
+  // Capture ALL response headers verbatim (they are provider diagnostics, no secrets).
+  const responseHeaders: Record<string, string> = {};
+  headers?.forEach((v, k) => (responseHeaders[k] = v));
+  // Parse the raw provider body as JSON when possible so the UI can show it exactly.
+  let rawJson: unknown = null;
+  let errorType: string | null = null;
+  try {
+    rawJson = JSON.parse(rawBody);
+    const e = (rawJson as { error?: { status?: string; type?: string; code?: string } })?.error;
+    errorType = e?.status ?? e?.type ?? e?.code ?? null;
+  } catch {
+    /* not JSON */
+  }
   const debug: ImageErrorDebug = {
     provider,
     model,
     endpoint,
+    httpMethod: args.httpMethod ?? "POST",
     httpStatus: status,
     requestId,
     retryAfter,
     code,
+    errorType,
     providerMessage,
+    responseHeaders,
+    rawJson,
     rawBody: rawBody.slice(0, 20000),
   };
   const error = `${provider} ${status}: ${providerMessage}`;
