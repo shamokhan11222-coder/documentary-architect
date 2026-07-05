@@ -676,11 +676,16 @@ async function listGeminiModels(apiKey: string): Promise<Response> {
   if (!apiKey?.trim()) return jsonError("Add a Google Gemini API key first.", 400, "NO_PROVIDER");
   const res = await fetchGeminiModels(apiKey.trim());
   if ("error" in res) {
-    // Surface the EXACT Google response — no generic "Invalid API key" wrapper
-    // unless Google itself returned API_KEY_INVALID.
-    const keyInvalid = /API_KEY_INVALID|API key not valid/i.test(res.error);
-    const msg = `Gemini could not list models (HTTP ${res.status}): ${res.error}`;
-    return jsonError(msg, res.status, keyInvalid ? "AUTH_ERROR" : codeForStatus(res.status));
+    return providerFail({
+      provider: "gemini",
+      model: "models list",
+      endpoint: res.requestUrl || `${GOOGLE}?pageSize=200`,
+      status: res.status,
+      rawBody: res.rawBody || res.error,
+      code: codeForProviderResponse(res.status, res.rawBody || res.error),
+      httpMethod: "GET",
+      requestHeaders: res.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
+    });
   }
   const imageModels = res.models.filter(isImageCapable).map((m) => ({
     id: bareModelId(m.name),
@@ -689,7 +694,10 @@ async function listGeminiModels(apiKey: string): Promise<Response> {
   const allModels = res.models.map((m) => bareModelId(m.name));
   return Response.json({
     endpoint: res.endpoint,
+    requestUrl: res.requestUrl,
     apiVersion: res.version,
+    authMethod: res.authMethod,
+    rawResponse: res.rawBody,
     imageModels,
     allModels,
   });
