@@ -15,6 +15,7 @@ import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
+import { recordErrorDetails } from "./error-details";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
@@ -60,6 +61,9 @@ export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
 /** Maps an image-generation error to a specific, user-facing message.
  *  Never collapses everything into a single generic "try again later" line. */
 export function imageErrorMessage(err: unknown, fallback = "Image generation failed."): string {
+  recordErrorDetails(err, {
+    provider: err instanceof ImageGenError ? "image-provider" : undefined,
+  });
   if (err instanceof ImageGenError) {
     switch (err.code) {
       case "NO_PROVIDER":
