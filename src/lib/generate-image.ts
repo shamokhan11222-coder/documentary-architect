@@ -227,6 +227,13 @@ let imageRequestAuditCount = 0;
 
 async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
   recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
+  // Print the provider actually used before EVERY image request.
+  const providerLabel =
+    provider.name === "gemini"
+      ? "Gemini Image"
+      : provider.name.charAt(0).toUpperCase() + provider.name.slice(1);
+  console.log(`Using provider: ${providerLabel}`);
+  console.log(`Model: ${provider.imageModel ?? GEMINI_IMAGE_MODEL_DEFAULT}`);
   console.info("[image] request started", { provider: provider.name, model: provider.imageModel });
   // Puter AI generates entirely client-side via the browser SDK — no server call.
   if (provider.name === "puter") {
