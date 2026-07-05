@@ -203,6 +203,42 @@ function puterImageProvider(): ActiveImageProvider {
   };
 }
 
+/** Resolve a connected Gemini image provider from the dedicated Gemini image
+ *  key pool (the "Gemini Image Keys" panel). This is the primary source for
+ *  Gemini image generation — no Recraft key is ever required. Prefers a usable
+ *  (non-disabled) key, then falls back to any key that has a value. */
+function poolToImageProvider(keys: GeminiImageKey[]): ActiveImageProvider | null {
+  const usable =
+    keys.find((k) => k.status !== "disabled" && k.key.trim()) ??
+    keys.find((k) => k.key.trim());
+  if (!usable) return null;
+  return {
+    id: usable.id,
+    name: "gemini",
+    label: "Gemini Image",
+    apiKey: usable.key.trim(),
+    imageModel: usable.imageModel?.trim() || GEMINI_IMAGE_MODEL_DEFAULT,
+    testPassed: true,
+  };
+}
+
+/** Resolve the active image provider for a given choice. For Gemini we accept
+ *  EITHER a Google Gemini key in the API vault OR a key from the Gemini image
+ *  key pool — so image generation never requires Recraft. Recraft (and every
+ *  other provider) is only ever consulted when it is the explicitly selected
+ *  choice. */
+function resolveImageProvider(
+  choice: ProviderChoice,
+  list: ApiKeyEntry[],
+  poolKeys: GeminiImageKey[],
+): ActiveImageProvider | null {
+  if (choice === "puter") return puterImageProvider();
+  const fromVault = toImageProvider(choice, findImageKey(choice, list));
+  if (fromVault) return fromVault;
+  if (choice === "gemini") return poolToImageProvider(poolKeys);
+  return null;
+}
+
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   // Puter requires no key — it is always available client-side.
   if (choice === "puter") return puterImageProvider();
