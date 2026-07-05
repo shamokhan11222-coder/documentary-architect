@@ -336,6 +336,16 @@ function jsonError(error: string, status = 400, code?: string) {
 function extractProviderMessage(text: string): string {
   try {
     const j = JSON.parse(text);
+    if (Array.isArray(j)) {
+      for (const item of j) {
+        const msg =
+          item?.error?.message ||
+          item?.message ||
+          item?.error?.status ||
+          (typeof item?.error === "string" ? item.error : "");
+        if (msg) return msg;
+      }
+    }
     return (
       j?.error?.message ||
       j?.message ||
