@@ -337,23 +337,18 @@ function ThumbnailPage() {
         </p>
       )}
 
-      {providerLimit && (
-        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-          {PROVIDER_LIMIT_MESSAGE} Completed thumbnails are saved. You can upload one manually or use a placeholder.
-        </p>
-      )}
-
       {/* Hard state message: only show "ready" when an actual image URL exists. */}
       {selected && pack && (
         thumbnailReady ? (
           <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
             First thumbnail ready. Not happy? Generate alternatives.
           </p>
-        ) : (
-          <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-            Thumbnail image not generated yet.
+        ) : providerError ? (
+          // Emergency Debug: surface the EXACT provider error, not a generic line.
+          <p className="mt-3 whitespace-pre-wrap break-words rounded-md bg-destructive/10 px-3 py-2 font-mono text-xs text-destructive">
+            {providerError}
           </p>
-        )
+        ) : null
       )}
 
       {/* Debug line — reflects the raw thumbnail state, never concept-only. */}
