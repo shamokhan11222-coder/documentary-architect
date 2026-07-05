@@ -39,6 +39,7 @@ import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { QueuePanel } from "@/components/QueuePanel";
+import { GeminiImageKeys } from "@/components/GeminiImageKeys";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
@@ -244,6 +245,10 @@ function ApiKeysPage() {
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="mt-4">
+        <GeminiImageKeys />
       </div>
 
       {(active || keys.length > 0) && (

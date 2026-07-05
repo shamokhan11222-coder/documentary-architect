@@ -28,6 +28,13 @@ import {
   type ProviderChoice,
 } from "@/lib/provider";
 import { markTested } from "@/lib/apikeys";
+import { ImageQueuePanel } from "@/components/ImageQueuePanel";
+import {
+  configureImageQueue,
+  startImageQueue,
+} from "@/lib/image-queue";
+import { hasGeminiImageKeyPool } from "@/lib/generate-image";
+import { useGeminiImageKeys } from "@/lib/gemini-image-keys";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -183,6 +190,40 @@ function VisualPage() {
   useEffect(() => {
     void refreshHave();
   }, [refreshHave]);
+
+  // ---- Gemini multi-key rotation queue wiring ----
+  const geminiImageKeys = useGeminiImageKeys();
+  const haveRef = useRef(have);
+  haveRef.current = have;
+  useEffect(() => {
+    const sel = selected;
+    if (!sel) return;
+    configureImageQueue({
+      done: (n) => haveRef.current.has(n),
+      save: async (scene, image) => {
+        await putImage(sceneImageId(sel.id, scene.sceneNumber), image);
+        setHave((prev) => new Set(prev).add(scene.sceneNumber));
+        setFailed((prev) => {
+          const s = new Set(prev);
+          s.delete(scene.sceneNumber);
+          return s;
+        });
+      },
+    });
+  }, [selected]);
+
+  function startQueue() {
+    if (!hasGeminiImageKeyPool()) {
+      toast.error("Add at least one Gemini image key in API Settings to use the rotation queue.");
+      return;
+    }
+    const pending = [...scenes].sort((a, b) => a.sceneNumber - b.sceneNumber);
+    if (!pending.length) {
+      toast.info("No storyboard scenes to generate.");
+      return;
+    }
+    startImageQueue(pending);
+  }
 
   async function withBusy(key: string, fn: () => Promise<void>) {
     setBusy(key);
@@ -564,6 +605,10 @@ function VisualPage() {
           </>
         )}
       </div>
+
+      {hasMap && geminiImageKeys.length > 0 && (
+        <ImageQueuePanel onStart={startQueue} />
+      )}
 
       {hasMap && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
