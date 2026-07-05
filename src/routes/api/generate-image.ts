@@ -332,6 +332,8 @@ function providerFail(args: {
   headers?: Headers;
   code?: string;
   httpMethod?: string;
+  requestHeaders?: Record<string, string>;
+  requestBody?: unknown;
 }): Response {
   const { provider, model, endpoint, status, rawBody, headers } = args;
   const requestId =
@@ -361,6 +363,8 @@ function providerFail(args: {
     endpoint,
     httpMethod: args.httpMethod ?? "POST",
     httpStatus: status,
+    requestHeaders: args.requestHeaders,
+    requestBody: args.requestBody,
     requestId,
     retryAfter,
     code,
