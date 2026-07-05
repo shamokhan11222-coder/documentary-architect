@@ -9,6 +9,7 @@ const GEMINI_HOST = "https://generativelanguage.googleapis.com";
 // Ordered by preference. When a model is missing on one version we try the next.
 const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
+const geminiInteractionsUrl = (version: string) => `${GEMINI_HOST}/${version}/interactions`;
 // Gemini (Google AI Studio) auth — per the official Google docs
 // (https://ai.google.dev/api): "All requests to the Gemini API must include a
 // x-goog-api-key header with your API key." This is true for BOTH legacy
@@ -18,6 +19,7 @@ const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
 // the ?key= query param and never use an OpenAI-compatible endpoint.
 const GEMINI_AUTH_HEADER = "x-goog-api-key";
 const GEMINI_AUTH_SCHEME = "x-goog-api-key (API key)";
+const GEMINI_QUERY_PARAM_USAGE = "none — API key is sent only in the x-goog-api-key header";
 const geminiAuthHeaders = (apiKey: string, extra?: Record<string, string>) => {
   const key = (apiKey ?? "").trim();
   return { [GEMINI_AUTH_HEADER]: key, ...(extra ?? {}) };
@@ -30,14 +32,15 @@ const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
 // Current, existing Gemini image model. NOT the old preview id that 404s.
 // Only used as a starting point — the real model is resolved dynamically and
 // validated against the live models list before generating.
-const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
+const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-3.1-flash-image";
 // Official Google Gemini image-capable models. A selected model must match one
 // of these (exact id or a versioned/suffixed variant of it) — never a custom
 // string. If it doesn't, we fall back to the default image model.
 const OFFICIAL_GEMINI_IMAGE_MODELS = [
-  "gemini-2.5-flash-image",
-  "gemini-3-pro-image",
+  "gemini-3.1-flash-lite-image",
   "gemini-3.1-flash-image",
+  "gemini-3-pro-image",
+  "gemini-2.5-flash-image",
 ] as const;
 function isOfficialGeminiImageModel(id: string): boolean {
   const m = id.trim().toLowerCase().replace(/^models\//, "");

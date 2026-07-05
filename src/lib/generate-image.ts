@@ -148,6 +148,8 @@ export interface ImageErrorDebug {
   endpoint: string;
   httpMethod?: string;
   httpStatus: number | null;
+  requestHeaders?: Record<string, string>;
+  requestBody?: unknown;
   requestId: string | null;
   retryAfter: string | null;
   code: string | null;
@@ -415,6 +417,9 @@ export type GeminiDiagnostics = {
   apiVersion?: string;
   apiVersions?: string[];
   authMethod: string;
+  authHeaderName?: string;
+  usesBearer?: boolean;
+  queryParameterUsage?: string;
   requestUrl?: string;
   requestMethod?: string;
   requestHeaders?: Record<string, string>;
@@ -492,9 +497,15 @@ export type ImageDiagRaw = {
 };
 export type ImageDiagnostics = {
   model: string;
+  apiVersion?: string;
+  authMethod?: string;
+  authHeaderName?: string;
+  usesBearer?: boolean;
+  queryParameterUsage?: string;
   checks: ImageDiagCheck[];
   modelsList: ImageDiagRaw;
   modelLookup: ImageDiagRaw;
+  generationRequest: ImageDiagRaw;
 };
 
 /** Run the comprehensive Gemini IMAGE provider diagnostics (no image is

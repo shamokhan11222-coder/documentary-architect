@@ -43,7 +43,7 @@ export const GEMINI_TEXT_MODEL_DEFAULT = "gemini-2.5-flash";
 // Current, existing Gemini image model. The old
 // "gemini-2.0-flash-preview-image-generation" id no longer exists on v1beta
 // (404). The real model is resolved dynamically before every request.
-export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
+export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-3.1-flash-image";
 
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
