@@ -9,23 +9,18 @@ const GEMINI_HOST = "https://generativelanguage.googleapis.com";
 // Ordered by preference. When a model is missing on one version we try the next.
 const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
-// Gemini (Google AI Studio) auth. Google AI Studio issues TWO credential
-// formats and they authenticate differently against generativelanguage:
-//   • Legacy API keys (start with "AIza…") → API-key auth via x-goog-api-key.
-//   • Newer AI Studio tokens (start with "AQ…") → OAuth-style bearer tokens;
-//     Google routes them through OAuth validation and REJECTS them on the
-//     ?key= / x-goog-api-key path with 401 UNAUTHENTICATED. They must be sent
-//     as `Authorization: Bearer <token>`.
-// We never use an OpenAI-compatible endpoint for Gemini image generation.
-function isGeminiApiKey(key: string): boolean {
-  return key.trim().startsWith("AIza");
-}
+// Gemini (Google AI Studio) auth — per the official Google docs
+// (https://ai.google.dev/api): "All requests to the Gemini API must include a
+// x-goog-api-key header with your API key." This is true for BOTH legacy
+// "AIza…" keys and newer AI Studio auth keys ("AQ…"). `Authorization: Bearer`
+// is ONLY for OAuth 2.0 access tokens, NOT for AI Studio API keys — sending an
+// AI Studio key as a Bearer token returns 401 UNAUTHENTICATED. We never use
+// the ?key= query param and never use an OpenAI-compatible endpoint.
+const GEMINI_AUTH_HEADER = "x-goog-api-key";
+const GEMINI_AUTH_SCHEME = "x-goog-api-key (API key)";
 const geminiAuthHeaders = (apiKey: string, extra?: Record<string, string>) => {
   const key = (apiKey ?? "").trim();
-  const auth: Record<string, string> = isGeminiApiKey(key)
-    ? { "x-goog-api-key": key }
-    : { Authorization: `Bearer ${key}` };
-  return { ...auth, ...(extra ?? {}) };
+  return { [GEMINI_AUTH_HEADER]: key, ...(extra ?? {}) };
 };
 /** Mask an API key, keeping only the first 6 and last 4 characters. */
 const maskKey = (k?: string) =>
@@ -36,6 +31,20 @@ const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
 // Only used as a starting point — the real model is resolved dynamically and
 // validated against the live models list before generating.
 const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-2.5-flash-image";
+// Official Google Gemini image-capable models. A selected model must match one
+// of these (exact id or a versioned/suffixed variant of it) — never a custom
+// string. If it doesn't, we fall back to the default image model.
+const OFFICIAL_GEMINI_IMAGE_MODELS = [
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image",
+  "gemini-3.1-flash-image",
+] as const;
+function isOfficialGeminiImageModel(id: string): boolean {
+  const m = id.trim().toLowerCase().replace(/^models\//, "");
+  return OFFICIAL_GEMINI_IMAGE_MODELS.some(
+    (base) => m === base || m.startsWith(`${base}-`),
+  );
+}
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
@@ -80,10 +89,10 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   const modelUrl = `${geminiModelsUrl(version)}/${model}`;
   const modelUrlRedacted = modelUrl;
 
-  const authLabel = isGeminiApiKey(apiKey)
-    ? { "x-goog-api-key": maskKey(apiKey) }
-    : { Authorization: `Bearer ${maskKey(apiKey)}` };
-  const requestHeaders = { "Content-Type": "application/json", ...authLabel };
+  const requestHeaders = {
+    "Content-Type": "application/json",
+    [GEMINI_AUTH_HEADER]: maskKey(apiKey),
+  };
 
   // 1. API key is present / well-formed.
   if (!apiKey) {
@@ -627,7 +636,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
       error: "No Gemini API key detected. Add one in API Settings.",
       host: GEMINI_HOST,
       apiVersions: GEMINI_API_VERSIONS,
-      authMethod: "AIza… keys: x-goog-api-key header · AQ… tokens: Authorization: Bearer",
+      authMethod: `${GEMINI_AUTH_SCHEME} — documented Google AI Studio auth for all key formats`,
     });
   }
   const version = GEMINI_API_VERSIONS[0];
@@ -640,9 +649,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   const model = imageModel?.trim() || null;
   const requestMethod = "GET";
   const requestHeaders: Record<string, string> = {
-    ...(isGeminiApiKey(key)
-      ? { "x-goog-api-key": maskKey(key) }
-      : { Authorization: `Bearer ${maskKey(key)}` }),
+    [GEMINI_AUTH_HEADER]: maskKey(key),
     accept: "application/json",
   };
   const responseHeaders: Record<string, string> = {};
@@ -677,9 +684,9 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     endpoint: geminiModelsUrl(version),
     apiVersion: version,
     apiVersions: GEMINI_API_VERSIONS,
-    authMethod: isGeminiApiKey(key)
-      ? "x-goog-api-key header (AIza… API key)"
-      : "Authorization: Bearer (AQ… AI Studio token)",
+    authMethod: GEMINI_AUTH_SCHEME,
+    authHeaderName: GEMINI_AUTH_HEADER,
+    usesBearer: false,
     requestUrl: redactedUrl,
     requestMethod,
     requestHeaders,
@@ -698,9 +705,16 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
 // Generate through the user's own Google Gemini key (no Lovable AI involved).
 async function generateWithGemini(body: Body, provider: Provider): Promise<Response> {
   const apiKey = provider.apiKey ?? "";
-  // Force an image-capable model. Never use a text model (e.g. gemini-2.5-flash).
-  let model = (provider.imageModel || "").trim();
-  if (!model.toLowerCase().includes("image")) {
+  // Enforce an OFFICIAL Google Gemini image model — never a custom string and
+  // never a text model (e.g. gemini-2.5-flash).
+  const requested = (provider.imageModel || "").trim().replace(/^models\//, "");
+  let model = requested;
+  if (!isOfficialGeminiImageModel(model)) {
+    console.warn("[image][gemini] non-official image model rejected", {
+      requested: requested || "(empty)",
+      fallback: GEMINI_IMAGE_MODEL_DEFAULT,
+      officialModels: OFFICIAL_GEMINI_IMAGE_MODELS,
+    });
     model = GEMINI_IMAGE_MODEL_DEFAULT;
   }
   const parts: unknown[] = [{ text: body.prompt }];

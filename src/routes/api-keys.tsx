@@ -160,15 +160,37 @@ function ApiKeysPage() {
     setStatus("testing");
     setStatusMsg("");
     try {
+      type Diag = {
+        requestUrl?: string;
+        apiVersion?: string;
+        modelId?: string;
+        authHeaderName?: string;
+        authScheme?: string;
+        usesBearer?: boolean;
+      };
       const r = (await runTest()) as
-        | { status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string }
-        | { status: "failed"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string }
-        | { status: "invalid"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string }
+        | ({ status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
+        | ({ status: "failed"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
+        | ({ status: "invalid"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
         | { status: "lovable" };
+      const diagBlock = (d: Diag) =>
+        [
+          d.requestUrl ? `Full request URL: ${d.requestUrl}` : "",
+          d.apiVersion ? `API version: ${d.apiVersion}` : "",
+          d.modelId ? `Model ID: ${d.modelId}` : "",
+          d.authHeaderName ? `Auth header: ${d.authHeaderName}` : "",
+          d.authScheme ? `Auth scheme: ${d.authScheme}` : "",
+          typeof d.usesBearer === "boolean"
+            ? `Using: ${d.usesBearer ? "Authorization: Bearer" : "x-goog-api-key"}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
       if (r.status === "connected") {
         setStatus("connected");
         setStatusMsg(
           `Connected to ${r.model ?? "Gemini"} (HTTP ${r.httpStatus ?? 200}).` +
+            `\n\n${diagBlock(r)}` +
             (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
         );
         const g = keys.find((k) => k.provider === "Google Gemini");
@@ -178,7 +200,7 @@ function ApiKeysPage() {
         setStatus("invalid");
         setStatusMsg(
           `${r.message ?? "Google rejected the API key."}` +
-            (r.endpoint ? `\nEndpoint: ${r.endpoint}` : "") +
+            `\n\n${diagBlock(r)}` +
             (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
         );
         const g = keys.find((k) => k.provider === "Google Gemini");
@@ -191,7 +213,7 @@ function ApiKeysPage() {
         setStatus("failed");
         setStatusMsg(
           `${r.message ?? "Connection failed."}` +
-            (r.endpoint ? `\nEndpoint: ${r.endpoint}` : "") +
+            `\n\n${diagBlock(r)}` +
             (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
         );
         const g = keys.find((k) => k.provider === "Google Gemini");
