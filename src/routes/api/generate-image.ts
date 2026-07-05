@@ -30,6 +30,215 @@ type Provider = {
 };
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
 type ListBody = { action?: "listGeminiModels" | "geminiDiagnostics"; apiKey?: string; imageModel?: string };
+type ImageDiagBody = { action?: "geminiImageDiagnostics"; apiKey?: string; imageModel?: string };
+
+export type ImageDiagCheck = {
+  id: number;
+  label: string;
+  status: "PASS" | "FAIL" | "UNKNOWN";
+  detail: string;
+};
+
+/** Comprehensive Gemini IMAGE diagnostics. Runs a series of PASS/FAIL checks
+ *  WITHOUT generating any image, and returns the exact raw Google response
+ *  bodies, request URL, headers (key redacted), request body and status codes.
+ *  Nothing is summarised — the real provider error is surfaced verbatim. */
+async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string): Promise<Response> {
+  const apiKey = (apiKeyRaw ?? "").trim();
+  const model = (imageModelRaw ?? "").trim() || GEMINI_IMAGE_MODEL_DEFAULT;
+  const checks: ImageDiagCheck[] = [];
+  const push = (label: string, status: ImageDiagCheck["status"], detail: string) =>
+    checks.push({ id: checks.length + 1, label, status, detail });
+
+  const version = GEMINI_API_VERSIONS[0];
+  const listUrl = `${geminiModelsUrl(version)}?key=${encodeURIComponent(apiKey)}&pageSize=200`;
+  const listUrlRedacted = `${geminiModelsUrl(version)}?key=***REDACTED***&pageSize=200`;
+  const modelUrl = `${geminiModelsUrl(version)}/${model}?key=${encodeURIComponent(apiKey)}`;
+  const modelUrlRedacted = `${geminiModelsUrl(version)}/${model}?key=***REDACTED***`;
+
+  const requestHeaders = { "Content-Type": "application/json", "x-goog-api-key": "***REDACTED***" };
+
+  // 1. API key is present / well-formed.
+  if (!apiKey) {
+    push(1, "FAIL", "No API key provided.");
+  } else if (!/^AIza[0-9A-Za-z_-]{10,}$/.test(apiKey)) {
+    push(1, "UNKNOWN", `Key present (${apiKey.length} chars) but does not match the typical Google API key format (AIza…). It may still be valid.`);
+  } else {
+    push(1, "PASS", `Key present and well-formed (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…).`);
+  }
+  // Relabel check 1 title after the fact
+  if (checks[0]) checks[0] = { ...checks[0], label: "API key is valid (format)" };
+
+  // Live models-list request (auth + connectivity + endpoint reachability).
+  let listStatus = 0;
+  let listBody = "";
+  let listHeaders: Record<string, string> = {};
+  let networkOk = false;
+  let listStarted = Date.now();
+  try {
+    listStarted = Date.now();
+    const r = await fetch(listUrl);
+    networkOk = true;
+    listStatus = r.status;
+    r.headers.forEach((v, k) => (listHeaders[k] = v));
+    listBody = await r.text();
+  } catch (e) {
+    listBody = `Fetch failed: ${String(e).slice(0, 400)}`;
+  }
+  const listMs = Date.now() - listStarted;
+
+  // 3. Internet connection succeeded.
+  checks.push({
+    id: 3,
+    label: "Internet connection succeeded",
+    status: networkOk ? "PASS" : "FAIL",
+    detail: networkOk ? `Reached Google in ${listMs}ms.` : listBody,
+  });
+  // 4. Gemini endpoint reachable.
+  checks.push({
+    id: 4,
+    label: "Gemini endpoint reachable",
+    status: networkOk && listStatus > 0 ? "PASS" : "FAIL",
+    detail: networkOk ? `HTTP ${listStatus} from ${geminiModelsUrl(version)}.` : "No HTTP response received.",
+  });
+  // 2. API key authentication succeeded.
+  const authOk = listStatus === 200;
+  checks.push({
+    id: 2,
+    label: "API key authentication succeeded",
+    status: networkOk ? (authOk ? "PASS" : "FAIL") : "UNKNOWN",
+    detail: !networkOk
+      ? "No response — could not verify authentication."
+      : authOk
+        ? "Google accepted the API key (HTTP 200)."
+        : `Google rejected the request (HTTP ${listStatus}).`,
+  });
+
+  // Parse the available models from the list response.
+  let listModels: GeminiModel[] = [];
+  try {
+    listModels = (JSON.parse(listBody) as { models?: GeminiModel[] }).models ?? [];
+  } catch {
+    /* body was an error, not a model list */
+  }
+
+  // Live GET on the specific model (exists + capability).
+  let modelStatus = 0;
+  let modelBody = "";
+  let modelHeaders: Record<string, string> = {};
+  let modelJson: GeminiModel | null = null;
+  if (apiKey) {
+    try {
+      const r = await fetch(modelUrl);
+      modelStatus = r.status;
+      r.headers.forEach((v, k) => (modelHeaders[k] = v));
+      modelBody = await r.text();
+      try {
+        modelJson = JSON.parse(modelBody) as GeminiModel;
+      } catch {
+        /* error body */
+      }
+    } catch (e) {
+      modelBody = `Fetch failed: ${String(e).slice(0, 400)}`;
+    }
+  }
+
+  // 5. Selected model exists.
+  const modelExists = modelStatus === 200 && !!modelJson?.name;
+  checks.push({
+    id: 5,
+    label: `Selected model exists ("${model}")`,
+    status: modelExists ? "PASS" : "FAIL",
+    detail: modelExists
+      ? `Found ${bareModelId(modelJson!.name)} on ${version}.`
+      : `Model lookup returned HTTP ${modelStatus}. It may not exist on ${version}.`,
+  });
+
+  // 6. Selected model supports image generation.
+  const capable = modelJson ? isImageCapable(modelJson) : false;
+  const methods = modelJson
+    ? [...(modelJson.supportedGenerationMethods ?? []), ...(modelJson.supportedActions ?? [])].join(", ")
+    : "";
+  checks.push({
+    id: 6,
+    label: "Selected model supports image generation",
+    status: modelExists ? (capable ? "PASS" : "FAIL") : "UNKNOWN",
+    detail: !modelExists
+      ? "Model not found — cannot check capabilities."
+      : capable
+        ? `Image-capable. Supported methods: ${methods || "(name/displayName indicates image)"}.`
+        : `Model exists but is not image-capable. Supported methods: ${methods || "none reported"}.`,
+  });
+
+  // Quota / rate-limit signals. Google's generativelanguage API does not expose
+  // a numeric quota endpoint; the truthful signal is a 429 RESOURCE_EXHAUSTED
+  // and any x-ratelimit / retry headers it returns.
+  const rateHeaderKeys = Object.keys({ ...listHeaders, ...modelHeaders }).filter((k) =>
+    /ratelimit|quota|retry-after/i.test(k),
+  );
+  const rateHeaders = rateHeaderKeys.length
+    ? rateHeaderKeys.map((k) => `${k}: ${listHeaders[k] ?? modelHeaders[k]}`).join("\n")
+    : "";
+  const quotaExhausted = listStatus === 429 || modelStatus === 429;
+  // 7. Current quota available.
+  checks.push({
+    id: 7,
+    label: "Current quota available",
+    status: !networkOk ? "UNKNOWN" : quotaExhausted ? "FAIL" : authOk ? "PASS" : "UNKNOWN",
+    detail: quotaExhausted
+      ? "Quota exhausted — Google returned HTTP 429 (RESOURCE_EXHAUSTED)."
+      : authOk
+        ? "No quota-exhaustion (429) reported on these read requests."
+        : "Could not confirm — request was not authorised.",
+  });
+  // 8. Remaining quota (if available).
+  checks.push({
+    id: 8,
+    label: "Remaining quota (if reported)",
+    status: rateHeaders ? "PASS" : "UNKNOWN",
+    detail: rateHeaders
+      ? rateHeaders
+      : "Google's generativelanguage API does not report remaining quota on these endpoints. Check Google AI Studio / Cloud Console for exact numbers.",
+  });
+  // 9. Current rate limit.
+  checks.push({
+    id: 9,
+    label: "Current rate limit",
+    status: rateHeaders ? "PASS" : "UNKNOWN",
+    detail: rateHeaders
+      ? rateHeaders
+      : "No rate-limit headers returned by Google on these endpoints.",
+  });
+  // 10. Exact Google response body (surfaced verbatim below in rawModel/rawList).
+  checks.push({
+    id: 10,
+    label: "Exact Google response body captured",
+    status: modelBody || listBody ? "PASS" : "FAIL",
+    detail: "Raw request/response details are shown below, exactly as received.",
+  });
+
+  return Response.json({
+    model,
+    checks,
+    // Raw, verbatim request/response details — nothing summarised.
+    modelsList: {
+      requestUrl: listUrlRedacted,
+      requestHeaders,
+      requestBody: "(none — GET request)",
+      responseCode: listStatus,
+      responseHeaders: listHeaders,
+      responseBody: listBody.slice(0, 40000),
+    },
+    modelLookup: {
+      requestUrl: modelUrlRedacted,
+      requestHeaders,
+      requestBody: "(none — GET request)",
+      responseCode: modelStatus,
+      responseHeaders: modelHeaders,
+      responseBody: modelBody.slice(0, 40000),
+    },
+  });
+}
 
 function jsonError(error: string, status = 400, code?: string) {
   console.error("[image] error", { status, code: code ?? null, error });
