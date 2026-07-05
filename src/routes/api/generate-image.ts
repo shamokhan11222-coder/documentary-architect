@@ -310,6 +310,8 @@ export interface ImageErrorDebug {
   endpoint: string;
   httpMethod: string;
   httpStatus: number | null;
+  requestHeaders?: Record<string, string>;
+  requestBody?: unknown;
   requestId: string | null;
   retryAfter: string | null;
   code: string | null;
