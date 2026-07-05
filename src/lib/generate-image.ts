@@ -76,29 +76,21 @@ export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
 /** Maps an image-generation error to a specific, user-facing message.
  *  Never collapses everything into a single generic "try again later" line. */
 export function imageErrorMessage(err: unknown, fallback = "Image generation failed."): string {
+  // Emergency Debug Mode: NEVER replace provider responses with generic UI text.
+  // Always surface the exact provider status + message and record full debug.
+  if (err instanceof ImageGenError && err.debug) {
+    recordImageErrorDetails(err.debug);
+    const d = err.debug;
+    return `${d.provider}${d.httpStatus ? ` ${d.httpStatus}` : ""}: ${d.providerMessage}`;
+  }
   recordErrorDetails(err, {
     provider: err instanceof ImageGenError ? "image-provider" : undefined,
   });
   if (err instanceof ImageGenError) {
-    switch (err.code) {
-      case "NO_PROVIDER":
-        return "No image provider is connected.";
-      case "TIMEOUT":
-        return "Request timed out. Provider may be slow or unavailable.";
-      case "UNSUPPORTED_TASK":
-        return "Gemini provider is connected but this task is not supported by the selected model.";
-      case "AUTH_ERROR":
-        return "Invalid API key.";
-      case "RATE_LIMIT":
-        return PROVIDER_FREE_TIER_LIMIT_MESSAGE;
-      case "CREDITS_EXHAUSTED":
-      case "PROVIDER_ERROR":
-      case "BAD_REQUEST":
-        // Surface the real provider/backend error text.
-        return err.message || fallback;
-      default:
-        return err.message || fallback;
-    }
+    // No structured debug (timeout / no provider connected) — surface real text.
+    if (err.code === "NO_PROVIDER") return err.message || "No image provider is connected.";
+    if (err.code === "TIMEOUT") return err.message || "Request timed out. Provider may be slow or unavailable.";
+    return err.message || fallback;
   }
   const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
   return raw || fallback;
