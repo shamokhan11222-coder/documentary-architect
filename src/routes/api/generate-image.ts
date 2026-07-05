@@ -853,7 +853,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   const usingQueryAuth = listed.authMethod === "key query parameter";
   const endpoint = usingQueryAuth ? `${baseEndpoint}?key=(hidden)` : baseEndpoint;
   const fetchEndpoint = usingQueryAuth ? `${baseEndpoint}?key=${encodeURIComponent(apiKey)}` : baseEndpoint;
-  const redactedHeaders = usingQueryAuth
+  const redactedHeaders: Record<string, string> = usingQueryAuth
     ? { "Content-Type": "application/json" }
     : { "Content-Type": "application/json", [GEMINI_AUTH_HEADER]: maskKey(apiKey) };
   const auditStart = Date.now();
