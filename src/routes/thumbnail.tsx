@@ -344,6 +344,28 @@ function ThumbnailPage() {
         </p>
       )}
 
+      {/* Hard state message: only show "ready" when an actual image URL exists. */}
+      {selected && pack && (
+        thumbnailReady ? (
+          <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
+            First thumbnail ready. Not happy? Generate alternatives.
+          </p>
+        ) : (
+          <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+            Thumbnail image not generated yet.
+          </p>
+        )
+      )}
+
+      {/* Debug line — reflects the raw thumbnail state, never concept-only. */}
+      {selected && (
+        <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+          <div>Thumbnail Status: {thumbnailStatus}</div>
+          <div>Has Image URL: {hasImageUrl ? "true" : "false"}</div>
+          <div>Provider Error: {providerError ?? (providerLimit ? "rate_limited" : "none")}</div>
+        </div>
+      )}
+
       {conceptPending && !providerLimit && (
         <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
           {CONCEPT_ONLY_MESSAGE} Retry generation, upload a thumbnail, or use a placeholder.
