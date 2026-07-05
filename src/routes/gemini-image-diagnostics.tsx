@@ -167,8 +167,15 @@ function GeminiImageDiagnosticsPage() {
       {result && (
         <section className="mt-6 space-y-4">
           <h2 className="text-lg font-medium">Raw request &amp; response (exact)</h2>
+          <div className="rounded-xl border border-border bg-card p-4 text-xs">
+            <Field label="Authentication method used" value={result.authMethod ?? "x-goog-api-key (API key)"} />
+            <Field label="Authentication header name" value={result.authHeaderName ?? "x-goog-api-key"} />
+            <Field label="Bearer token used" value={result.usesBearer ? "yes" : "no"} />
+            <Field label="Query parameter usage" value={result.queryParameterUsage ?? "none"} />
+          </div>
           <RawSection title="Models list request" raw={result.modelsList} />
           <RawSection title={`Model lookup request (${result.model})`} raw={result.modelLookup} />
+          <RawSection title="Official image generation request" raw={result.generationRequest} />
         </section>
       )}
     </div>

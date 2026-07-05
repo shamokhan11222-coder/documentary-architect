@@ -926,7 +926,15 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
   const version = "v1beta";
   const authHeaderName = "x-goog-api-key";
   const usesBearer = false;
-  const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${provider.textModel}:generateContent`;
+  const endpoint = `https://generativelanguage.googleapis.com/${version}/interactions`;
+  const requestBody = {
+    model: provider.textModel,
+    input: "ping",
+  };
+  const requestHeaders = {
+    "Content-Type": "application/json",
+    [authHeaderName]: "(hidden)",
+  };
   const diag = {
     requestUrl: endpoint,
     apiVersion: version,
@@ -934,6 +942,9 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
     authHeaderName,
     authScheme: "x-goog-api-key (API key)",
     usesBearer,
+    queryParameterUsage: "none — API key is sent only in the x-goog-api-key header",
+    requestHeaders,
+    requestBody: JSON.stringify(requestBody, null, 2),
   };
   // Print the exact request wiring (never the key itself) for Test Connection.
   console.log("[testProvider][gemini] request", diag);
@@ -942,7 +953,7 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", [authHeaderName]: key },
-      body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+      body: JSON.stringify(requestBody),
     });
     const text = await res.text().catch(() => "");
     console.log("[testProvider][gemini] response", { httpStatus: res.status, ok: res.ok });
@@ -953,19 +964,7 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
         httpStatus: res.status,
         endpoint,
         ...diag,
-        rawResponse: text.slice(0, 4000),
-      };
-    // Only a genuine API_KEY_INVALID means the key itself is bad. Everything
-    // else (wrong model / endpoint / quota / permission) is reported verbatim.
-    const keyInvalid = /API_KEY_INVALID|API key not valid/i.test(text);
-    if (keyInvalid)
-      return {
-        status: "invalid" as const,
-        httpStatus: res.status,
-        endpoint,
-        ...diag,
-        message: `Google rejected the API key (HTTP ${res.status}).`,
-        rawResponse: text.slice(0, 4000),
+        rawResponse: text,
       };
     return {
       status: "failed" as const,
@@ -973,7 +972,7 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
       endpoint,
       ...diag,
       message: `HTTP ${res.status} ${res.statusText} — see raw Google response below.`,
-      rawResponse: text.slice(0, 4000),
+      rawResponse: text,
     };
   } catch (e) {
     return {

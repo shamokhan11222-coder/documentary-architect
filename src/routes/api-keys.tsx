@@ -167,6 +167,9 @@ function ApiKeysPage() {
         authHeaderName?: string;
         authScheme?: string;
         usesBearer?: boolean;
+        queryParameterUsage?: string;
+        requestHeaders?: Record<string, string>;
+        requestBody?: string;
       };
       const r = (await runTest()) as
         | ({ status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
@@ -183,6 +186,9 @@ function ApiKeysPage() {
           typeof d.usesBearer === "boolean"
             ? `Using: ${d.usesBearer ? "Authorization: Bearer" : "x-goog-api-key"}`
             : "",
+          d.queryParameterUsage ? `Query parameter usage: ${d.queryParameterUsage}` : "",
+          d.requestHeaders ? `Header names: ${Object.keys(d.requestHeaders).join(", ")}` : "",
+          d.requestBody ? `Request body:\n${d.requestBody}` : "",
         ]
           .filter(Boolean)
           .join("\n");
@@ -197,15 +203,15 @@ function ApiKeysPage() {
         if (g) markTested(g.id, "Connected");
         toast.success("Gemini connection successful");
       } else if (r.status === "invalid") {
-        setStatus("invalid");
+        setStatus("failed");
         setStatusMsg(
-          `${r.message ?? "Google rejected the API key."}` +
+          `${r.message ?? `HTTP ${r.httpStatus ?? "?"} — see raw Google response below.`}` +
             `\n\n${diagBlock(r)}` +
             (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
         );
         const g = keys.find((k) => k.provider === "Google Gemini");
-        if (g) markTested(g.id, "Invalid Key");
-        toast.error(`Gemini rejected the key (HTTP ${r.httpStatus ?? "?"})`);
+        if (g) markTested(g.id, `HTTP ${r.httpStatus ?? "?"}`);
+        toast.error(`Gemini returned HTTP ${r.httpStatus ?? "?"}`);
       } else if (r.status === "lovable") {
         setStatus("idle");
         setStatusMsg("No Gemini key configured — using built-in AI.");
@@ -754,9 +760,7 @@ function ActiveProviderStatus({
   const headCls = failed ? "text-red-600" : activeAny ? "text-green-600" : "text-muted-foreground";
   const HeadIcon = failed ? XCircle : activeAny ? CheckCircle2 : CircleDashed;
   const headLabel = failed
-    ? geminiState === "invalid"
-      ? "Invalid Key"
-      : "Failed"
+    ? "Failed"
     : activeAny
       ? "Connected"
       : "Not Activated — using built-in AI";

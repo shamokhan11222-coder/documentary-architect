@@ -49,9 +49,9 @@ export async function geminiGenerateText(
 ): Promise<string> {
   const endpoint = `${GEMINI}/${model}:generateContent`;
   const startedAt = Date.now();
-  const res = await fetch(`${endpoint}?key=${encodeURIComponent(apiKey)}`, {
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: user }] }],
@@ -83,6 +83,12 @@ export async function geminiGenerateText(
 function extractGoogleMessage(body: string): string {
   try {
     const j = JSON.parse(body);
+    if (Array.isArray(j)) {
+      for (const item of j) {
+        const msg = item?.error?.message || item?.message || "";
+        if (msg) return msg;
+      }
+    }
     return j?.error?.message || j?.message || "";
   } catch {
     return "";

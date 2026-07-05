@@ -29,7 +29,7 @@ function cooldownLabel(until: number | null) {
 }
 
 function statusBadge(k: GeminiImageKey) {
-  if (k.status === "disabled") return <span className="text-red-600">Invalid</span>;
+  if (k.status === "disabled") return <span className="text-red-600">Disabled</span>;
   if (k.status === "cooling") {
     // A long cooldown (daily quota parked until tomorrow) reads as "Exhausted".
     const remaining = k.cooldownUntil ? k.cooldownUntil - Date.now() : 0;
