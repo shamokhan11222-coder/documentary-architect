@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { AIChat } from "../components/AIChat";
 import { CreditGate } from "../components/CreditGate";
+import { DebugPanel } from "../components/DebugPanel";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { PageTransition } from "../components/motion";
