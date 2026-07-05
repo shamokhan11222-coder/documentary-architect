@@ -483,9 +483,7 @@ function logProviderCall(
   console.log("[image] provider call", {
     provider: providerName,
     model,
-    apiKey: apiKey
-      ? { length: apiKey.length, prefix: apiKey.slice(0, 4) }
-      : "none (built-in)",
+    apiKey: apiKey ? maskKey(apiKey) : "none (built-in)",
     httpStatus: status,
     ok,
     payload: payloadPreview.slice(0, 300),
