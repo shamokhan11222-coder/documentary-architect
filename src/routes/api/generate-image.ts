@@ -620,8 +620,8 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     });
   }
   const version = GEMINI_API_VERSIONS[0];
-  const requestUrl = `${geminiModelsUrl(version)}?key=${encodeURIComponent(key)}&pageSize=200`;
-  const redactedUrl = `${geminiModelsUrl(version)}?key=***REDACTED***&pageSize=200`;
+  const requestUrl = `${geminiModelsUrl(version)}?pageSize=200`;
+  const redactedUrl = requestUrl;
   let httpStatus = 0;
   let statusText = "";
   let responseBody = "";
@@ -629,7 +629,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   const model = imageModel?.trim() || null;
   const requestMethod = "GET";
   const requestHeaders: Record<string, string> = {
-    "x-goog-api-key": "***REDACTED***",
+    "x-goog-api-key": maskKey(key),
     accept: "application/json",
   };
   const responseHeaders: Record<string, string> = {};
@@ -641,7 +641,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     `\n\n(no request body)`;
   const started = Date.now();
   try {
-    const r = await fetch(requestUrl);
+    const r = await fetch(requestUrl, { headers: geminiAuthHeaders(key, { accept: "application/json" }) });
     httpStatus = r.status;
     statusText = r.statusText;
     ok = r.ok;
