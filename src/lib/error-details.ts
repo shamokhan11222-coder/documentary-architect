@@ -10,6 +10,7 @@ export interface ErrorDetails extends Partial<ProviderErrorDetail> {
   message: string;
   at: number;
   hadResponse: boolean; // false only when literally no response from any provider
+  code?: string | null;
 }
 
 /** Record an error for the debug panel. Extracts structured provider detail
@@ -38,6 +39,33 @@ export function recordErrorDetails(err: unknown, context?: { provider?: string; 
 
 export function clearErrorDetails() {
   writeLocal<ErrorDetails | null>(KEY, null);
+}
+
+/** Record a structured image/thumbnail provider error for the debug panel. */
+export function recordImageErrorDetails(debug: {
+  provider: string;
+  model: string;
+  endpoint: string;
+  httpStatus: number | null;
+  requestId: string | null;
+  retryAfter: string | null;
+  code: string | null;
+  providerMessage: string;
+  rawBody: string;
+}) {
+  const value: ErrorDetails = {
+    provider: debug.provider,
+    model: debug.model,
+    endpoint: debug.endpoint,
+    httpStatus: debug.httpStatus,
+    requestId: debug.requestId,
+    retryAfter: debug.retryAfter,
+    message: `${debug.provider}${debug.httpStatus ? ` ${debug.httpStatus}` : ""}: ${debug.providerMessage}`,
+    rawBody: debug.rawBody,
+    at: Date.now(),
+    hadResponse: debug.httpStatus != null,
+  };
+  writeLocal<ErrorDetails>(KEY, value);
 }
 
 export function getErrorDetails(): ErrorDetails | null {

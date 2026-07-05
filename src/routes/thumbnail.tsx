@@ -15,7 +15,7 @@ import {
   saveThumbnails,
 } from "@/lib/store";
 import { useImage, putImage, loadImage, fileToDataUrl } from "@/lib/images";
-import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
+import { generateThumbnailImage, imageErrorMessage, isRateLimitError, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { StageShell } from "@/components/StageShell";
 import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { getErrorDetails } from "@/lib/error-details";
 import { StageErrorBoundary } from "@/components/StageErrorBoundary";
 import { buildInjection } from "@/lib/generation-context";
 
@@ -38,7 +39,6 @@ export const Route = createFileRoute("/thumbnail")({
 
 const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
-const PROVIDER_LIMIT_MESSAGE = "Thumbnail not generated — provider limit reached.";
 const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
 
 /** A lightweight SVG placeholder thumbnail encoded as a data URL. Lets the user
@@ -131,17 +131,15 @@ function ThumbnailPage() {
         await putImage(thumbImageId(selected.id, i), url);
         wrote++;
       } catch (e) {
-        // Provider limit reached — stop immediately, keep completed thumbnails,
-        // and show a clear resumable message instead of hanging or failing all.
+        // Emergency Debug: surface the EXACT provider error — never a generic line.
+        const msg = imageErrorMessage(e, "failed");
+        setProviderError(msg);
         if (isRateLimitError(e)) {
           setProviderLimit(true);
-          setProviderError(imageErrorMessage(e, "Provider rate limit reached"));
-          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+          toast.error(`Thumbnail ${i + 1}: ${msg}`);
           setProgress(null);
           return "provider-limit";
         }
-        const msg = imageErrorMessage(e, "failed");
-        setProviderError(msg);
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
         if (/credit|402/i.test(msg)) break;
       }
@@ -175,11 +173,12 @@ function ThumbnailPage() {
       const storedUrl = await loadImage(thumbImageId(selected.id, 0));
       if (status === "ok" && storedUrl) {
         toast.success("First thumbnail ready. Not happy? Generate alternatives.");
-      } else if (status === "provider-limit") {
-        toast.warning("Thumbnail image not generated yet.");
       } else {
         setConceptPending(true);
-        toast.warning("Thumbnail image not generated yet.");
+        // Show the exact provider error captured during rendering — open the
+        // Developer Debug panel (bottom-left) for the full raw response.
+        const latest = getErrorDetails();
+        if (latest) toast.error(latest.message);
       }
     });
   }
@@ -211,12 +210,11 @@ function ThumbnailPage() {
         await putImage(thumbImageId(selected.id, index), url);
         toast.success("Thumbnail regenerated");
       } catch (e) {
-        if (isRateLimitError(e)) {
-          setProviderLimit(true);
-          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
-          return;
-        }
-        throw e;
+        const msg = imageErrorMessage(e, "failed");
+        setProviderError(msg);
+        if (isRateLimitError(e)) setProviderLimit(true);
+        toast.error(msg);
+        return;
       }
     });
   }
@@ -338,23 +336,18 @@ function ThumbnailPage() {
         </p>
       )}
 
-      {providerLimit && (
-        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-          {PROVIDER_LIMIT_MESSAGE} Completed thumbnails are saved. You can upload one manually or use a placeholder.
-        </p>
-      )}
-
       {/* Hard state message: only show "ready" when an actual image URL exists. */}
       {selected && pack && (
         thumbnailReady ? (
           <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
             First thumbnail ready. Not happy? Generate alternatives.
           </p>
-        ) : (
-          <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-            Thumbnail image not generated yet.
+        ) : providerError ? (
+          // Emergency Debug: surface the EXACT provider error, not a generic line.
+          <p className="mt-3 whitespace-pre-wrap break-words rounded-md bg-destructive/10 px-3 py-2 font-mono text-xs text-destructive">
+            {providerError}
           </p>
-        )
+        ) : null
       )}
 
       {/* Debug line — reflects the raw thumbnail state, never concept-only. */}

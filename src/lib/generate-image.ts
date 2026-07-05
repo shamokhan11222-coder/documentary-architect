@@ -15,7 +15,7 @@ import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
-import { recordErrorDetails } from "./error-details";
+import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
@@ -47,12 +47,27 @@ type ImageProviderPayload = NonNullable<ReturnType<typeof imageProviderPayload>>
 export class ImageGenError extends Error {
   code: string | null;
   status: number | null;
-  constructor(message: string, code: string | null, status: number | null) {
+  debug: ImageErrorDebug | null;
+  constructor(message: string, code: string | null, status: number | null, debug: ImageErrorDebug | null = null) {
     super(message);
     this.name = "ImageGenError";
     this.code = code;
     this.status = status;
+    this.debug = debug;
   }
+}
+
+/** Verbatim provider debug payload returned by /api/generate-image on failure. */
+export interface ImageErrorDebug {
+  provider: string;
+  model: string;
+  endpoint: string;
+  httpStatus: number | null;
+  requestId: string | null;
+  retryAfter: string | null;
+  code: string | null;
+  providerMessage: string;
+  rawBody: string;
 }
 
 export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
@@ -61,29 +76,21 @@ export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
 /** Maps an image-generation error to a specific, user-facing message.
  *  Never collapses everything into a single generic "try again later" line. */
 export function imageErrorMessage(err: unknown, fallback = "Image generation failed."): string {
+  // Emergency Debug Mode: NEVER replace provider responses with generic UI text.
+  // Always surface the exact provider status + message and record full debug.
+  if (err instanceof ImageGenError && err.debug) {
+    recordImageErrorDetails(err.debug);
+    const d = err.debug;
+    return `${d.provider}${d.httpStatus ? ` ${d.httpStatus}` : ""}: ${d.providerMessage}`;
+  }
   recordErrorDetails(err, {
     provider: err instanceof ImageGenError ? "image-provider" : undefined,
   });
   if (err instanceof ImageGenError) {
-    switch (err.code) {
-      case "NO_PROVIDER":
-        return "No image provider is connected.";
-      case "TIMEOUT":
-        return "Request timed out. Provider may be slow or unavailable.";
-      case "UNSUPPORTED_TASK":
-        return "Gemini provider is connected but this task is not supported by the selected model.";
-      case "AUTH_ERROR":
-        return "Invalid API key.";
-      case "RATE_LIMIT":
-        return PROVIDER_FREE_TIER_LIMIT_MESSAGE;
-      case "CREDITS_EXHAUSTED":
-      case "PROVIDER_ERROR":
-      case "BAD_REQUEST":
-        // Surface the real provider/backend error text.
-        return err.message || fallback;
-      default:
-        return err.message || fallback;
-    }
+    // No structured debug (timeout / no provider connected) — surface real text.
+    if (err.code === "NO_PROVIDER") return err.message || "No image provider is connected.";
+    if (err.code === "TIMEOUT") return err.message || "Request timed out. Provider may be slow or unavailable.";
+    return err.message || fallback;
   }
   const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
   return raw || fallback;
@@ -187,17 +194,32 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     });
     let msg = `Image generation failed (${res.status})`;
     let code: string | null = null;
+    let debug: ImageErrorDebug | null = null;
     try {
       const j = await res.json();
       if (j?.error) msg = j.error;
       if (j?.code) code = j.code;
+      if (j?.debug) debug = j.debug as ImageErrorDebug;
     } catch {
       /* ignore */
     }
+    // Emergency Debug: log the exact provider response verbatim.
+    console.error("[image][DEBUG] provider error", {
+      provider: debug?.provider ?? provider.name,
+      model: debug?.model ?? provider.imageModel ?? "(default)",
+      endpoint: debug?.endpoint ?? "/api/generate-image",
+      httpStatus: debug?.httpStatus ?? res.status,
+      requestId: debug?.requestId ?? null,
+      retryAfter: debug?.retryAfter ?? null,
+      code: debug?.code ?? code,
+      providerMessage: debug?.providerMessage ?? msg,
+      rawBody: debug?.rawBody ?? msg,
+      durationMs: Date.now() - auditStart,
+    });
     recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
     console.error("[image] request failed", { provider: provider.name, status: res.status, error: msg });
     // Keep a 429 prefix for legacy rate-limit detectors, but image queue retry is disabled.
-    throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status);
+    throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status, debug);
   }
   console.info("[AUDIT][image] response received", {
     totalRequestsSent: auditNo,

@@ -249,6 +249,74 @@ function jsonError(error: string, status = 400, code?: string) {
   });
 }
 
+/** Pull the exact provider error message out of a raw JSON error body. */
+function extractProviderMessage(text: string): string {
+  try {
+    const j = JSON.parse(text);
+    return (
+      j?.error?.message ||
+      j?.message ||
+      j?.error?.status ||
+      (typeof j?.error === "string" ? j.error : "") ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+export interface ImageErrorDebug {
+  provider: string;
+  model: string;
+  endpoint: string;
+  httpStatus: number | null;
+  requestId: string | null;
+  retryAfter: string | null;
+  code: string | null;
+  providerMessage: string;
+  rawBody: string;
+}
+
+/** Emergency Debug failure. Returns the EXACT provider response — provider,
+ *  model, endpoint, HTTP status, raw body, request id, retry-after, error code
+ *  and the verbatim provider error message. Never a generic UI message. */
+function providerFail(args: {
+  provider: string;
+  model: string;
+  endpoint: string;
+  status: number;
+  rawBody: string;
+  headers?: Headers;
+  code?: string;
+}): Response {
+  const { provider, model, endpoint, status, rawBody, headers } = args;
+  const requestId =
+    headers?.get("x-request-id") ??
+    headers?.get("x-goog-request-id") ??
+    headers?.get("x-goog-request-log-id") ??
+    null;
+  const retryAfter = headers?.get("retry-after") ?? null;
+  const providerMessage = extractProviderMessage(rawBody) || rawBody.slice(0, 800) || `HTTP ${status}`;
+  const code = args.code ?? codeForProviderResponse(status, rawBody);
+  const debug: ImageErrorDebug = {
+    provider,
+    model,
+    endpoint,
+    httpStatus: status,
+    requestId,
+    retryAfter,
+    code,
+    providerMessage,
+    rawBody: rawBody.slice(0, 20000),
+  };
+  const error = `${provider} ${status}: ${providerMessage}`;
+  console.error("[image][DEBUG] provider error", debug);
+  return new Response(JSON.stringify({ error, code, status, debug }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 /** Classify an upstream HTTP status into a stable machine code the frontend
  *  maps to a specific, human-readable message. */
 function codeForStatus(status: number): string {
@@ -579,32 +647,27 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   }
   // Model genuinely not found on any version — surface the real available models.
   if (!upstream) {
-    const listed = await fetchGeminiModels(apiKey);
-    const available =
-      "models" in listed
-        ? listed.models.filter(isImageCapable).map((m) => bareModelId(m.name))
-        : [];
-    const hint = available.length
-      ? ` Available image models: ${available.join(", ")}.`
-      : " No image-capable models were returned for this key.";
-    return jsonError(
-      `Gemini model "${model}" was not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).${hint} Pick one in API Settings › List Available Gemini Models.${notFoundText ? ` Details: ${notFoundText}` : ""}`,
-      404,
-      "MODEL_NOT_FOUND",
-    );
+    return providerFail({
+      provider: "gemini",
+      model,
+      endpoint: `${geminiModelsUrl(GEMINI_API_VERSIONS[0])}/${model}:generateContent`,
+      status: 404,
+      rawBody: notFoundText || `Model "${model}" not found on any supported API version (${GEMINI_API_VERSIONS.join(", ")}).`,
+      code: "MODEL_NOT_FOUND",
+    });
   }
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("gemini", model, provider.apiKey, status, false, text);
-    const providerLimited = isProviderLimit(status, text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 403
-          ? "Invalid API key — Gemini rejected the request. Check your key in API Settings."
-          : `Gemini image generation failed (${status}) [${usedVersion}]: ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
+    return providerFail({
+      provider: "gemini",
+      model,
+      endpoint: `${geminiModelsUrl(usedVersion)}/${model}:generateContent`,
+      status,
+      rawBody: text,
+      headers: upstream.headers,
+    });
   }
   const data = await upstream.json();
   const partsOut = data?.candidates?.[0]?.content?.parts ?? [];
@@ -612,7 +675,15 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   const b64 = inline?.inlineData?.data;
   logProviderCall("gemini", model, provider.apiKey, upstream.status, true, b64 ? "b64 image" : "no image");
   if (!b64)
-    return jsonError("Gemini returned no image for this prompt.", 502, "PROVIDER_ERROR");
+    return providerFail({
+      provider: "gemini",
+      model,
+      endpoint: `${geminiModelsUrl(usedVersion)}/${model}:generateContent`,
+      status: 502,
+      rawBody: JSON.stringify(data).slice(0, 20000),
+      headers: upstream.headers,
+      code: "PROVIDER_ERROR",
+    });
   const mime = inline.inlineData.mimeType || "image/png";
   return Response.json({ image: `data:${mime};base64,${b64}` });
 }
@@ -643,62 +714,28 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
     const status = upstream.status;
     logProviderCall("openai", model, provider.apiKey, status, false, text);
     console.error("[image] OpenAI full error response", { httpStatus: status, body: text });
-
-    // Parse the real OpenAI error object: { error: { message, type, code } }.
-    let oaMessage = "";
-    let oaType = "";
+    // Emergency Debug: surface the EXACT OpenAI response — no custom UI text.
     let oaCode = "";
     try {
-      const j = JSON.parse(text);
-      oaMessage = j?.error?.message || j?.message || "";
-      oaType = j?.error?.type || "";
-      oaCode = j?.error?.code || "";
+      oaCode = JSON.parse(text)?.error?.code || "";
     } catch {
-      oaMessage = text;
+      /* raw body used as-is */
     }
-
-    const providerLimited = isProviderLimit(status, `${oaMessage} ${oaType} ${oaCode} ${text}`);
-
-    // Only treat it as an auth/key problem when OpenAI actually says so.
-    const isAuth =
-      !providerLimited &&
-      (status === 401 ||
-        oaCode === "invalid_api_key" ||
-        oaType === "authentication_failed" ||
-        (oaType === "invalid_request_error" && /api key/i.test(oaMessage)));
-
-    if (isAuth) {
-      return jsonError(
-        oaMessage || "OpenAI rejected the API key (authentication failed).",
-        status,
-        "AUTH_ERROR",
-      );
-    }
-
-    // Surface the exact OpenAI error for everything else (model not found,
-    // insufficient quota, permission denied, unsupported endpoint, malformed
-    // request, rate limit, etc.).
-    const detail = oaMessage
-      ? `${oaMessage}${oaCode ? ` [${oaCode}]` : ""}`
-      : text.slice(0, 300) || `OpenAI Images request failed (${status}).`;
-    const prefix =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider. "
-        : status === 402 || oaCode === "insufficient_quota"
-          ? "Insufficient quota (OpenAI Images): "
-          : status === 403
-            ? "Permission denied (OpenAI Images): "
-            : `OpenAI Images error (${status}): `;
-    // Non-auth path: use RATE_LIMIT for 429, CREDITS_EXHAUSTED for quota, and
-    // PROVIDER_ERROR otherwise so the client surfaces the exact message rather
-    // than a generic "Invalid API key".
     const code =
-      providerLimited
-        ? "RATE_LIMIT"
+      status === 401 || oaCode === "invalid_api_key"
+        ? "AUTH_ERROR"
         : oaCode === "insufficient_quota" || status === 402
           ? "CREDITS_EXHAUSTED"
-          : "PROVIDER_ERROR";
-    return jsonError(`${prefix}${detail}`, status, code);
+          : codeForProviderResponse(status, text);
+    return providerFail({
+      provider: "openai",
+      model,
+      endpoint: OPENAI,
+      status,
+      rawBody: text,
+      headers: upstream.headers,
+      code,
+    });
   }
 
   const data = await upstream.json();
@@ -712,7 +749,15 @@ async function generateWithOpenAI(body: Body, provider: Provider): Promise<Respo
   const url = data?.data?.[0]?.url;
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
   if (typeof url === "string" && url.trim()) return Response.json({ image: url });
-  return jsonError("OpenAI Images returned no image.", 502, "PROVIDER_ERROR");
+  return providerFail({
+    provider: "openai",
+    model,
+    endpoint: OPENAI,
+    status: 502,
+    rawBody: JSON.stringify(data).slice(0, 20000),
+    headers: upstream.headers,
+    code: "PROVIDER_ERROR",
+  });
 }
 
 async function generateWithFal(body: Body, provider: Provider): Promise<Response> {
@@ -726,19 +771,12 @@ async function generateWithFal(body: Body, provider: Provider): Promise<Response
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("fal", model, provider.apiKey, status, false, text);
-    const providerLimited = isProviderLimit(status, text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 401 || status === 403
-          ? "Invalid API key — Fal.ai rejected the request. Check your key and image model in API Settings."
-          : `Fal.ai image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
+    return providerFail({ provider: "fal", model, endpoint: `${FAL}/${model}`, status, rawBody: text, headers: upstream.headers });
   }
   const data = await upstream.json();
   const url = firstUrl(data);
   if (url) return Response.json({ image: url });
-  return jsonError("Fal.ai returned no image.", 502);
+  return providerFail({ provider: "fal", model, endpoint: `${FAL}/${model}`, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
 async function generateWithReplicate(body: Body, provider: Provider): Promise<Response> {
@@ -752,14 +790,7 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
     const text = await create.text().catch(() => "");
     const status = create.status;
     logProviderCall("replicate", model, provider.apiKey, status, false, text);
-    const providerLimited = isProviderLimit(status, text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 401 || status === 403
-          ? "Invalid API key — Replicate rejected the request. Check your key and image model in API Settings."
-          : `Replicate image generation failed (${status}): ${text.slice(0, 200)}`;
-    return jsonError(msg, status, status === 400 && !providerLimited ? "AUTH_ERROR" : codeForProviderResponse(status, text));
+    return providerFail({ provider: "replicate", model, endpoint: `${REPLICATE}/${model}/predictions`, status, rawBody: text, headers: create.headers });
   }
   let data = await create.json();
   for (let i = 0; i < 20 && data?.status !== "succeeded" && data?.status !== "failed" && data?.status !== "canceled"; i++) {
@@ -769,10 +800,11 @@ async function generateWithReplicate(body: Body, provider: Provider): Promise<Re
     if (!poll.ok) break;
     data = await poll.json();
   }
-  if (data?.status === "failed" || data?.status === "canceled") return jsonError("Replicate image generation failed.", 502);
+  if (data?.status === "failed" || data?.status === "canceled")
+    return providerFail({ provider: "replicate", model, endpoint: `${REPLICATE}/${model}/predictions`, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
   const url = firstUrl(data?.output ?? data);
   if (url) return Response.json({ image: url });
-  return jsonError("Replicate returned no image.", 502);
+  return providerFail({ provider: "replicate", model, endpoint: `${REPLICATE}/${model}/predictions`, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
 async function generateWithRecraft(body: Body, provider: Provider): Promise<Response> {
@@ -794,28 +826,7 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
     const text = await upstream.text().catch(() => "");
     const status = upstream.status;
     logProviderCall("recraft", model, provider.apiKey, status, false, text);
-    // Surface the REAL Recraft error message whenever the provider returns one.
-    let providerMsg = "";
-    try {
-      const j = JSON.parse(text);
-      providerMsg = j?.message || j?.error || j?.detail || "";
-    } catch {
-      providerMsg = text;
-    }
-    const providerLimited = isProviderLimit(status, providerMsg || text);
-    const msg =
-      providerLimited
-        ? "Provider free tier limit reached. Try later or switch provider."
-        : status === 400 || status === 401 || status === 403
-          ? `Recraft rejected the request: ${providerMsg || "invalid API key."}`
-          : `Recraft image generation failed (${status}): ${(providerMsg || text).slice(0, 300)}`;
-    return jsonError(
-      msg,
-      status,
-      (status === 400 || status === 401 || status === 403) && !providerLimited
-        ? "AUTH_ERROR"
-        : codeForProviderResponse(status, providerMsg || text),
-    );
+    return providerFail({ provider: "recraft", model, endpoint: RECRAFT, status, rawBody: text, headers: upstream.headers });
   }
   const data = await upstream.json();
   const b64 = data?.data?.[0]?.b64_json;
@@ -823,7 +834,7 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
   logProviderCall("recraft", model, provider.apiKey, upstream.status, true, url ? "url image" : b64 ? "b64 image" : "no image");
   if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
   if (url) return Response.json({ image: url });
-  return jsonError("Recraft returned no image.", 502, "PROVIDER_ERROR");
+  return providerFail({ provider: "recraft", model, endpoint: RECRAFT, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
 export const Route = createFileRoute("/api/generate-image")({
