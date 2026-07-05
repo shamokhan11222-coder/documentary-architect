@@ -586,17 +586,41 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   const requestUrl = `${geminiModelsUrl(version)}?key=${encodeURIComponent(key)}&pageSize=200`;
   const redactedUrl = `${geminiModelsUrl(version)}?key=***REDACTED***&pageSize=200`;
   let httpStatus = 0;
+  let statusText = "";
   let responseBody = "";
   let ok = false;
+  const model = imageModel?.trim() || null;
+  const requestMethod = "GET";
+  const requestHeaders: Record<string, string> = {
+    "x-goog-api-key": "***REDACTED***",
+    accept: "application/json",
+  };
+  const responseHeaders: Record<string, string> = {};
+  const fullRequest =
+    `${requestMethod} ${redactedUrl}\n` +
+    Object.entries(requestHeaders)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n") +
+    `\n\n(no request body)`;
   const started = Date.now();
   try {
     const r = await fetch(requestUrl);
     httpStatus = r.status;
+    statusText = r.statusText;
     ok = r.ok;
+    r.headers.forEach((v, k) => {
+      responseHeaders[k] = v;
+    });
     responseBody = await r.text();
   } catch (e) {
     responseBody = `Fetch failed: ${String(e).slice(0, 300)}`;
   }
+  const fullResponse =
+    `HTTP ${httpStatus} ${statusText}\n` +
+    Object.entries(responseHeaders)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n") +
+    `\n\n${responseBody.slice(0, 20000)}`;
   return Response.json({
     ok,
     host: GEMINI_HOST,
@@ -605,9 +629,16 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     apiVersions: GEMINI_API_VERSIONS,
     authMethod: "API key via ?key= query parameter",
     requestUrl: redactedUrl,
+    requestMethod,
+    requestHeaders,
+    fullRequest,
     httpStatus,
+    statusText,
+    responseHeaders,
+    fullResponse,
     ms: Date.now() - started,
-    imageModel: imageModel?.trim() || null,
+    imageModel: model,
+    model,
     responseBody: responseBody.slice(0, 20000),
   });
 }
