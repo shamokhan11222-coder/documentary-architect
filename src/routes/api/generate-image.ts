@@ -416,14 +416,16 @@ async function validateProvider(provider: Provider): Promise<Response> {
             "MODEL_NOT_FOUND",
           );
         }
-        const r = await fetch(
-          `${geminiModelsUrl(version)}/${imageModel}?key=${encodeURIComponent(provider.apiKey)}`,
-        );
-        return validationResult(r, "Gemini Image");
+        const r = await fetch(`${geminiModelsUrl(version)}/${imageModel}`, {
+          headers: geminiAuthHeaders(provider.apiKey!),
+        });
+        return geminiValidationResult(r, "Gemini Image");
       }
       // Text-only validation: lightweight models-list check.
-      const r = await fetch(`${GOOGLE}?key=${encodeURIComponent(provider.apiKey)}&pageSize=1`);
-      return validationResult(r, "Gemini");
+      const r = await fetch(`${GOOGLE}?pageSize=1`, {
+        headers: geminiAuthHeaders(provider.apiKey!),
+      });
+      return geminiValidationResult(r, "Gemini");
     }
     if (name === "openai") {
       const r = await fetch("https://api.openai.com/v1/models", {
