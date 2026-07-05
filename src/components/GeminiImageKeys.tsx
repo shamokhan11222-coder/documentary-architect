@@ -1,8 +1,10 @@
 // API Settings: manage multiple Gemini image API keys for rotation.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, RefreshCw, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listGeminiModels, type GeminiModelInfo } from "@/lib/generate-image";
 import {
   useGeminiImageKeys,
   addGeminiImageKey,
@@ -44,13 +46,48 @@ export function GeminiImageKeys() {
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [model, setModel] = useState("");
+  const [models, setModels] = useState<GeminiModelInfo[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  // When a key is entered, detect the image-capable models it can access and
+  // auto-select the first compatible one. No manual model IDs allowed.
+  useEffect(() => {
+    const k = key.trim();
+    setModels([]);
+    setModel("");
+    setModelError(null);
+    if (k.length < 10) return;
+    let cancelled = false;
+    setLoadingModels(true);
+    const t = setTimeout(async () => {
+      try {
+        const list = await listGeminiModels(k);
+        if (cancelled) return;
+        setModels(list.imageModels);
+        setModel(list.imageModels[0]?.id ?? "");
+        if (list.imageModels.length === 0) setModelError("This key has no image-capable Gemini models.");
+      } catch (e) {
+        if (cancelled) return;
+        setModels([]);
+        setModelError(e instanceof Error ? e.message : "Could not load models for this key.");
+      } finally {
+        if (!cancelled) setLoadingModels(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [key]);
 
   function add() {
-    if (!key.trim()) return;
+    if (!key.trim() || !model) return;
     addGeminiImageKey(name, key, model);
     setName("");
     setKey("");
     setModel("");
+    setModels([]);
   }
 
   return (
@@ -67,11 +104,27 @@ export function GeminiImageKeys() {
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_2fr_1fr_auto]">
         <Input placeholder="Key name" value={name} onChange={(e) => setName(e.target.value)} />
         <Input placeholder="Gemini API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" />
-        <Input placeholder="Image model (optional)" value={model} onChange={(e) => setModel(e.target.value)} />
-        <Button onClick={add} disabled={!key.trim()}>
+        <Select value={model} onValueChange={setModel} disabled={models.length === 0}>
+          <SelectTrigger>
+            <SelectValue placeholder={loadingModels ? "Detecting models…" : "Image model"} />
+          </SelectTrigger>
+          <SelectContent>
+            {models.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.displayName || m.id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button onClick={add} disabled={!key.trim() || !model || loadingModels}>
           <Plus className="mr-1 h-4 w-4" /> Add
         </Button>
       </div>
+      {(loadingModels || modelError) && (
+        <div className={`mt-2 text-xs ${modelError ? "text-red-600" : "text-muted-foreground"}`}>
+          {loadingModels ? "Detecting supported image models for this key…" : modelError}
+        </div>
+      )}
 
       <div className="mt-3 space-y-2">
         {keys.length === 0 && (
