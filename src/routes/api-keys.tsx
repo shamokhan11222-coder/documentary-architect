@@ -170,6 +170,7 @@ function ApiKeysPage() {
         queryParameterUsage?: string;
         requestHeaders?: Record<string, string>;
         requestBody?: string;
+        imageModels?: string[];
       };
       const r = (await runTest()) as
         | ({ status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
@@ -189,6 +190,7 @@ function ApiKeysPage() {
           d.queryParameterUsage ? `Query parameter usage: ${d.queryParameterUsage}` : "",
           d.requestHeaders ? `Header names: ${Object.keys(d.requestHeaders).join(", ")}` : "",
           d.requestBody ? `Request body:\n${d.requestBody}` : "",
+          d.imageModels ? `Image-capable models returned by Google:\n${d.imageModels.join("\n") || "(none returned)"}` : "",
         ]
           .filter(Boolean)
           .join("\n");
@@ -224,7 +226,7 @@ function ApiKeysPage() {
         );
         const g = keys.find((k) => k.provider === "Google Gemini");
         if (g) markTested(g.id, "Failed");
-        toast.error("Gemini connection failed");
+        toast.error(`Gemini returned HTTP ${r.httpStatus ?? "error"}`);
       }
     } catch (e) {
       setStatus("failed");
