@@ -1,4 +1,5 @@
 import { readProviderFromHeaders, geminiGenerateText, openaiGenerateText } from "./provider.server";
+import { makeProviderError } from "./provider-error";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
@@ -103,11 +104,23 @@ export async function callAiJson<T = unknown>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 429)
-      throw new Error("Rate limited by AI gateway. Please wait and try again.");
-    if (res.status === 402)
-      throw new CreditsExhaustedError();
-    throw new Error(`AI request failed (${res.status}): ${text.slice(0, 300)}`);
+    if (res.status === 402) throw new CreditsExhaustedError();
+    let msg = `AI gateway request failed (${res.status})`;
+    try {
+      const j = JSON.parse(text);
+      msg = j?.error?.message || j?.message || msg;
+    } catch { /* keep default */ }
+    throw makeProviderError({
+      provider: "lovable-gateway",
+      model: MODEL,
+      endpoint: GATEWAY_URL,
+      httpStatus: res.status,
+      requestId: res.headers.get("x-request-id"),
+      responseTimeMs: null,
+      retryAfter: res.headers.get("retry-after"),
+      message: msg,
+      rawBody: text.slice(0, 20000),
+    });
   }
 
   const data = await res.json();
@@ -163,11 +176,23 @@ export async function callAiText(system: string, user: string): Promise<string> 
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 429)
-      throw new Error("Rate limited by AI gateway. Please wait and try again.");
-    if (res.status === 402)
-      throw new CreditsExhaustedError();
-    throw new Error(`AI request failed (${res.status}): ${text.slice(0, 300)}`);
+    if (res.status === 402) throw new CreditsExhaustedError();
+    let msg = `AI gateway request failed (${res.status})`;
+    try {
+      const j = JSON.parse(text);
+      msg = j?.error?.message || j?.message || msg;
+    } catch { /* keep default */ }
+    throw makeProviderError({
+      provider: "lovable-gateway",
+      model: MODEL,
+      endpoint: GATEWAY_URL,
+      httpStatus: res.status,
+      requestId: res.headers.get("x-request-id"),
+      responseTimeMs: null,
+      retryAfter: res.headers.get("retry-after"),
+      message: msg,
+      rawBody: text.slice(0, 20000),
+    });
   }
 
   const data = await res.json();

@@ -1,54 +1,40 @@
 /**
- * Maps raw error codes / messages into friendly, human-readable copy so users
- * never see machine strings like "CREDITS_EXHAUSTED" or "402".
+ * Surfaces the EXACT provider/AI error. It never replaces a real provider
+ * response with a generic message. The only time a generic line is shown is
+ * when there was literally no response from any provider (a network failure
+ * before any HTTP status came back).
  */
-import { hasUnlimitedAccess } from "./account";
+import { exactErrorMessage, parseProviderError } from "./provider-error";
+import { recordErrorDetails } from "./error-details";
 
-const CREDIT_TEST =
-  /credits?\s*(exhausted|finished)|CREDITS_EXHAUSTED|\b402\b|out of credits/i;
+const NO_RESPONSE_TEST = /failed to fetch|networkerror|load failed|ECONN|ETIMEDOUT/i;
+const NO_RESPONSE_MESSAGE = "Our AI is briefly unavailable — please try again shortly.";
 
-const MAP: Array<{ test: RegExp; message: string }> = [
-  {
-    test: /\b429\b|rate.?limit|too many requests/i,
-    message: "We're generating a lot right now — please try again in a moment.",
-  },
-  {
-    test: /\b(401|403)\b|unauthor|forbidden/i,
-    message: "Please sign in again to continue.",
-  },
-  {
-    test: /network|failed to fetch|timeout|timed out|ECONN/i,
-    message: "Connection hiccup — check your network and try again.",
-  },
-  {
-    test: /\b5\d\d\b|internal server|unavailable/i,
-    message: "Our AI is briefly unavailable — please try again shortly.",
-  },
-];
-
+/**
+ * Returns the exact, user-facing error text and records full details for the
+ * Developer Debug panel. `fallback` is used only when the error carries no
+ * message at all.
+ */
 export function humanizeError(err: unknown, fallback = "Something went wrong. Please try again."): string {
+  // Always capture the raw detail first so the debug panel has the truth.
+  recordErrorDetails(err);
+
+  const detail = parseProviderError(err);
+  if (detail) {
+    // Structured provider error — show provider, status and exact message.
+    return exactErrorMessage(err, fallback);
+  }
+
   const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-  if (!raw) return fallback;
-  // Credit-exhaustion copy depends on WHO the user is. Admin/developer accounts
-  // and users with an external provider connected are never shown the customer
-  // "out of credits" upsell — they see the real, actionable cause instead.
-  if (CREDIT_TEST.test(raw)) {
-    if (hasUnlimitedAccess()) {
-      return "The connected provider returned a billing or credit error. Check your image provider account and try again.";
-    }
-    return "You're out of credits — upgrade to keep generating.";
-  }
-  for (const { test, message } of MAP) {
-    if (test.test(raw)) return message;
-  }
-  // Never surface SHOUTY_SNAKE_CASE codes or bare JSON to users.
-  if (/^[A-Z0-9_]{4,}$/.test(raw.trim()) || raw.trim().startsWith("{")) return fallback;
-  return raw;
+  // Literally no response from any provider — the ONLY case for a generic line.
+  if (raw && NO_RESPONSE_TEST.test(raw)) return NO_RESPONSE_MESSAGE;
+  if (!raw) return NO_RESPONSE_MESSAGE;
+
+  // Otherwise surface the real error verbatim — never a generic replacement.
+  return raw || fallback;
 }
 
 export function isCreditsError(err: unknown): boolean {
   const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
-  // For unlimited accounts a 402 is never a real "out of credits" situation.
-  if (hasUnlimitedAccess()) return false;
-  return CREDIT_TEST.test(raw);
+  return /credits?\s*(exhausted|finished)|CREDITS_EXHAUSTED|\b402\b|out of credits/i.test(raw);
 }
