@@ -350,6 +350,7 @@ function RootComponent() {
       <AIChat />
       <Toaster />
       <CreditGate />
+      <DebugPanel />
     </QueryClientProvider>
   );
 }
