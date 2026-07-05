@@ -749,7 +749,11 @@ function ActiveProviderStatus({
           <HeadIcon className={`h-5 w-5 ${headCls}`} />
           <div>
             <div className={`text-sm font-medium ${headCls}`}>Provider status: {headLabel}</div>
-            {geminiMessage && <div className="mt-0.5 text-xs text-muted-foreground">{geminiMessage}</div>}
+            {geminiMessage && (
+              <pre className="mt-0.5 max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 font-mono text-xs text-muted-foreground">
+                {geminiMessage}
+              </pre>
+            )}
           </div>
         </div>
         {hasGeminiKey && (
