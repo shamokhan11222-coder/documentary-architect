@@ -29,8 +29,11 @@ type Provider = {
   fallback?: boolean;
 };
 type Body = { prompt?: string; references?: string[]; provider?: Provider; test?: boolean };
-type ListBody = { action?: "listGeminiModels" | "geminiDiagnostics"; apiKey?: string; imageModel?: string };
-type ImageDiagBody = { action?: "geminiImageDiagnostics"; apiKey?: string; imageModel?: string };
+type ListBody = {
+  action?: "listGeminiModels" | "geminiDiagnostics" | "geminiImageDiagnostics";
+  apiKey?: string;
+  imageModel?: string;
+};
 
 export type ImageDiagCheck = {
   id: number;
