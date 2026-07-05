@@ -404,7 +404,10 @@ export async function testImageProvider(provider: ImageProviderPayload | null): 
 export type GeminiModelInfo = { id: string; displayName: string };
 export type GeminiModelList = {
   endpoint: string;
+  requestUrl?: string;
   apiVersion: string;
+  authMethod?: string;
+  rawResponse?: string;
   imageModels: GeminiModelInfo[];
   allModels: string[];
 };
@@ -464,14 +467,16 @@ export async function listGeminiModels(apiKey: string): Promise<GeminiModelList>
   if (!res.ok) {
     let msg = `Could not list Gemini models (${res.status})`;
     let code: string | null = null;
+    let debug: ImageErrorDebug | null = null;
     try {
       const j = await res.json();
       if (j?.error) msg = j.error;
       if (j?.code) code = j.code;
+      if (j?.debug) debug = j.debug as ImageErrorDebug;
     } catch {
       /* ignore */
     }
-    throw new ImageGenError(msg, code, res.status);
+    throw new ImageGenError(msg, code, res.status, debug);
   }
   return (await res.json()) as GeminiModelList;
 }

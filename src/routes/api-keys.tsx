@@ -24,7 +24,6 @@ import {
   useActiveImageProvider,
   useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
-  GEMINI_IMAGE_MODEL_DEFAULT,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
@@ -165,11 +164,13 @@ function ApiKeysPage() {
         apiVersion?: string;
         modelId?: string;
         authHeaderName?: string;
+        authMethod?: string;
         authScheme?: string;
         usesBearer?: boolean;
         queryParameterUsage?: string;
         requestHeaders?: Record<string, string>;
         requestBody?: string;
+        imageModels?: string[];
       };
       const r = (await runTest()) as
         | ({ status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
@@ -181,6 +182,7 @@ function ApiKeysPage() {
           d.requestUrl ? `Full request URL: ${d.requestUrl}` : "",
           d.apiVersion ? `API version: ${d.apiVersion}` : "",
           d.modelId ? `Model ID: ${d.modelId}` : "",
+          d.authMethod ? `Authentication method used: ${d.authMethod}` : "",
           d.authHeaderName ? `Auth header: ${d.authHeaderName}` : "",
           d.authScheme ? `Auth scheme: ${d.authScheme}` : "",
           typeof d.usesBearer === "boolean"
@@ -189,6 +191,7 @@ function ApiKeysPage() {
           d.queryParameterUsage ? `Query parameter usage: ${d.queryParameterUsage}` : "",
           d.requestHeaders ? `Header names: ${Object.keys(d.requestHeaders).join(", ")}` : "",
           d.requestBody ? `Request body:\n${d.requestBody}` : "",
+          d.imageModels ? `Image-capable models returned by Google:\n${d.imageModels.join("\n") || "(none returned)"}` : "",
         ]
           .filter(Boolean)
           .join("\n");
@@ -224,7 +227,7 @@ function ApiKeysPage() {
         );
         const g = keys.find((k) => k.provider === "Google Gemini");
         if (g) markTested(g.id, "Failed");
-        toast.error("Gemini connection failed");
+        toast.error(`Gemini returned HTTP ${r.httpStatus ?? "error"}`);
       }
     } catch (e) {
       setStatus("failed");
@@ -551,13 +554,19 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
     saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
     setTesting(true);
     try {
-      const imageModel = geminiKey.imageModelName?.trim() || GEMINI_IMAGE_MODEL_DEFAULT;
+      const listed = await listGeminiModels(geminiKey.apiKey.trim());
+      const imageModel = geminiKey.imageModelName?.trim() || listed.imageModels[0]?.id;
+      if (!imageModel) {
+        toast.error("Google returned no image-capable Gemini models for this key.");
+        return;
+      }
       await testImageProvider({
         name: "gemini",
         apiKey: geminiKey.apiKey.trim(),
         imageModel,
         fallback: false,
       });
+      if (!geminiKey.imageModelName?.trim()) saveApiKey({ ...geminiKey, imageModelName: imageModel });
       toast.success("Gemini Image connected — set as active Image Provider");
     } catch (e) {
       // Surface the REAL Gemini error rather than a generic failure.
