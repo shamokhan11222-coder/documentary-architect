@@ -404,7 +404,10 @@ export async function testImageProvider(provider: ImageProviderPayload | null): 
 export type GeminiModelInfo = { id: string; displayName: string };
 export type GeminiModelList = {
   endpoint: string;
+  requestUrl?: string;
   apiVersion: string;
+  authMethod?: string;
+  rawResponse?: string;
   imageModels: GeminiModelInfo[];
   allModels: string[];
 };
