@@ -416,9 +416,16 @@ export type GeminiDiagnostics = {
   apiVersions?: string[];
   authMethod: string;
   requestUrl?: string;
+  requestMethod?: string;
+  requestHeaders?: Record<string, string>;
+  fullRequest?: string;
   httpStatus?: number;
+  statusText?: string;
+  responseHeaders?: Record<string, string>;
+  fullResponse?: string;
   ms?: number;
   imageModel?: string | null;
+  model?: string | null;
   responseBody?: string;
 };
 
