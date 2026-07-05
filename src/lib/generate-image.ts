@@ -15,7 +15,7 @@ import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
-import { recordErrorDetails } from "./error-details";
+import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 function combinedArtDirection(): string {
@@ -47,12 +47,27 @@ type ImageProviderPayload = NonNullable<ReturnType<typeof imageProviderPayload>>
 export class ImageGenError extends Error {
   code: string | null;
   status: number | null;
-  constructor(message: string, code: string | null, status: number | null) {
+  debug: ImageErrorDebug | null;
+  constructor(message: string, code: string | null, status: number | null, debug: ImageErrorDebug | null = null) {
     super(message);
     this.name = "ImageGenError";
     this.code = code;
     this.status = status;
+    this.debug = debug;
   }
+}
+
+/** Verbatim provider debug payload returned by /api/generate-image on failure. */
+export interface ImageErrorDebug {
+  provider: string;
+  model: string;
+  endpoint: string;
+  httpStatus: number | null;
+  requestId: string | null;
+  retryAfter: string | null;
+  code: string | null;
+  providerMessage: string;
+  rawBody: string;
 }
 
 export const PROVIDER_FREE_TIER_LIMIT_MESSAGE =
