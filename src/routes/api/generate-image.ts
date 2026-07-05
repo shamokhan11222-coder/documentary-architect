@@ -720,37 +720,56 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   }
   const version = GEMINI_API_VERSIONS[0];
   const requestUrl = `${geminiModelsUrl(version)}?pageSize=200`;
-  const redactedUrl = requestUrl;
+  const queryRequestUrl = `${geminiModelsUrl(version)}?pageSize=200&key=(hidden)`;
+  const queryFetchUrl = `${geminiModelsUrl(version)}?pageSize=200&key=${encodeURIComponent(key)}`;
   let httpStatus = 0;
   let statusText = "";
   let responseBody = "";
   let ok = false;
   const model = imageModel?.trim() || null;
   const requestMethod = "GET";
-  const requestHeaders: Record<string, string> = {
+  let authMethodUsed = "x-goog-api-key header";
+  let redactedUrl = requestUrl;
+  let requestHeaders: Record<string, string> = {
     [GEMINI_AUTH_HEADER]: maskKey(key),
     accept: "application/json",
   };
   const responseHeaders: Record<string, string> = {};
-  const fullRequest =
-    `${requestMethod} ${redactedUrl}\n` +
-    Object.entries(requestHeaders)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n") +
-    `\n\n(no request body)`;
+  const attempts: string[] = [];
   const started = Date.now();
   try {
-    const r = await fetch(requestUrl, { headers: geminiAuthHeaders(key, { accept: "application/json" }) });
+    const headerRes = await fetch(requestUrl, { headers: geminiAuthHeaders(key, { accept: "application/json" }) });
+    const headerText = await headerRes.text();
+    attempts.push(`--- x-goog-api-key header ---\nGET ${requestUrl}\nHeaders: ${JSON.stringify({ accept: "application/json", [GEMINI_AUTH_HEADER]: maskKey(key) })}\nHTTP ${headerRes.status} ${headerRes.statusText}\n${headerText}`);
+    let r = headerRes;
+    responseBody = headerText;
+    if (!headerRes.ok) {
+      const queryRes = await fetch(queryFetchUrl, { headers: { accept: "application/json" } });
+      const queryText = await queryRes.text();
+      attempts.push(`--- key query parameter ---\nGET ${queryRequestUrl}\nHeaders: ${JSON.stringify({ accept: "application/json" })}\nHTTP ${queryRes.status} ${queryRes.statusText}\n${queryText}`);
+      if (queryRes.ok || !headerRes.ok) {
+        r = queryRes;
+        responseBody = queryText;
+        redactedUrl = queryRequestUrl;
+        authMethodUsed = "key query parameter";
+        requestHeaders = { accept: "application/json" };
+      }
+    }
     httpStatus = r.status;
     statusText = r.statusText;
     ok = r.ok;
     r.headers.forEach((v, k) => {
       responseHeaders[k] = v;
     });
-    responseBody = await r.text();
   } catch (e) {
     responseBody = `Fetch failed: ${String(e).slice(0, 300)}`;
   }
+  const fullRequest = attempts.join("\n\n") ||
+    `${requestMethod} ${redactedUrl}\n` +
+      Object.entries(requestHeaders)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n") +
+      `\n\n(no request body)`;
   const fullResponse =
     `HTTP ${httpStatus} ${statusText}\n` +
     Object.entries(responseHeaders)
@@ -763,10 +782,10 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     endpoint: geminiModelsUrl(version),
     apiVersion: version,
     apiVersions: GEMINI_API_VERSIONS,
-    authMethod: GEMINI_AUTH_SCHEME,
+    authMethod: authMethodUsed,
     authHeaderName: GEMINI_AUTH_HEADER,
     usesBearer: false,
-    queryParameterUsage: GEMINI_QUERY_PARAM_USAGE,
+    queryParameterUsage: "tested x-goog-api-key header and ?key= query parameter; no Bearer token used",
     requestUrl: redactedUrl,
     requestMethod,
     requestHeaders,
