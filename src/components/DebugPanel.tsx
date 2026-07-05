@@ -23,19 +23,38 @@ export function DebugPanel() {
 
   const unavailable = !details.hadResponse;
 
+  const headersText = details.responseHeaders
+    ? Object.entries(details.responseHeaders)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n")
+    : "";
+  const rawJsonText =
+    details.rawJson != null ? JSON.stringify(details.rawJson, null, 2) : "";
+
   const copyText = [
     `Provider: ${details.provider ?? "—"}`,
     `Model: ${details.model ?? "—"}`,
     `Endpoint: ${details.endpoint ?? "—"}`,
+    `HTTP Method: ${details.httpMethod ?? "—"}`,
     `HTTP Status: ${details.httpStatus ?? "—"}`,
     `Response Time: ${details.responseTimeMs != null ? details.responseTimeMs + "ms" : "—"}`,
     `Request ID: ${details.requestId ?? "—"}`,
     `Retry After: ${details.retryAfter ?? "—"}`,
     `Error Code: ${details.code ?? "—"}`,
+    `Error Type: ${details.errorType ?? "—"}`,
     `Exact Error: ${details.message}`,
+    ``,
+    `Response Headers:`,
+    headersText || "—",
+    ``,
+    `Raw JSON Response:`,
+    rawJsonText || "—",
     ``,
     `Raw Response Body:`,
     details.rawBody ?? details.message ?? "",
+    ``,
+    `Stack Trace:`,
+    details.stack ?? "—",
   ].join("\n");
 
   const copy = async () => {
@@ -63,7 +82,7 @@ export function DebugPanel() {
                 className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted"
               >
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied ? "Copied" : "Copy Error Details"}
+                {copied ? "Copied" : "Copy Debug Report"}
               </button>
               <button
                 onClick={() => setOpen(false)}
@@ -83,6 +102,7 @@ export function DebugPanel() {
             <Row label="Provider" value={details.provider} />
             <Row label="Model" value={details.model} />
             <Row label="Endpoint" value={details.endpoint} />
+            <Row label="HTTP Method" value={details.httpMethod} />
             <Row label="HTTP Status" value={details.httpStatus} />
             <Row
               label="Response Time"
@@ -91,13 +111,38 @@ export function DebugPanel() {
             <Row label="Request ID" value={details.requestId} />
             <Row label="Retry After" value={details.retryAfter} />
             <Row label="Error Code" value={details.code} />
+            <Row label="Error Type" value={details.errorType} />
             <Row label="Provider Error" value={details.message} />
+            {headersText && (
+              <div className="mt-2">
+                <span className="text-xs font-medium text-muted-foreground">Response Headers</span>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
+                  {headersText}
+                </pre>
+              </div>
+            )}
+            {rawJsonText && (
+              <div className="mt-2">
+                <span className="text-xs font-medium text-muted-foreground">Raw JSON Response</span>
+                <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
+                  {rawJsonText}
+                </pre>
+              </div>
+            )}
             <div className="mt-2">
               <span className="text-xs font-medium text-muted-foreground">Raw Response Body</span>
               <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
                 {details.rawBody || details.message || "(empty)"}
               </pre>
             </div>
+            {details.stack && (
+              <div className="mt-2">
+                <span className="text-xs font-medium text-muted-foreground">Stack Trace</span>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
+                  {details.stack}
+                </pre>
+              </div>
+            )}
             <button
               onClick={clearErrorDetails}
               className="mt-3 w-full rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
