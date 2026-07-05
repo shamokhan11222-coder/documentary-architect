@@ -917,26 +917,51 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
   const { readProviderFromHeaders } = await import("./provider.server");
   const provider = readProviderFromHeaders();
   if (!provider) return { status: "lovable" as const };
+  // Official Google Generative Language API auth: key via query param. No legacy
+  // AIza-only prefix checks — Google AI Studio issues both AIza… and newer AQ…
+  // format keys, so we let Google itself decide validity and surface the exact
+  // HTTP status + raw response instead of a generic "Invalid".
+  const version = "v1beta";
+  const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${provider.textModel}:generateContent`;
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${provider.textModel}:generateContent?key=${encodeURIComponent(provider.apiKey)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
-      },
-    );
-    if (res.ok) return { status: "connected" as const, model: provider.textModel };
+    const res = await fetch(`${endpoint}?key=${encodeURIComponent(provider.apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
+    });
     const text = await res.text().catch(() => "");
-    const invalid =
-      res.status === 400 || res.status === 403 || /API_KEY_INVALID|API key not valid/i.test(text);
-    if (invalid)
+    if (res.ok)
+      return {
+        status: "connected" as const,
+        model: provider.textModel,
+        httpStatus: res.status,
+        endpoint,
+        rawResponse: text.slice(0, 4000),
+      };
+    // Only a genuine API_KEY_INVALID means the key itself is bad. Everything
+    // else (wrong model / endpoint / quota / permission) is reported verbatim.
+    const keyInvalid = /API_KEY_INVALID|API key not valid/i.test(text);
+    if (keyInvalid)
       return {
         status: "invalid" as const,
-        message: "The Gemini API key is invalid. Check the key in API Settings.",
+        httpStatus: res.status,
+        endpoint,
+        message: `Google rejected the API key (HTTP ${res.status}).`,
+        rawResponse: text.slice(0, 4000),
       };
-    return { status: "failed" as const, message: `(${res.status}) ${text.slice(0, 160)}` };
+    return {
+      status: "failed" as const,
+      httpStatus: res.status,
+      endpoint,
+      message: `HTTP ${res.status} ${res.statusText} — see raw Google response below.`,
+      rawResponse: text.slice(0, 4000),
+    };
   } catch (e) {
-    return { status: "failed" as const, message: e instanceof Error ? e.message : "Request failed" };
+    return {
+      status: "failed" as const,
+      endpoint,
+      message: e instanceof Error ? e.message : "Request failed",
+      rawResponse: "",
+    };
   }
 });
