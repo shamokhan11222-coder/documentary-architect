@@ -24,6 +24,7 @@ import { StageShell } from "@/components/StageShell";
 import { Feedback } from "@/components/Feedback";
 import type { ThumbnailIdea, ThumbnailReview } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { getErrorDetails } from "@/lib/error-details";
 import { StageErrorBoundary } from "@/components/StageErrorBoundary";
 import { buildInjection } from "@/lib/generation-context";
 
