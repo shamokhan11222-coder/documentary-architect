@@ -917,68 +917,138 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
   const { readProviderFromHeaders } = await import("./provider.server");
   const provider = readProviderFromHeaders();
   if (!provider) return { status: "lovable" as const };
-  // Official Google Generative Language API auth (https://ai.google.dev/api):
-  // "All requests to the Gemini API must include a x-goog-api-key header with
-  // your API key." This applies to BOTH legacy AIza… keys and newer AI Studio
-  // auth keys (AQ…). Authorization: Bearer is only for OAuth access tokens and
-  // returns 401 for AI Studio API keys. We let Google decide validity and
-  // surface the exact HTTP status + raw response instead of a generic message.
+
   const version = "v1beta";
   const authHeaderName = "x-goog-api-key";
-  const usesBearer = false;
-  const endpoint = `https://generativelanguage.googleapis.com/${version}/interactions`;
-  const requestBody = {
-    model: provider.textModel,
-    input: "ping",
-  };
-  const requestHeaders = {
-    "Content-Type": "application/json",
-    [authHeaderName]: "(hidden)",
-  };
-  const diag = {
-    requestUrl: endpoint,
+  const endpoint = `https://generativelanguage.googleapis.com/${version}/models`;
+  const headerUrl = `${endpoint}?pageSize=200`;
+  const queryUrl = `${endpoint}?pageSize=200&key=${encodeURIComponent(provider.apiKey.trim())}`;
+  const queryUrlRedacted = `${endpoint}?pageSize=200&key=(hidden)`;
+  const baseDiag = {
     apiVersion: version,
-    modelId: provider.textModel,
+    modelId: "models list",
     authHeaderName,
-    authScheme: "x-goog-api-key (API key)",
-    usesBearer,
-    queryParameterUsage: "none — API key is sent only in the x-goog-api-key header",
-    requestHeaders,
-    requestBody: JSON.stringify(requestBody, null, 2),
+    authScheme: "API-key auth only: x-goog-api-key header or key query parameter",
+    usesBearer: false,
+    requestBody: "(none — GET request)",
   };
-  // Print the exact request wiring (never the key itself) for Test Connection.
-  console.log("[testProvider][gemini] request", diag);
+
+  console.log("[testProvider][gemini] request", {
+    ...baseDiag,
+    attempts: [
+      { requestUrl: headerUrl, authMethod: "x-goog-api-key header", headers: { accept: "application/json", [authHeaderName]: "(hidden)" } },
+      { requestUrl: queryUrlRedacted, authMethod: "key query parameter", headers: { accept: "application/json" } },
+    ],
+  });
+
   try {
     const key = provider.apiKey.trim();
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", [authHeaderName]: key },
-      body: JSON.stringify(requestBody),
+    const attempts: Array<{
+      authMethod: string;
+      requestUrl: string;
+      requestHeaders: Record<string, string>;
+      httpStatus: number;
+      statusText: string;
+      rawResponse: string;
+      ok: boolean;
+    }> = [];
+
+    const headerRes = await fetch(headerUrl, {
+      method: "GET",
+      headers: { accept: "application/json", [authHeaderName]: key },
     });
-    const text = await res.text().catch(() => "");
-    console.log("[testProvider][gemini] response", { httpStatus: res.status, ok: res.ok });
-    if (res.ok)
+    attempts.push({
+      authMethod: "x-goog-api-key header",
+      requestUrl: headerUrl,
+      requestHeaders: { accept: "application/json", [authHeaderName]: "(hidden)" },
+      httpStatus: headerRes.status,
+      statusText: headerRes.statusText,
+      rawResponse: await headerRes.text().catch(() => ""),
+      ok: headerRes.ok,
+    });
+
+    const queryRes = await fetch(queryUrl, {
+      method: "GET",
+      headers: { accept: "application/json" },
+    });
+    attempts.push({
+      authMethod: "key query parameter",
+      requestUrl: queryUrlRedacted,
+      requestHeaders: { accept: "application/json" },
+      httpStatus: queryRes.status,
+      statusText: queryRes.statusText,
+      rawResponse: await queryRes.text().catch(() => ""),
+      ok: queryRes.ok,
+    });
+
+    const success = attempts.find((a) => a.ok);
+    const rawResponse = attempts
+      .map(
+        (a) =>
+          `--- ${a.authMethod} ---\nGET ${a.requestUrl}\nHeaders: ${JSON.stringify(a.requestHeaders)}\nHTTP ${a.httpStatus} ${a.statusText}\n${a.rawResponse}`,
+      )
+      .join("\n\n");
+    const imageModels = success
+      ? (() => {
+          try {
+            const models = (JSON.parse(success.rawResponse) as { models?: Array<{ name?: string; displayName?: string; supportedGenerationMethods?: string[]; supportedActions?: string[] }> }).models ?? [];
+            return models
+              .filter((m) => {
+                const hay = `${m.name ?? ""} ${m.displayName ?? ""}`.toLowerCase();
+                const methods = [...(m.supportedGenerationMethods ?? []), ...(m.supportedActions ?? [])].join(" ").toLowerCase();
+                return hay.includes("image") || methods.includes("image") || methods.includes("predict");
+              })
+              .map((m) => (m.name ?? "").replace(/^models\//, ""))
+              .filter(Boolean);
+          } catch {
+            return [] as string[];
+          }
+        })()
+      : [];
+
+    console.log("[testProvider][gemini] response", {
+      attempts: attempts.map((a) => ({ authMethod: a.authMethod, httpStatus: a.httpStatus, ok: a.ok })),
+    });
+
+    if (success)
       return {
         status: "connected" as const,
-        model: provider.textModel,
-        httpStatus: res.status,
+        model: "models list",
+        httpStatus: success.httpStatus,
         endpoint,
-        ...diag,
-        rawResponse: text,
+        ...baseDiag,
+        requestUrl: success.requestUrl,
+        authMethod: success.authMethod,
+        requestHeaders: success.requestHeaders,
+        queryParameterUsage: "tested x-goog-api-key header and ?key= query parameter; no Bearer token used",
+        imageModels,
+        rawResponse,
       };
+
+    const last = attempts[attempts.length - 1];
     return {
       status: "failed" as const,
-      httpStatus: res.status,
+      httpStatus: last?.httpStatus,
       endpoint,
-      ...diag,
-      message: `HTTP ${res.status} ${res.statusText} — see raw Google response below.`,
-      rawResponse: text,
+      ...baseDiag,
+      requestUrl: headerUrl,
+      authMethod: "x-goog-api-key header and key query parameter both failed",
+      requestHeaders: { [authHeaderName]: "(hidden)" },
+      queryParameterUsage: "tested ?key= query parameter after x-goog-api-key header; no Bearer token used",
+      imageModels: [],
+      message: "Gemini models list failed — see raw Google responses below.",
+      rawResponse,
     };
   } catch (e) {
     return {
       status: "failed" as const,
       endpoint,
-      ...diag,
+      ...baseDiag,
+      requestUrl: headerUrl,
+      authMethod: "API-key auth only; request failed before Google response",
+      requestHeaders: { [authHeaderName]: "(hidden)" },
+      queryParameterUsage: "no Bearer token used",
+      imageModels: [],
       message: e instanceof Error ? e.message : "Request failed",
       rawResponse: "",
     };
