@@ -150,6 +150,9 @@ function GeminiDiagnosticsPage() {
             <Row label="API version used" value={diag.apiVersion ?? "—"} mono />
             <Row label="Model name" value={diag.model ?? diag.imageModel ?? "—"} mono />
             <Row label="Authentication method" value={diag.authMethod ?? "—"} />
+            <Row label="Authentication header name" value={diag.authHeaderName ?? "—"} mono />
+            <Row label="Bearer token used" value={diag.usesBearer ? "yes" : "no"} mono />
+            <Row label="Query parameter usage" value={diag.queryParameterUsage ?? "—"} />
             <Row label="HTTP method" value={diag.requestMethod ?? "—"} mono />
             <Row
               label="HTTP status code"
