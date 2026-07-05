@@ -917,33 +917,42 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
   const { readProviderFromHeaders } = await import("./provider.server");
   const provider = readProviderFromHeaders();
   if (!provider) return { status: "lovable" as const };
-  // Official Google Generative Language API auth: key via query param. No legacy
-  // AIza-only prefix checks — Google AI Studio issues both AIza… and newer AQ…
-  // format keys, so we let Google itself decide validity and surface the exact
-  // HTTP status + raw response instead of a generic "Invalid".
+  // Official Google Generative Language API auth (https://ai.google.dev/api):
+  // "All requests to the Gemini API must include a x-goog-api-key header with
+  // your API key." This applies to BOTH legacy AIza… keys and newer AI Studio
+  // auth keys (AQ…). Authorization: Bearer is only for OAuth access tokens and
+  // returns 401 for AI Studio API keys. We let Google decide validity and
+  // surface the exact HTTP status + raw response instead of a generic message.
   const version = "v1beta";
+  const authHeaderName = "x-goog-api-key";
+  const usesBearer = false;
   const endpoint = `https://generativelanguage.googleapis.com/${version}/models/${provider.textModel}:generateContent`;
+  const diag = {
+    requestUrl: endpoint,
+    apiVersion: version,
+    modelId: provider.textModel,
+    authHeaderName,
+    authScheme: "x-goog-api-key (API key)",
+    usesBearer,
+  };
+  // Print the exact request wiring (never the key itself) for Test Connection.
+  console.log("[testProvider][gemini] request", diag);
   try {
-    // Google AI Studio issues two credential formats that authenticate
-    // differently: legacy "AIza…" API keys use the x-goog-api-key header,
-    // while newer "AQ…" tokens are OAuth-style and must be sent as a Bearer
-    // token (Google rejects them on the API-key path with 401).
     const key = provider.apiKey.trim();
-    const authHeaders: Record<string, string> = key.startsWith("AIza")
-      ? { "x-goog-api-key": key }
-      : { Authorization: `Bearer ${key}` };
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
+      headers: { "Content-Type": "application/json", [authHeaderName]: key },
       body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] }),
     });
     const text = await res.text().catch(() => "");
+    console.log("[testProvider][gemini] response", { httpStatus: res.status, ok: res.ok });
     if (res.ok)
       return {
         status: "connected" as const,
         model: provider.textModel,
         httpStatus: res.status,
         endpoint,
+        ...diag,
         rawResponse: text.slice(0, 4000),
       };
     // Only a genuine API_KEY_INVALID means the key itself is bad. Everything
@@ -954,6 +963,7 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
         status: "invalid" as const,
         httpStatus: res.status,
         endpoint,
+        ...diag,
         message: `Google rejected the API key (HTTP ${res.status}).`,
         rawResponse: text.slice(0, 4000),
       };
@@ -961,6 +971,7 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
       status: "failed" as const,
       httpStatus: res.status,
       endpoint,
+      ...diag,
       message: `HTTP ${res.status} ${res.statusText} — see raw Google response below.`,
       rawResponse: text.slice(0, 4000),
     };
@@ -968,6 +979,7 @@ export const testProvider = createServerFn({ method: "POST" }).handler(async () 
     return {
       status: "failed" as const,
       endpoint,
+      ...diag,
       message: e instanceof Error ? e.message : "Request failed",
       rawResponse: "",
     };
