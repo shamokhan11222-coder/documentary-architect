@@ -175,9 +175,10 @@ function ThumbnailPage() {
         toast.success("First thumbnail ready. Not happy? Generate alternatives.");
       } else {
         setConceptPending(true);
-        // Show the exact provider error (already set in renderImages) — open the
+        // Show the exact provider error captured during rendering — open the
         // Developer Debug panel (bottom-left) for the full raw response.
-        if (providerError) toast.error(providerError);
+        const latest = getErrorDetails();
+        if (latest) toast.error(latest.message);
       }
     });
   }
