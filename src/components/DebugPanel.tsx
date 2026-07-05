@@ -31,6 +31,7 @@ export function DebugPanel() {
     `Response Time: ${details.responseTimeMs != null ? details.responseTimeMs + "ms" : "—"}`,
     `Request ID: ${details.requestId ?? "—"}`,
     `Retry After: ${details.retryAfter ?? "—"}`,
+    `Error Code: ${details.code ?? "—"}`,
     `Exact Error: ${details.message}`,
     ``,
     `Raw Response Body:`,
@@ -89,7 +90,8 @@ export function DebugPanel() {
             />
             <Row label="Request ID" value={details.requestId} />
             <Row label="Retry After" value={details.retryAfter} />
-            <Row label="Exact Error" value={details.message} />
+            <Row label="Error Code" value={details.code} />
+            <Row label="Provider Error" value={details.message} />
             <div className="mt-2">
               <span className="text-xs font-medium text-muted-foreground">Raw Response Body</span>
               <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 font-mono text-[11px] text-foreground">
