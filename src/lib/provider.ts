@@ -3,6 +3,8 @@
 // generation and must never be used as a silent fallback.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
+import { getGeminiImageKeys, useGeminiImageKeys } from "./gemini-image-keys";
+import type { GeminiImageKey } from "./gemini-image-keys";
 
 const KEY = "docos.apikeys";
 const SETTINGS_KEY = "docos.provider.settings";
@@ -29,7 +31,7 @@ export interface ActiveImageProvider {
 }
 
 export const IMAGE_PROVIDER_NOT_CONNECTED =
-  "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
+  "No image provider is connected. Add your Google Gemini image key in API Settings.";
 export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
 
 export const GEMINI_UNSUPPORTED_MESSAGE =
