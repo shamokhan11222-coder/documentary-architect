@@ -15,7 +15,7 @@ import {
   saveThumbnails,
 } from "@/lib/store";
 import { useImage, putImage, loadImage, fileToDataUrl } from "@/lib/images";
-import { generateThumbnailImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
+import { generateThumbnailImage, imageErrorMessage, isRateLimitError, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
