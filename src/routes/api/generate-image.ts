@@ -665,26 +665,48 @@ function isImageCapable(m: GeminiModel): boolean {
  *  raw list plus the endpoint used so callers can surface it for debugging. */
 async function fetchGeminiModels(
   apiKey: string,
-): Promise<{ models: GeminiModel[]; endpoint: string; version: string } | { error: string; status: number }> {
+): Promise<
+  | { models: GeminiModel[]; endpoint: string; requestUrl: string; version: string; authMethod: string; rawBody: string; status: number }
+  | { error: string; status: number; requestUrl?: string; authMethod?: string; rawBody?: string }
+> {
   let lastErr = "Unknown error";
   let lastStatus = 502;
+  let lastRequestUrl = "";
+  let lastAuthMethod = "";
   for (const version of GEMINI_API_VERSIONS) {
-    const endpoint = `${geminiModelsUrl(version)}?pageSize=200`;
-    try {
-      const r = await fetch(endpoint, { headers: geminiAuthHeaders(apiKey) });
+    const base = geminiModelsUrl(version);
+    const attempts = [
+      {
+        authMethod: "x-goog-api-key header",
+        requestUrl: `${base}?pageSize=200`,
+        fetchUrl: `${base}?pageSize=200`,
+        headers: geminiAuthHeaders(apiKey, { accept: "application/json" }),
+      },
+      {
+        authMethod: "key query parameter",
+        requestUrl: `${base}?pageSize=200&key=(hidden)`,
+        fetchUrl: `${base}?pageSize=200&key=${encodeURIComponent(apiKey)}`,
+        headers: { accept: "application/json" },
+      },
+    ];
+    for (const attempt of attempts) {
+      try {
+      const r = await fetch(attempt.fetchUrl, { headers: attempt.headers });
+      lastRequestUrl = attempt.requestUrl;
+      lastAuthMethod = attempt.authMethod;
+      const text = await r.text().catch(() => "");
       if (r.ok) {
-        const data = (await r.json()) as { models?: GeminiModel[] };
-        return { models: data.models ?? [], endpoint: geminiModelsUrl(version), version };
+        const data = JSON.parse(text) as { models?: GeminiModel[] };
+        return { models: data.models ?? [], endpoint: base, requestUrl: attempt.requestUrl, version, authMethod: attempt.authMethod, rawBody: text, status: r.status };
       }
       lastStatus = r.status;
-      lastErr = (await r.text().catch(() => "")).slice(0, 200) || `HTTP ${r.status}`;
-      // Auth errors won't be fixed by trying another version.
-      if (r.status === 400 || r.status === 401 || r.status === 403) break;
+      lastErr = text || `HTTP ${r.status}`;
     } catch (e) {
       lastErr = String(e).slice(0, 200);
     }
+    }
   }
-  return { error: lastErr, status: lastStatus };
+  return { error: lastErr, status: lastStatus, requestUrl: lastRequestUrl, authMethod: lastAuthMethod, rawBody: lastErr };
 }
 
 /** Resolve which API version actually serves a given model id. Returns null if
