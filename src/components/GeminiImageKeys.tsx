@@ -11,13 +11,32 @@ import {
   type GeminiImageKey,
 } from "@/lib/gemini-image-keys";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function maskKey(key: string) {
+  const k = key.trim();
+  if (k.length <= 8) return "••••••••";
+  return `${k.slice(0, 4)}••••${k.slice(-4)}`;
+}
+
+function cooldownLabel(until: number | null) {
+  if (!until) return "";
+  const ms = Math.max(0, until - Date.now());
+  if (ms >= 60 * 60 * 1000) return `~${Math.ceil(ms / (60 * 60 * 1000))}h`;
+  return `~${Math.max(1, Math.ceil(ms / 60000))}m`;
+}
+
 function statusBadge(k: GeminiImageKey) {
+  if (k.status === "disabled") return <span className="text-red-600">Invalid</span>;
   if (k.status === "cooling") {
-    const left = k.cooldownUntil ? Math.max(0, Math.ceil((k.cooldownUntil - Date.now()) / 60000)) : 0;
-    return <span className="text-amber-600">Cooling down (~{left}m)</span>;
+    // A long cooldown (daily quota parked until tomorrow) reads as "Exhausted".
+    const remaining = k.cooldownUntil ? k.cooldownUntil - Date.now() : 0;
+    if (remaining > DAY_MS - 60 * 60 * 1000) {
+      return <span className="text-red-500">Exhausted (resets {cooldownLabel(k.cooldownUntil)})</span>;
+    }
+    return <span className="text-amber-600">Cooling Down ({cooldownLabel(k.cooldownUntil)})</span>;
   }
-  if (k.status === "disabled") return <span className="text-red-600">Disabled</span>;
-  return <span className="text-green-600">Active</span>;
+  return <span className="text-green-600">Ready</span>;
 }
 
 export function GeminiImageKeys() {
@@ -63,7 +82,10 @@ export function GeminiImageKeys() {
         {keys.map((k) => (
           <div key={k.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs">
             <div className="min-w-0">
-              <div className="truncate font-medium">{k.name}</div>
+              <div className="flex items-center gap-2">
+                <span className="truncate font-medium">{k.name}</span>
+                <span className="truncate font-mono text-[11px] text-muted-foreground">{maskKey(k.key)}</span>
+              </div>
               <div className="text-muted-foreground">
                 {statusBadge(k)} · fails: {k.failCount} ·{" "}
                 {k.lastUsed ? `last used ${new Date(k.lastUsed).toLocaleTimeString()}` : "never used"}
