@@ -303,13 +303,14 @@ export function useActiveProvider(): ActiveProvider | null {
 /** External image provider if the selected image choice has a connected key. */
 export function getActiveImageProvider(): ActiveImageProvider | null {
   const choice = getProviderSettings().image;
-  return toImageProvider(choice, findImageKey(choice, readLocal<ApiKeyEntry[]>(KEY, [])));
+  return resolveImageProvider(choice, readLocal<ApiKeyEntry[]>(KEY, []), getGeminiImageKeys());
 }
 
 export function useActiveImageProvider(): ActiveImageProvider | null {
   const settings = useProviderSettings();
   const list = useLocal<ApiKeyEntry[]>(KEY, []);
-  return toImageProvider(settings.image, findImageKey(settings.image, list));
+  const pool = useGeminiImageKeys();
+  return resolveImageProvider(settings.image, list, pool);
 }
 
 export function getImageProviderStatus(): {
@@ -326,11 +327,13 @@ export function getImageProviderStatus(): {
 export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
   const settings = useProviderSettings();
   const list = useLocal<ApiKeyEntry[]>(KEY, []);
-  return statusFor(settings.image, toImageProvider(settings.image, findImageKey(settings.image, list)));
+  const pool = useGeminiImageKeys();
+  return statusFor(settings.image, resolveImageProvider(settings.image, list, pool));
 }
 
-/** Image generation requires a connected external image provider (Recraft).
- *  The built-in AI is never used for images. */
+/** Image generation status for the SELECTED provider. The built-in AI is never
+ *  used for images. Messages are provider-specific — Recraft is only ever named
+ *  when Recraft is the selected choice. */
 function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null) {
   if (external) {
     return {
@@ -339,7 +342,7 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
       connected: true,
       testPassed: external.testPassed,
       ok: true,
-      message: external.testPassed ? "Ready" : "Connected — click Test to verify.",
+      message: "Connected",
     };
   }
   if (choice === "puter") {
@@ -354,12 +357,31 @@ function statusFor(choice: ProviderChoice, external: ActiveImageProvider | null)
   }
   return {
     choice,
-    label: "Recraft V4.1 Utility Pro",
+    label: imageLabel(choice),
     connected: false,
     testPassed: false,
     ok: false,
-    message: IMAGE_PROVIDER_NOT_CONNECTED,
+    message: notConnectedMessage(choice),
   };
+}
+
+/** Provider-specific "not connected" copy. Never mentions Recraft unless
+ *  Recraft is the selected image provider. */
+function notConnectedMessage(choice: ProviderChoice): string {
+  switch (choice) {
+    case "gemini":
+      return "Google Gemini is not connected. Add a Gemini image key in API Settings.";
+    case "recraft":
+      return "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
+    case "fal":
+      return "Fal.ai is not connected. Add your Fal.ai API key in API Settings.";
+    case "replicate":
+      return "Replicate is not connected. Add your Replicate API key in API Settings.";
+    case "openai":
+      return "OpenAI Images is not connected. Add your OpenAI API key in API Settings.";
+    default:
+      return IMAGE_PROVIDER_NOT_CONNECTED;
+  }
 }
 
 /** Body payload passed to the image API route so the server can route. Returns
