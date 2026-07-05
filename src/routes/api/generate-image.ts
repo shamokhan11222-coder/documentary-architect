@@ -450,25 +450,6 @@ function validationResult(r: Response, label: string): Response {
   return jsonError(msg, r.status, r.status === 400 ? "AUTH_ERROR" : codeForStatus(r.status));
 }
 
-/** Gemini-specific validation. Surfaces the EXACT raw Google response body. */
-async function geminiValidationResult(r: Response, label: string): Promise<Response> {
-  if (r.ok) return Response.json({ ok: true });
-  const text = (await r.text().catch(() => "")) || `HTTP ${r.status}`;
-  const providerMessage = extractProviderMessage(text) || text.slice(0, 800) || `HTTP ${r.status}`;
-  const keyInvalid = /API_KEY_INVALID|API key not valid/i.test(text);
-  const code = keyInvalid ? "AUTH_ERROR" : codeForProviderResponse(r.status, text);
-  return providerFail({
-    provider: "gemini",
-    model: label,
-    endpoint: r.url || GEMINI_HOST,
-    status: r.status,
-    rawBody: text,
-    headers: r.headers,
-    code,
-    httpMethod: "GET",
-  });
-}
-
 /** Validate a provider with the smallest possible request — never generates a
  *  full image. Uses each provider's lightweight auth/list endpoint. */
 async function validateProvider(provider: Provider): Promise<Response> {
@@ -571,12 +552,6 @@ function firstUrl(value: unknown): string | null {
   }
   const obj = value as Record<string, unknown>;
   return firstUrl(obj.url) ?? firstUrl(obj.image) ?? firstUrl(obj.images) ?? firstUrl(obj.output) ?? firstUrl(obj.data);
-}
-
-function toInlineData(ref: string) {
-  const m = /^data:([^;]+);base64,(.*)$/.exec(ref);
-  if (!m) return null;
-  return { inlineData: { mimeType: m[1], data: m[2] } };
 }
 
 function toInteractionImageInput(ref: string) {
@@ -693,24 +668,6 @@ async function fetchGeminiModels(
     }
   }
   return { error: lastErr, status: lastStatus, requestUrl: lastRequestUrl, authMethod: lastAuthMethod, rawBody: lastErr };
-}
-
-/** Resolve which API version actually serves a given model id. Returns null if
- *  no version has it (i.e. the configured model does not exist). */
-async function resolveGeminiModelVersion(
-  apiKey: string,
-  model: string,
-): Promise<string | null> {
-  for (const version of GEMINI_API_VERSIONS) {
-    const endpoint = `${geminiModelsUrl(version)}/${model}`;
-    try {
-      const r = await fetch(endpoint, { headers: geminiAuthHeaders(apiKey) });
-      if (r.ok) return version;
-    } catch {
-      /* try next version */
-    }
-  }
-  return null;
 }
 
 /** Diagnostic endpoint — return the image-capable Gemini models for a key so
