@@ -555,13 +555,19 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
     saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
     setTesting(true);
     try {
-      const imageModel = geminiKey.imageModelName?.trim() || GEMINI_IMAGE_MODEL_DEFAULT;
+      const listed = await listGeminiModels(geminiKey.apiKey.trim());
+      const imageModel = geminiKey.imageModelName?.trim() || listed.imageModels[0]?.id;
+      if (!imageModel) {
+        toast.error("Google returned no image-capable Gemini models for this key.");
+        return;
+      }
       await testImageProvider({
         name: "gemini",
         apiKey: geminiKey.apiKey.trim(),
         imageModel,
         fallback: false,
       });
+      if (!geminiKey.imageModelName?.trim()) saveApiKey({ ...geminiKey, imageModelName: imageModel });
       toast.success("Gemini Image connected — set as active Image Provider");
     } catch (e) {
       // Surface the REAL Gemini error rather than a generic failure.
