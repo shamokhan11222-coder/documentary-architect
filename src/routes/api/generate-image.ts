@@ -677,7 +677,9 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
     endpoint: geminiModelsUrl(version),
     apiVersion: version,
     apiVersions: GEMINI_API_VERSIONS,
-    authMethod: "API key via ?key= query parameter",
+    authMethod: isGeminiApiKey(key)
+      ? "x-goog-api-key header (AIza… API key)"
+      : "Authorization: Bearer (AQ… AI Studio token)",
     requestUrl: redactedUrl,
     requestMethod,
     requestHeaders,
