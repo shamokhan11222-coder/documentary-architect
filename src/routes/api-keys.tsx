@@ -247,6 +247,10 @@ function ApiKeysPage() {
         </div>
       </div>
 
+      <div className="mt-4">
+        <GeminiImageKeys />
+      </div>
+
       {(active || keys.length > 0) && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium">Provider routing</div>
