@@ -83,6 +83,12 @@ export async function geminiGenerateText(
 function extractGoogleMessage(body: string): string {
   try {
     const j = JSON.parse(body);
+    if (Array.isArray(j)) {
+      for (const item of j) {
+        const msg = item?.error?.message || item?.message || "";
+        if (msg) return msg;
+      }
+    }
     return j?.error?.message || j?.message || "";
   } catch {
     return "";
