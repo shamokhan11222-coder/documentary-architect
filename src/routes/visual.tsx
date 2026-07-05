@@ -608,6 +608,10 @@ function VisualPage() {
         )}
       </div>
 
+      {hasMap && geminiImageKeys.length > 0 && (
+        <ImageQueuePanel onStart={startQueue} />
+      )}
+
       {hasMap && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
