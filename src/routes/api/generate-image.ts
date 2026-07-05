@@ -91,6 +91,11 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   const listUrlRedacted = listUrl;
   const modelUrl = `${geminiModelsUrl(version)}/${model}`;
   const modelUrlRedacted = modelUrl;
+  const generationUrl = geminiInteractionsUrl(version);
+  const generationBody = {
+    model,
+    input: [{ type: "text", text: "simple blue circle on white background" }],
+  };
 
   const requestHeaders = {
     "Content-Type": "application/json",
@@ -257,8 +262,39 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
     detail: "Raw request/response details are shown below, exactly as received.",
   });
 
+  let generationStatus = 0;
+  let generationBodyText = "";
+  let generationHeaders: Record<string, string> = {};
+  if (apiKey) {
+    try {
+      const r = await fetch(generationUrl, {
+        method: "POST",
+        headers: geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
+        body: JSON.stringify(generationBody),
+      });
+      generationStatus = r.status;
+      r.headers.forEach((v, k) => (generationHeaders[k] = v));
+      generationBodyText = await r.text();
+    } catch (e) {
+      generationBodyText = `Fetch failed: ${String(e).slice(0, 400)}`;
+    }
+  }
+  checks.push({
+    id: 11,
+    label: "Official image endpoint request started",
+    status: generationStatus > 0 ? (generationStatus < 500 ? "PASS" : "FAIL") : "UNKNOWN",
+    detail: generationStatus > 0
+      ? `POST ${generationUrl} returned HTTP ${generationStatus}. Raw Google response is shown below.`
+      : "No HTTP response received from the official image endpoint.",
+  });
+
   return Response.json({
     model,
+    apiVersion: version,
+    authMethod: GEMINI_AUTH_SCHEME,
+    authHeaderName: GEMINI_AUTH_HEADER,
+    usesBearer: false,
+    queryParameterUsage: GEMINI_QUERY_PARAM_USAGE,
     checks,
     // Raw, verbatim request/response details — nothing summarised.
     modelsList: {
@@ -276,6 +312,14 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
       responseCode: modelStatus,
       responseHeaders: modelHeaders,
       responseBody: modelBody.slice(0, 40000),
+    },
+    generationRequest: {
+      requestUrl: generationUrl,
+      requestHeaders,
+      requestBody: JSON.stringify(generationBody, null, 2),
+      responseCode: generationStatus,
+      responseHeaders: generationHeaders,
+      responseBody: generationBodyText.slice(0, 40000),
     },
   });
 }
