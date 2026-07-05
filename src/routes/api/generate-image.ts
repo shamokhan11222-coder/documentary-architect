@@ -583,11 +583,11 @@ async function listGeminiModels(apiKey: string): Promise<Response> {
   if (!apiKey?.trim()) return jsonError("Add a Google Gemini API key first.", 400, "NO_PROVIDER");
   const res = await fetchGeminiModels(apiKey.trim());
   if ("error" in res) {
-    const msg =
-      res.status === 400 || res.status === 401 || res.status === 403
-        ? "Invalid API key — Gemini rejected the request."
-        : `Could not list Gemini models (${res.status}): ${res.error}`;
-    return jsonError(msg, res.status, res.status === 400 ? "AUTH_ERROR" : codeForStatus(res.status));
+    // Surface the EXACT Google response — no generic "Invalid API key" wrapper
+    // unless Google itself returned API_KEY_INVALID.
+    const keyInvalid = /API_KEY_INVALID|API key not valid/i.test(res.error);
+    const msg = `Gemini could not list models (HTTP ${res.status}): ${res.error}`;
+    return jsonError(msg, res.status, keyInvalid ? "AUTH_ERROR" : codeForStatus(res.status));
   }
   const imageModels = res.models.filter(isImageCapable).map((m) => ({
     id: bareModelId(m.name),
