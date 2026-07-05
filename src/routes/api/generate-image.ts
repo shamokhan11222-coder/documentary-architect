@@ -545,9 +545,9 @@ async function resolveGeminiModelVersion(
   model: string,
 ): Promise<string | null> {
   for (const version of GEMINI_API_VERSIONS) {
-    const endpoint = `${geminiModelsUrl(version)}/${model}?key=${encodeURIComponent(apiKey)}`;
+    const endpoint = `${geminiModelsUrl(version)}/${model}`;
     try {
-      const r = await fetch(endpoint);
+      const r = await fetch(endpoint, { headers: geminiAuthHeaders(apiKey) });
       if (r.ok) return version;
     } catch {
       /* try next version */
