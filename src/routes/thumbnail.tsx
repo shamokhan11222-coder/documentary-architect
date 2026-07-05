@@ -131,17 +131,15 @@ function ThumbnailPage() {
         await putImage(thumbImageId(selected.id, i), url);
         wrote++;
       } catch (e) {
-        // Provider limit reached — stop immediately, keep completed thumbnails,
-        // and show a clear resumable message instead of hanging or failing all.
+        // Emergency Debug: surface the EXACT provider error — never a generic line.
+        const msg = imageErrorMessage(e, "failed");
+        setProviderError(msg);
         if (isRateLimitError(e)) {
           setProviderLimit(true);
-          setProviderError(imageErrorMessage(e, "Provider rate limit reached"));
-          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
+          toast.error(`Thumbnail ${i + 1}: ${msg}`);
           setProgress(null);
           return "provider-limit";
         }
-        const msg = imageErrorMessage(e, "failed");
-        setProviderError(msg);
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
         if (/credit|402/i.test(msg)) break;
       }
@@ -175,11 +173,11 @@ function ThumbnailPage() {
       const storedUrl = await loadImage(thumbImageId(selected.id, 0));
       if (status === "ok" && storedUrl) {
         toast.success("First thumbnail ready. Not happy? Generate alternatives.");
-      } else if (status === "provider-limit") {
-        toast.warning("Thumbnail image not generated yet.");
       } else {
         setConceptPending(true);
-        toast.warning("Thumbnail image not generated yet.");
+        // Show the exact provider error (already set in renderImages) — open the
+        // Developer Debug panel (bottom-left) for the full raw response.
+        if (providerError) toast.error(providerError);
       }
     });
   }
@@ -211,12 +209,11 @@ function ThumbnailPage() {
         await putImage(thumbImageId(selected.id, index), url);
         toast.success("Thumbnail regenerated");
       } catch (e) {
-        if (isRateLimitError(e)) {
-          setProviderLimit(true);
-          toast.warning(PROVIDER_FREE_TIER_LIMIT_MESSAGE);
-          return;
-        }
-        throw e;
+        const msg = imageErrorMessage(e, "failed");
+        setProviderError(msg);
+        if (isRateLimitError(e)) setProviderLimit(true);
+        toast.error(msg);
+        return;
       }
     });
   }
