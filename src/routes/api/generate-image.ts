@@ -849,25 +849,30 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   const reqBodyObj = { model, input };
   const reqBody = JSON.stringify(reqBodyObj);
   const version = GEMINI_API_VERSIONS[0];
-  const endpoint = geminiInteractionsUrl(version);
-  const redactedHeaders = { "Content-Type": "application/json", [GEMINI_AUTH_HEADER]: maskKey(apiKey) };
+  const baseEndpoint = geminiInteractionsUrl(version);
+  const usingQueryAuth = listed.authMethod === "key query parameter";
+  const endpoint = usingQueryAuth ? `${baseEndpoint}?key=(hidden)` : baseEndpoint;
+  const fetchEndpoint = usingQueryAuth ? `${baseEndpoint}?key=${encodeURIComponent(apiKey)}` : baseEndpoint;
+  const redactedHeaders = usingQueryAuth
+    ? { "Content-Type": "application/json" }
+    : { "Content-Type": "application/json", [GEMINI_AUTH_HEADER]: maskKey(apiKey) };
   const auditStart = Date.now();
   console.log("[AUDIT][gemini] outbound request", {
     endpoint,
     model,
     apiVersion: version,
-    authenticationMethod: GEMINI_AUTH_SCHEME,
-    authHeaderName: GEMINI_AUTH_HEADER,
+    authenticationMethod: listed.authMethod,
+    authHeaderName: usingQueryAuth ? "(none — key query parameter)" : GEMINI_AUTH_HEADER,
     usesBearer: false,
-    queryParameterUsage: GEMINI_QUERY_PARAM_USAGE,
+    queryParameterUsage: usingQueryAuth ? "key query parameter" : "none — API key is sent in x-goog-api-key header",
     headers: redactedHeaders,
     body: reqBodyObj,
     time: new Date(auditStart).toISOString(),
     references: input.length - 1,
   });
-  const upstream = await fetch(endpoint, {
+  const upstream = await fetch(fetchEndpoint, {
     method: "POST",
-    headers: geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
+    headers: usingQueryAuth ? { "Content-Type": "application/json" } : geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
     body: reqBody,
   });
   console.log("[AUDIT][gemini] outbound response", {
