@@ -161,28 +161,39 @@ function ApiKeysPage() {
     setStatusMsg("");
     try {
       const r = (await runTest()) as
-        | { status: "connected"; model?: string }
-        | { status: "failed"; message?: string }
-        | { status: "invalid"; message?: string }
+        | { status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string }
+        | { status: "failed"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string }
+        | { status: "invalid"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string }
         | { status: "lovable" };
       if (r.status === "connected") {
         setStatus("connected");
-        setStatusMsg(`Connected to ${r.model ?? "Gemini"}.`);
+        setStatusMsg(
+          `Connected to ${r.model ?? "Gemini"} (HTTP ${r.httpStatus ?? 200}).` +
+            (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
+        );
         const g = keys.find((k) => k.provider === "Google Gemini");
         if (g) markTested(g.id, "Connected");
         toast.success("Gemini connection successful");
       } else if (r.status === "invalid") {
         setStatus("invalid");
-        setStatusMsg(r.message ?? "Invalid API key.");
+        setStatusMsg(
+          `${r.message ?? "Google rejected the API key."}` +
+            (r.endpoint ? `\nEndpoint: ${r.endpoint}` : "") +
+            (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
+        );
         const g = keys.find((k) => k.provider === "Google Gemini");
         if (g) markTested(g.id, "Invalid Key");
-        toast.error("Invalid Gemini API key");
+        toast.error(`Gemini rejected the key (HTTP ${r.httpStatus ?? "?"})`);
       } else if (r.status === "lovable") {
         setStatus("idle");
         setStatusMsg("No Gemini key configured — using built-in AI.");
       } else {
         setStatus("failed");
-        setStatusMsg(r.message ?? "Connection failed.");
+        setStatusMsg(
+          `${r.message ?? "Connection failed."}` +
+            (r.endpoint ? `\nEndpoint: ${r.endpoint}` : "") +
+            (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
+        );
         const g = keys.find((k) => k.provider === "Google Gemini");
         if (g) markTested(g.id, "Failed");
         toast.error("Gemini connection failed");
