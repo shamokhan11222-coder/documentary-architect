@@ -652,6 +652,33 @@ function bareModelId(name: string): string {
   return name.replace(/^models\//, "");
 }
 
+/** Extract a clean, bare Gemini model id from any incoming value.
+ *  Accepts friendly labels like "Nano Banana (gemini-2.5-flash-image)",
+ *  full ids like "models/gemini-2.5-flash-image", or bare ids. Returns the
+ *  bare id (no "models/" prefix, no label text). Empty string when none. */
+function extractBareModelId(raw: string): string {
+  let v = (raw ?? "").trim();
+  if (!v) return "";
+  // If a label wraps the id in parentheses, take the parenthesised value.
+  const paren = v.match(/\(([^)]+)\)/);
+  if (paren) v = paren[1].trim();
+  // Drop the "models/" prefix if present; keep only the id token.
+  v = v.replace(/^models\//, "").trim();
+  // If any stray label words remain, keep the last whitespace-separated token
+  // that looks like a model id.
+  if (/\s/.test(v)) {
+    const token = v.split(/\s+/).find((t) => /^[a-z0-9][a-z0-9.\-]*$/i.test(t));
+    if (token) v = token;
+  }
+  return v;
+}
+
+/** Ensure a model id carries the "models/" prefix required by the API. */
+function withModelsPrefix(id: string): string {
+  const bare = id.replace(/^models\//, "").trim();
+  return bare ? `models/${bare}` : "";
+}
+
 /** A model is image-capable if its id/displayName mentions "image" or it lists
  *  image generation among its supported methods/actions. */
 function isImageCapable(m: GeminiModel): boolean {
@@ -878,9 +905,14 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   // never a custom string, never a display name, and never a text model.
   // Match the requested id against Google's returned ids by their bare form, but
   // always send the EXACT returned name (with the "models/" prefix intact).
-  const requestedBare = (provider.imageModel || "").trim().replace(/^models\//, "");
-  const fullModel =
+  // Strip any friendly label ("Nano Banana (gemini-2.5-flash-image)") down to the
+  // bare id, then match it against Google's returned ids by bare form. Always
+  // send the EXACT returned name (with the "models/" prefix intact).
+  const requestedBare = extractBareModelId(provider.imageModel || "");
+  const matched =
     availableImageModelsFull.find((n) => bareModelId(n) === requestedBare) ?? availableImageModelsFull[0];
+  // Guarantee the "models/" prefix on the final id even if a bare id slipped in.
+  const fullModel = withModelsPrefix(matched);
   const model = fullModel; // exact returned ID, e.g. "models/gemini-2.5-flash-image"
   if (requestedBare && bareModelId(fullModel) !== requestedBare) {
     console.warn("[image][gemini] requested image model not returned by Google; using first returned image model", {
@@ -889,8 +921,8 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       availableImageModels: availableImageModelsFull,
     });
   }
-  // Requirement: print the EXACT model ID returned by Google before every request.
-  console.log(`Using model:\n${fullModel}`);
+  // Requirement: print the EXACT model id sent to the API before every request.
+  console.log(`Final model sent to Gemini API: ${fullModel}`);
   const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
     const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineDataPart(ref) : null;
