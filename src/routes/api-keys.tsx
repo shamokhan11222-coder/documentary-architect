@@ -214,7 +214,7 @@ function ApiKeysPage() {
         toast.error(`Gemini returned HTTP ${r.httpStatus ?? "?"}`);
       } else if (r.status === "lovable") {
         setStatus("idle");
-        setStatusMsg("No Gemini key configured — using built-in AI.");
+        setStatusMsg("No Gemini key configured — add a key to generate images.");
       } else {
         setStatus("failed");
         setStatusMsg(
@@ -461,7 +461,7 @@ function DebugStatus() {
         <div>Active Thumbnail Provider: {providerLabel(settings.thumbnail)}</div>
         <div>Active Voice Provider: {providerLabel(settings.voice)}</div>
         <div>OpenAI Status: Disabled</div>
-        <div>Fallback to Built-in: {settings.fallback ? "On" : "Off"}</div>
+        <div>Built-in Image Gateway: Disabled</div>
         <div>Credit Mode: {creditMode}</div>
         <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
         <div>Last Request Provider: {lastProvider}</div>
@@ -509,10 +509,7 @@ function ImageRouteRow({
         value={value}
         onChange={(e) => onChange(e.target.value as ProviderChoice)}
       >
-        {/* Built-in Lovable AI is the default and uses Lovable credits. External
-            providers stay optional. Gemini image generation is disabled (Google
-            returns 403 Project denied access for images). */}
-        <option value="builtin">Built-in Lovable AI (default)</option>
+        <option value="gemini">Gemini Image</option>
         <option value="puter">Puter AI</option>
         <option value="pollinations">Pollinations AI</option>
         <option value="huggingface">HuggingFace / FLUX</option>
@@ -794,7 +791,7 @@ function ActiveProviderStatus({
     ? "Failed"
     : activeAny
       ? "Connected"
-      : "Not Activated — using built-in AI";
+      : "Not Activated";
 
   const textName = text ? (text.name === "openai" ? "OpenAI" : "Gemini") : null;
   const imageName = image ? (image.label) : null;
