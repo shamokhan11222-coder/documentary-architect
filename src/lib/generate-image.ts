@@ -69,7 +69,6 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
       lastImageRequestAt = Date.now();
       return { image, keyName: key.name, model: payload.imageModel };
     } catch (e) {
-      lastImageRequestAt = Date.now();
       const status = e instanceof ImageGenError ? e.status : null;
       const code = e instanceof ImageGenError ? e.code : null;
       const msg =
@@ -406,7 +405,6 @@ async function generate(prompt: string, references: string[], provider = imagePr
         lastImageRequestAt = Date.now();
         return img;
       } catch (e) {
-        lastImageRequestAt = Date.now();
         lastErr = e;
         console.error(`[image] provider ${candidate.name} failed`, e);
         // Continue to the next provider in the chain regardless of error type.
