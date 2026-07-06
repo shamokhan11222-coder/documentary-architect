@@ -1245,6 +1245,7 @@ export const Route = createFileRoute("/api/generate-image")({
         });
 
         if (provider.name === "pollinations") return generateWithPollinations(body, provider);
+        if (provider.name === "builtin") return generateWithBuiltin(body);
         if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
         if (provider.name === "recraft") return generateWithRecraft(body, provider);
         if (provider.name === "huggingface") return generateWithHuggingFace(body, provider);
