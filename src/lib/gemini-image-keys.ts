@@ -7,6 +7,7 @@
 // escalating schedule and move to the next key. Invalid keys / missing models are
 // disabled and skipped. State is persisted in localStorage (per browser).
 import { readLocal, writeLocal, useLocal } from "./local";
+import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "./gemini-model";
 
 const KEY = "docos.gemini.imageKeys";
 
@@ -38,7 +39,7 @@ function msUntilTomorrow(): number {
 }
 
 function read(): GeminiImageKey[] {
-  return readLocal<GeminiImageKey[]>(KEY, []);
+  return reconcileModels(readLocal<GeminiImageKey[]>(KEY, []));
 }
 
 function write(list: GeminiImageKey[]) {
@@ -58,12 +59,23 @@ export function getGeminiImageKeys(): GeminiImageKey[] {
 function reconcile(list: GeminiImageKey[]): GeminiImageKey[] {
   const now = Date.now();
   let changed = false;
-  const next = list.map((k) => {
+  const next = reconcileModels(list).map((k) => {
     if (k.status === "cooling" && k.cooldownUntil != null && k.cooldownUntil <= now) {
       changed = true;
       return { ...k, status: "active" as GeminiKeyStatus, cooldownUntil: null };
     }
     return k;
+  });
+  if (changed) write(next);
+  return next;
+}
+
+function reconcileModels(list: GeminiImageKey[]): GeminiImageKey[] {
+  let changed = false;
+  const next = list.map((k) => {
+    const normalized = normalizeGeminiModel(k.imageModel) || GEMINI_FORCED_IMAGE_MODEL;
+    if (normalized !== GEMINI_FORCED_IMAGE_MODEL || k.imageModel !== GEMINI_FORCED_IMAGE_MODEL) changed = true;
+    return { ...k, imageModel: GEMINI_FORCED_IMAGE_MODEL };
   });
   if (changed) write(next);
   return next;
@@ -79,14 +91,14 @@ export function addGeminiImageKey(name: string, key: string, imageModel?: string
     lastUsed: null,
     failCount: 0,
     cooldownUntil: null,
-    imageModel: imageModel?.trim() || undefined,
+    imageModel: normalizeGeminiModel(imageModel) || GEMINI_FORCED_IMAGE_MODEL,
   };
   write([...list, entry]);
   return entry;
 }
 
 export function updateGeminiImageKey(id: string, patch: Partial<GeminiImageKey>) {
-  write(read().map((k) => (k.id === id ? { ...k, ...patch, id: k.id } : k)));
+  write(read().map((k) => (k.id === id ? { ...k, ...patch, id: k.id, imageModel: GEMINI_FORCED_IMAGE_MODEL } : k)));
 }
 
 export function removeGeminiImageKey(id: string) {

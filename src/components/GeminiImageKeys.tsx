@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listGeminiModels, type GeminiModelInfo } from "@/lib/generate-image";
+import { GEMINI_IMAGE_MODEL_DEFAULT } from "@/lib/provider";
 import {
   useGeminiImageKeys,
   addGeminiImageKey,
@@ -65,8 +66,9 @@ export function GeminiImageKeys() {
         const list = await listGeminiModels(k);
         if (cancelled) return;
         setModels(list.imageModels);
-        setModel(list.imageModels[0]?.id ?? "");
+        setModel(list.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT) ? GEMINI_IMAGE_MODEL_DEFAULT : "");
         if (list.imageModels.length === 0) setModelError("This key has no image-capable Gemini models.");
+        else if (!list.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT)) setModelError(`${GEMINI_IMAGE_MODEL_DEFAULT} was not returned for this key.`);
       } catch (e) {
         if (cancelled) return;
         setModels([]);
@@ -100,6 +102,7 @@ export function GeminiImageKeys() {
         Image generation uses these Gemini keys only, one at a time. When a key hits a quota / rate limit it cools down
         and the next available key is used automatically.
       </p>
+      <div className="mt-2 font-mono text-[11px] text-muted-foreground">Final Gemini model sent: {GEMINI_IMAGE_MODEL_DEFAULT}</div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_2fr_1fr_auto]">
         <Input placeholder="Key name" value={name} onChange={(e) => setName(e.target.value)} />
