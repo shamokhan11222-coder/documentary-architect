@@ -308,6 +308,7 @@ function resolveImageProvider(
   list: ApiKeyEntry[],
   poolKeys: GeminiImageKey[],
 ): ActiveImageProvider | null {
+  if (choice === "builtin") return builtinImageProvider();
   if (choice === "puter") return puterImageProvider();
   if (choice === "pollinations") return pollinationsImageProvider();
   const fromVault = toImageProvider(choice, findImageKey(choice, list));
@@ -318,6 +319,7 @@ function resolveImageProvider(
 
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   // Puter requires no key — it is always available client-side.
+  if (choice === "builtin") return builtinImageProvider();
   if (choice === "puter") return puterImageProvider();
   if (choice === "pollinations") return pollinationsImageProvider();
   if (!entry) return null;
