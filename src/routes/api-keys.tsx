@@ -294,7 +294,7 @@ function ApiKeysPage() {
         <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium">Provider routing</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Choose which provider handles each task. Image generation requires a connected external image provider.
+            Choose which provider handles each task. Images and thumbnails use Built-in Lovable AI (Lovable credits) by default; external providers are optional.
           </p>
           <div className="mt-3 space-y-3">
             <TextRouteRow
@@ -303,6 +303,28 @@ function ApiKeysPage() {
               value={settings.text}
               onChange={(v) => saveProviderSettings({ text: v })}
             />
+            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <span className="min-w-0">
+                <span className="block font-medium">Use external image provider</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {settings.image === "builtin" && settings.thumbnail === "builtin"
+                    ? "Off — using Built-in Lovable AI (Lovable credits)"
+                    : "On — using the selected external provider"}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0"
+                checked={!(settings.image === "builtin" && settings.thumbnail === "builtin")}
+                onChange={(e) =>
+                  saveProviderSettings(
+                    e.target.checked
+                      ? { image: "puter", thumbnail: "puter" }
+                      : { image: "builtin", thumbnail: "builtin" },
+                  )
+                }
+              />
+            </label>
             <ImageRouteRow
               label="Image Provider"
               hint="Storyboard images"
@@ -487,9 +509,11 @@ function ImageRouteRow({
         value={value}
         onChange={(e) => onChange(e.target.value as ProviderChoice)}
       >
-        {/* Gemini image generation is disabled (Google returns 403 Project
-            denied access for images). Gemini remains available for text only. */}
-        <option value="puter">Puter AI (default)</option>
+        {/* Built-in Lovable AI is the default and uses Lovable credits. External
+            providers stay optional. Gemini image generation is disabled (Google
+            returns 403 Project denied access for images). */}
+        <option value="builtin">Built-in Lovable AI (default)</option>
+        <option value="puter">Puter AI</option>
         <option value="pollinations">Pollinations AI</option>
         <option value="huggingface">HuggingFace / FLUX</option>
         <option value="recraft">Recraft V4.1 Utility Pro</option>

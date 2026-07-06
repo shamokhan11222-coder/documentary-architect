@@ -89,9 +89,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "puter",
+  image: "builtin",
   voice: "gemini",
-  thumbnail: "puter",
+  thumbnail: "builtin",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -103,24 +103,15 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // stays selectable in API Settings for future use, but never routes here.
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
-  // Gemini image generation is DISABLED (Google returns "403 Project denied
-  // access" for images). Gemini stays available for text only. Any image or
-  // thumbnail routing to Gemini, the built-in AI, or OpenAI is coerced to the
-  // default Puter AI provider so Gemini is never called for images.
-  if (
-    next.image === "gemini" ||
-    next.image === "builtin" ||
-    next.image === "disabled" ||
-    next.image === "openai"
-  )
-    next.image = "puter";
-  if (
-    next.thumbnail === "gemini" ||
-    next.thumbnail === "builtin" ||
-    next.thumbnail === "disabled" ||
-    next.thumbnail === "openai"
-  )
-    next.thumbnail = "puter";
+  // Images/thumbnails default to Built-in Lovable AI (Lovable credits). Gemini
+  // image generation is DISABLED (Google returns "403 Project denied access")
+  // and OpenAI is not required, so any image/thumbnail routing to Gemini,
+  // OpenAI, or a "disabled" state is coerced to the built-in provider. External
+  // providers (Puter, Pollinations, HuggingFace, Recraft) stay selectable.
+  if (next.image === "gemini" || next.image === "disabled" || next.image === "openai")
+    next.image = "builtin";
+  if (next.thumbnail === "gemini" || next.thumbnail === "disabled" || next.thumbnail === "openai")
+    next.thumbnail = "builtin";
   return next;
 }
 
@@ -233,6 +224,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "puter") return "puter-txt2img";
   if (choice === "huggingface") return "black-forest-labs/FLUX.1-schnell";
   if (choice === "pollinations") return "flux";
+  if (choice === "builtin") return "google/gemini-2.5-flash-image";
   return "";
 }
 
@@ -245,7 +237,8 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "puter") return "Puter AI";
   if (choice === "huggingface") return "HuggingFace";
   if (choice === "pollinations") return "Pollinations";
-  return "Built-in AI disabled";
+  if (choice === "builtin") return "Built-in Lovable AI";
+  return "Built-in Lovable AI";
 }
 
 /** Puter AI needs no API key and runs entirely in the browser, so it resolves
@@ -269,6 +262,19 @@ function pollinationsImageProvider(): ActiveImageProvider {
     label: "Pollinations",
     apiKey: "",
     imageModel: "flux",
+    testPassed: true,
+  };
+}
+
+/** Built-in Lovable AI needs no API key and uses Lovable credits — resolves to
+ *  a synthetic connected provider whenever it is the selected choice. */
+function builtinImageProvider(): ActiveImageProvider {
+  return {
+    id: "builtin",
+    name: "builtin",
+    label: "Built-in Lovable AI",
+    apiKey: "",
+    imageModel: "google/gemini-2.5-flash-image",
     testPassed: true,
   };
 }
@@ -302,6 +308,7 @@ function resolveImageProvider(
   list: ApiKeyEntry[],
   poolKeys: GeminiImageKey[],
 ): ActiveImageProvider | null {
+  if (choice === "builtin") return builtinImageProvider();
   if (choice === "puter") return puterImageProvider();
   if (choice === "pollinations") return pollinationsImageProvider();
   const fromVault = toImageProvider(choice, findImageKey(choice, list));
@@ -312,6 +319,7 @@ function resolveImageProvider(
 
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   // Puter requires no key — it is always available client-side.
+  if (choice === "builtin") return builtinImageProvider();
   if (choice === "puter") return puterImageProvider();
   if (choice === "pollinations") return pollinationsImageProvider();
   if (!entry) return null;
@@ -486,6 +494,7 @@ export function imageFallbackChain(): Array<{
     seen.add(p.name);
     chain.push({ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false });
   };
+  add(resolveImageProvider("builtin", list, pool));
   add(resolveImageProvider("puter", list, pool));
   add(resolveImageProvider("pollinations", list, pool));
   add(resolveImageProvider("huggingface", list, pool));
