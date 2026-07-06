@@ -233,9 +233,10 @@ async function loop(token: number) {
     setItem(n, "running");
     emit();
     try {
-      const { image, keyName } = await generateSceneImageRotating(scene);
+      const { image, keyName, model } = await generateSceneImageRotating(scene);
       if (token !== loopToken) return; // paused mid-request
       activeKeyName = keyName;
+      activeModel = model;
       await runner.save(scene, image); // save progress after every image
       setItem(n, "done");
       emit();
