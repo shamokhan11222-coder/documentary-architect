@@ -41,12 +41,14 @@ const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
 const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
 
-/** Normal-user friendly image error. Surfaces the specific "free tier not
- *  available" guidance when Gemini's image free tier is unavailable (limit: 0),
- *  otherwise a short generic quota line. Raw errors stay in Developer Mode. */
+/** Normal-user friendly image error. Images run on the built-in Lovable AI, so
+ *  the common failure is running out of Lovable credits (HTTP 402). Surface a
+ *  clear, provider-neutral message. Raw errors stay in Developer Mode. */
 function friendlyImgError(raw?: string | null): string {
+  if (raw && /(402|not enough credits|credit)/i.test(raw))
+    return "You're out of Lovable AI credits for image generation. Add credits in Settings → Workspace → Usage, or upload a thumbnail.";
   if (raw && /free tier is not available/i.test(raw)) return raw;
-  return "Gemini image quota reached. Try again later or upload a thumbnail.";
+  return "Image generation is temporarily unavailable. Try again later or upload a thumbnail.";
 }
 
 /** A lightweight SVG placeholder thumbnail encoded as a data URL. Lets the user
