@@ -179,7 +179,7 @@ function ThumbnailPage() {
         // Developer Debug panel (bottom-left) for the full raw response.
         const latest = getErrorDetails();
         if (dev && latest) toast.error(latest.message);
-        else toast.error("Gemini image quota reached. Try again later or upload a thumbnail.");
+        else toast.error(friendlyImgError(latest?.message));
       }
     });
   }
