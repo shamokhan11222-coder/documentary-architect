@@ -6,7 +6,7 @@ import { readLocal, writeLocal, useLocal } from "./local";
 const KEY = "docos.provider.telemetry";
 
 export interface ProviderTelemetry {
-  lastProvider: "gemini" | "openai" | "fal" | "replicate" | "recraft" | "puter" | "builtin" | null;
+  lastProvider: "gemini" | "openai" | "fal" | "replicate" | "recraft" | "puter" | "huggingface" | "pollinations" | "builtin" | null;
   lastStatus: "success" | "error" | null;
   lastError: string | null;
   at: number | null;
