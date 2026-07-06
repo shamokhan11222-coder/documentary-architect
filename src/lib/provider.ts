@@ -108,10 +108,11 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // and OpenAI is not required, so any image/thumbnail routing to Gemini,
   // OpenAI, or a "disabled" state is coerced to the built-in provider. External
   // providers (Puter, Pollinations, HuggingFace, Recraft) stay selectable.
-  if (next.image === "gemini" || next.image === "disabled" || next.image === "openai")
-    next.image = "builtin";
-  if (next.thumbnail === "gemini" || next.thumbnail === "disabled" || next.thumbnail === "openai")
-    next.thumbnail = "builtin";
+  // Image generation always uses the built-in Lovable AI (Lovable credits). Any
+  // saved external image-provider selection (Puter, Pollinations, HuggingFace,
+  // Recraft, Gemini, OpenAI, disabled) is coerced to the built-in provider.
+  next.image = "builtin";
+  next.thumbnail = "builtin";
   return next;
 }
 
