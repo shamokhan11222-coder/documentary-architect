@@ -494,6 +494,7 @@ export function imageFallbackChain(): Array<{
     seen.add(p.name);
     chain.push({ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false });
   };
+  add(resolveImageProvider("builtin", list, pool));
   add(resolveImageProvider("puter", list, pool));
   add(resolveImageProvider("pollinations", list, pool));
   add(resolveImageProvider("huggingface", list, pool));
