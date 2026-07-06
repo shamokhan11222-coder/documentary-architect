@@ -494,6 +494,8 @@ function ImageRouteRow({
       >
         <option value="recraft">Recraft V4.1 Utility Pro</option>
         <option value="puter">Puter AI</option>
+        <option value="huggingface">HuggingFace</option>
+        <option value="pollinations">Pollinations</option>
         <option value="gemini">Gemini Image</option>
         <option value="openai">OpenAI Images</option>
         <option value="fal">Fal.ai</option>
