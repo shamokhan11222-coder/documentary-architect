@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "../../lib/gemini-model";
 
 // Silent, internal image generation. Images are routed only through the user's
 // selected external image provider (Recraft is primary). The built-in AI is
@@ -26,9 +27,7 @@ const maskKey = (k?: string) =>
   !k ? "(none)" : k.length <= 10 ? "****" : `${k.slice(0, 6)}…${k.slice(-4)}`;
 // Legacy alias kept for the non-Gemini helpers below.
 const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
-// No hardcoded Gemini image fallback. Actual generation selects from Google's
-// live models list for the key before sending an image request.
-const GEMINI_IMAGE_MODEL_DEFAULT = "";
+const GEMINI_IMAGE_MODEL_DEFAULT = GEMINI_FORCED_IMAGE_MODEL;
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
@@ -62,7 +61,7 @@ export type ImageDiagCheck = {
  *  Nothing is summarised — the real provider error is surfaced verbatim. */
 async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string): Promise<Response> {
   const apiKey = (apiKeyRaw ?? "").trim();
-  const model = (imageModelRaw ?? "").trim() || GEMINI_IMAGE_MODEL_DEFAULT;
+  const model = normalizeGeminiModel(imageModelRaw) || GEMINI_IMAGE_MODEL_DEFAULT;
   const checks: ImageDiagCheck[] = [];
   const push = (label: string, status: ImageDiagCheck["status"], detail: string) =>
     checks.push({ id: checks.length + 1, label, status, detail });
@@ -72,7 +71,7 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   const queryListUrl = `${geminiModelsUrl(version)}?pageSize=200&key=${encodeURIComponent(apiKey)}`;
   const queryListUrlRedacted = `${geminiModelsUrl(version)}?pageSize=200&key=(hidden)`;
   let listUrlRedacted = listUrl;
-  const modelUrl = model ? `${geminiModelsUrl(version)}/${model}` : "";
+  const modelUrl = model ? `${GEMINI_HOST}/${version}/${model}` : "";
   let modelUrlRedacted = modelUrl;
   const generationUrl = geminiInteractionsUrl(version);
   let generationUrlForDisplay = generationUrl;
@@ -204,7 +203,7 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
     detail: !model
       ? "No image model selected. Choose one returned by Google's models list."
       : modelExists
-      ? `Found ${bareModelId(modelJson!.name)} on ${version}.`
+      ? `Found ${modelJson!.name} on ${version}.`
       : `Model lookup returned HTTP ${modelStatus}. It may not exist on ${version}.`,
   });
 
@@ -505,7 +504,7 @@ async function validateProvider(provider: Provider): Promise<Response> {
       if ("error" in listed) {
         return providerFail({
           provider: "gemini",
-      model: imageModel || "models list",
+      model: normalizeGeminiModel(imageModel) || GEMINI_IMAGE_MODEL_DEFAULT || "models list",
           endpoint: listed.requestUrl || `${GOOGLE}?pageSize=200`,
           status: listed.status,
           rawBody: listed.rawBody || listed.error,
@@ -515,11 +514,12 @@ async function validateProvider(provider: Provider): Promise<Response> {
         });
       }
       if (imageModel) {
-        const available = listed.models.filter(isImageCapable).map((m) => bareModelId(m.name));
-        if (!available.includes(imageModel)) {
+        const normalizedImageModel = normalizeGeminiModel(imageModel) || GEMINI_IMAGE_MODEL_DEFAULT;
+        const available = listed.models.filter(isImageCapable).map((m) => normalizeGeminiModel(m.name)).filter(Boolean);
+        if (!available.includes(normalizedImageModel)) {
           return providerFail({
             provider: "gemini",
-            model: imageModel,
+            model: normalizedImageModel,
             endpoint: listed.requestUrl,
             status: 404,
             rawBody: listed.rawBody,
@@ -530,7 +530,7 @@ async function validateProvider(provider: Provider): Promise<Response> {
         }
         return Response.json({ ok: true, imageModels: available, authMethod: listed.authMethod, rawResponse: listed.rawBody });
       }
-      return Response.json({ ok: true, imageModels: listed.models.filter(isImageCapable).map((m) => bareModelId(m.name)), authMethod: listed.authMethod, rawResponse: listed.rawBody });
+      return Response.json({ ok: true, imageModels: listed.models.filter(isImageCapable).map((m) => normalizeGeminiModel(m.name)).filter(Boolean), authMethod: listed.authMethod, rawResponse: listed.rawBody });
     }
     if (name === "openai") {
       const r = await fetch("https://api.openai.com/v1/models", {
@@ -647,36 +647,9 @@ type GeminiModel = {
   supportedActions?: string[];
 };
 
-/** Bare model id (strip the "models/" prefix Google returns). */
+/** Bare model id for display/comparison only. Never sent to Gemini. */
 function bareModelId(name: string): string {
   return name.replace(/^models\//, "");
-}
-
-/** Extract a clean, bare Gemini model id from any incoming value.
- *  Accepts friendly labels like "Nano Banana (gemini-2.5-flash-image)",
- *  full ids like "models/gemini-2.5-flash-image", or bare ids. Returns the
- *  bare id (no "models/" prefix, no label text). Empty string when none. */
-function extractBareModelId(raw: string): string {
-  let v = (raw ?? "").trim();
-  if (!v) return "";
-  // If a label wraps the id in parentheses, take the parenthesised value.
-  const paren = v.match(/\(([^)]+)\)/);
-  if (paren) v = paren[1].trim();
-  // Drop the "models/" prefix if present; keep only the id token.
-  v = v.replace(/^models\//, "").trim();
-  // If any stray label words remain, keep the last whitespace-separated token
-  // that looks like a model id.
-  if (/\s/.test(v)) {
-    const token = v.split(/\s+/).find((t) => /^[a-z0-9][a-z0-9.\-]*$/i.test(t));
-    if (token) v = token;
-  }
-  return v;
-}
-
-/** Ensure a model id carries the "models/" prefix required by the API. */
-function withModelsPrefix(id: string): string {
-  const bare = id.replace(/^models\//, "").trim();
-  return bare ? `models/${bare}` : "";
 }
 
 /** A model is image-capable if its id/displayName mentions "image" or it lists
@@ -756,10 +729,11 @@ async function listGeminiModels(apiKey: string): Promise<Response> {
     });
   }
   const imageModels = res.models.filter(isImageCapable).map((m) => ({
-    id: bareModelId(m.name),
-    displayName: m.displayName ?? bareModelId(m.name),
+    id: normalizeGeminiModel(m.name),
+    label: m.displayName ?? bareModelId(m.name),
+    displayName: `${m.displayName ?? bareModelId(m.name)} (${normalizeGeminiModel(m.name)})`,
   }));
-  const allModels = res.models.map((m) => bareModelId(m.name));
+  const allModels = res.models.map((m) => normalizeGeminiModel(m.name)).filter(Boolean);
   return Response.json({
     endpoint: res.endpoint,
     requestUrl: res.requestUrl,
@@ -794,7 +768,7 @@ async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<R
   let statusText = "";
   let responseBody = "";
   let ok = false;
-  const model = imageModel?.trim() || null;
+  const model = normalizeGeminiModel(imageModel) || null;
   const requestMethod = "GET";
   let authMethodUsed = "x-goog-api-key header";
   let redactedUrl = requestUrl;
@@ -887,8 +861,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
   }
   // Keep the EXACT model IDs Google returns (e.g. "models/gemini-2.5-flash-image").
   // The "models/" prefix is never stripped and display names are never used.
-  const availableImageModelsFull = listed.models.filter(isImageCapable).map((m) => m.name);
-  const availableImageModels = availableImageModelsFull.map(bareModelId);
+  const availableImageModelsFull = listed.models.filter(isImageCapable).map((m) => normalizeGeminiModel(m.name)).filter(Boolean);
   if (availableImageModelsFull.length === 0) {
     return providerFail({
       provider: "gemini",
@@ -901,28 +874,24 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
     });
   }
-  // Enforce a Gemini image model returned by Google's models list for this key —
-  // never a custom string, never a display name, and never a text model.
-  // Match the requested id against Google's returned ids by their bare form, but
-  // always send the EXACT returned name (with the "models/" prefix intact).
-  // Strip any friendly label ("Nano Banana (gemini-2.5-flash-image)") down to the
-  // bare id, then match it against Google's returned ids by bare form. Always
-  // send the EXACT returned name (with the "models/" prefix intact).
-  const requestedBare = extractBareModelId(provider.imageModel || "");
-  const matched =
-    availableImageModelsFull.find((n) => bareModelId(n) === requestedBare) ?? availableImageModelsFull[0];
-  // Guarantee the "models/" prefix on the final id even if a bare id slipped in.
-  const fullModel = withModelsPrefix(matched);
-  const model = fullModel; // exact returned ID, e.g. "models/gemini-2.5-flash-image"
-  if (requestedBare && bareModelId(fullModel) !== requestedBare) {
-    console.warn("[image][gemini] requested image model not returned by Google; using first returned image model", {
-      requested: requestedBare || "(empty)",
-      selected: fullModel,
-      availableImageModels: availableImageModelsFull,
+  const requestedModel = normalizeGeminiModel(provider.imageModel) || GEMINI_IMAGE_MODEL_DEFAULT;
+  const fullModel = GEMINI_IMAGE_MODEL_DEFAULT;
+  const model = fullModel;
+  if (!availableImageModelsFull.includes(fullModel)) {
+    return providerFail({
+      provider: "gemini",
+      model: fullModel,
+      endpoint: listed.requestUrl,
+      status: 404,
+      rawBody: JSON.stringify({ error: `Forced Gemini image model was not returned by Google models list.`, requestedModel, availableImageModels: availableImageModelsFull }, null, 2),
+      code: "MODEL_NOT_FOUND",
+      httpMethod: "GET",
+      requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
     });
   }
   // Requirement: print the EXACT model id sent to the API before every request
   // (image AND thumbnail both route through this function).
+  console.log(`Final Gemini model sent: ${fullModel}`);
   console.log(`Final model sent to Gemini: ${fullModel}`);
   const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {

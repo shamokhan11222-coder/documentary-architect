@@ -28,6 +28,7 @@ import {
 } from "./gemini-image-keys";
 import { updateGeminiImageKey } from "./gemini-image-keys";
 import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
+import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "./gemini-model";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 /** Thrown when every Gemini image key is cooling down or disabled. The queue
@@ -57,7 +58,7 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
     const payload: ImageProviderPayload = {
       name: "gemini",
       apiKey: key.key.trim(),
-      imageModel: key.imageModel?.trim() || GEMINI_IMAGE_MODEL_DEFAULT,
+      imageModel: GEMINI_FORCED_IMAGE_MODEL,
       fallback: false,
     };
     try {
@@ -65,7 +66,7 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
       const image = await callImageApi(prompt, references, payload);
       markKeyUsed(key.id);
       lastImageRequestAt = Date.now();
-      return { image, keyName: key.name, model: payload.imageModel };
+      return { image, keyName: key.name, model: GEMINI_FORCED_IMAGE_MODEL };
     } catch (e) {
       lastImageRequestAt = Date.now();
       const status = e instanceof ImageGenError ? e.status : null;
@@ -117,12 +118,12 @@ export async function ensureGeminiImageModels(): Promise<ResolvedImageModel> {
   for (const k of keys) {
     try {
       const list = await listGeminiModels(k.key.trim());
-      const model = list.imageModels[0]?.id;
+      const model = normalizeGeminiModel(list.imageModels.find((m) => m.id === GEMINI_FORCED_IMAGE_MODEL)?.id) || GEMINI_FORCED_IMAGE_MODEL;
       if (!model) {
         lastError = "No image-capable model returned by Google for this key.";
         continue;
       }
-      if (k.imageModel !== model) updateGeminiImageKey(k.id, { imageModel: model });
+      if (k.imageModel !== GEMINI_FORCED_IMAGE_MODEL) updateGeminiImageKey(k.id, { imageModel: GEMINI_FORCED_IMAGE_MODEL });
       if (!firstModel) firstModel = model;
     } catch (e) {
       lastError = imageErrorMessage(e, "Could not list Gemini models.");
@@ -275,8 +276,10 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
       ? "Gemini Image"
       : provider.name.charAt(0).toUpperCase() + provider.name.slice(1);
   console.log(`Using provider: ${providerLabel}`);
-  console.log(`Model: ${provider.imageModel ?? GEMINI_IMAGE_MODEL_DEFAULT}`);
-  console.info("[image] request started", { provider: provider.name, model: provider.imageModel });
+  const finalProvider = provider.name === "gemini" ? { ...provider, imageModel: GEMINI_FORCED_IMAGE_MODEL } : provider;
+  if (provider.name === "gemini") console.log(`Final Gemini model sent: ${GEMINI_FORCED_IMAGE_MODEL}`);
+  console.log(`Model: ${finalProvider.imageModel ?? GEMINI_IMAGE_MODEL_DEFAULT}`);
+  console.info("[image] request started", { provider: finalProvider.name, model: finalProvider.imageModel });
   // Puter AI generates entirely client-side via the browser SDK — no server call.
   if (provider.name === "puter") {
     try {
@@ -307,7 +310,7 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, references, provider }),
+      body: JSON.stringify({ prompt, references, provider: finalProvider }),
     },
     IMAGE_TIMEOUT_MS,
   );
@@ -316,16 +319,16 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
   console.info("[AUDIT][image] request sent", {
     totalRequestsSent: auditNo,
     endpoint: "/api/generate-image",
-    provider: provider.name,
-    model: provider.imageModel ?? "(default)",
+    provider: finalProvider.name,
+    model: finalProvider.imageModel ?? "(default)",
     time: new Date(auditStart).toISOString(),
   });
   if (!res.ok) {
     console.info("[AUDIT][image] response received", {
       totalRequestsSent: auditNo,
       endpoint: "/api/generate-image",
-      provider: provider.name,
-      model: provider.imageModel ?? "(default)",
+      provider: finalProvider.name,
+      model: finalProvider.imageModel ?? "(default)",
       responseCode: res.status,
       ms: Date.now() - auditStart,
     });
@@ -342,8 +345,8 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
     }
     // Emergency Debug: log the exact provider response verbatim.
     console.error("[image][DEBUG] provider error", {
-      provider: debug?.provider ?? provider.name,
-      model: debug?.model ?? provider.imageModel ?? "(default)",
+      provider: debug?.provider ?? finalProvider.name,
+      model: debug?.model ?? finalProvider.imageModel ?? "(default)",
       endpoint: debug?.endpoint ?? "/api/generate-image",
       httpStatus: debug?.httpStatus ?? res.status,
       requestId: debug?.requestId ?? null,
@@ -353,22 +356,22 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
       rawBody: debug?.rawBody ?? msg,
       durationMs: Date.now() - auditStart,
     });
-    recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
-    console.error("[image] request failed", { provider: provider.name, status: res.status, error: msg });
+    recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "error", lastError: msg });
+    console.error("[image] request failed", { provider: finalProvider.name, status: res.status, error: msg });
     // Keep a 429 prefix for legacy rate-limit detectors, but image queue retry is disabled.
     throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status, debug);
   }
   console.info("[AUDIT][image] response received", {
     totalRequestsSent: auditNo,
     endpoint: "/api/generate-image",
-    provider: provider.name,
-    model: provider.imageModel ?? "(default)",
+    provider: finalProvider.name,
+    model: finalProvider.imageModel ?? "(default)",
     responseCode: res.status,
     ms: Date.now() - auditStart,
   });
   const data = (await res.json()) as { image: string };
-  recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
-  console.info("[image] response received", { provider: provider.name });
+  recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "success", lastError: null });
+  console.info("[image] response received", { provider: finalProvider.name });
   return data.image;
 }
 
@@ -416,12 +419,14 @@ async function generate(prompt: string, references: string[], provider = imagePr
 
 export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
+  const finalProvider = provider.name === "gemini" ? { ...provider, imageModel: GEMINI_FORCED_IMAGE_MODEL } : provider;
+  if (provider.name === "gemini") console.log(`Final Gemini model sent: ${GEMINI_FORCED_IMAGE_MODEL}`);
   const res = await fetchWithTimeout(
     "/api/generate-image",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, test: true }),
+      body: JSON.stringify({ provider: finalProvider, test: true }),
     },
     IMAGE_TIMEOUT_MS,
   );
@@ -435,10 +440,10 @@ export async function testImageProvider(provider: ImageProviderPayload | null): 
     } catch {
       /* ignore */
     }
-    recordTelemetry({ lastProvider: provider.name, lastStatus: "error", lastError: msg });
+    recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "error", lastError: msg });
     throw new ImageGenError(msg, code, res.status);
   }
-  recordTelemetry({ lastProvider: provider.name, lastStatus: "success", lastError: null });
+  recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "success", lastError: null });
 }
 
 export type GeminiModelInfo = { id: string; displayName: string };
@@ -608,7 +613,7 @@ export async function generateTestImage(): Promise<ImageSanityResult> {
     return {
       ok: true,
       provider: provider.name,
-      model: provider.imageModel ?? "(default)",
+      model: provider.name === "gemini" ? GEMINI_FORCED_IMAGE_MODEL : provider.imageModel ?? "(default)",
       ms: Date.now() - start,
       image,
     };
@@ -616,7 +621,7 @@ export async function generateTestImage(): Promise<ImageSanityResult> {
     return {
       ok: false,
       provider: provider.name,
-      model: provider.imageModel ?? "(default)",
+      model: provider.name === "gemini" ? GEMINI_FORCED_IMAGE_MODEL : provider.imageModel ?? "(default)",
       ms: Date.now() - start,
       error: imageErrorMessage(e),
       rateLimited: isRateLimitError(e),

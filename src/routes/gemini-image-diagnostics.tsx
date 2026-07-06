@@ -87,8 +87,7 @@ function GeminiImageDiagnosticsPage() {
   const geminiKey = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim()) ?? null;
   const apiKey = geminiKey?.apiKey.trim() ?? "";
   const keyMasked = apiKey ? `${apiKey.slice(0, 4)}…${apiKey.slice(-4)} (${apiKey.length} chars)` : "None detected";
-  const imageModel =
-    imageProvider?.name === "gemini" ? imageProvider.imageModel : geminiKey?.imageModelName?.trim() || GEMINI_IMAGE_MODEL_DEFAULT;
+  const imageModel = GEMINI_IMAGE_MODEL_DEFAULT;
 
   const [result, setResult] = useState<ImageDiagnostics | null>(null);
   const [loading, setLoading] = useState(false);

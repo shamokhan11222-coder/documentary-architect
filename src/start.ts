@@ -4,6 +4,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { getActiveTextProvider } from "./lib/provider";
 import { recordTelemetry } from "./lib/provider-telemetry";
 import { enqueueAi } from "./lib/ai-queue";
+import { GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./lib/gemini-model";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -34,10 +35,12 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
     if (p) {
       headers["x-ai-provider"] = p.name;
       headers["x-ai-key"] = p.apiKey;
-      headers["x-ai-text-model"] = p.textModel;
+      const finalTextModel = p.name === "gemini" ? normalizeGeminiModel(p.textModel) || GEMINI_TEXT_MODEL_DEFAULT_FULL : p.textModel;
+      headers["x-ai-text-model"] = finalTextModel;
       // Fallback removed: never trigger built-in AI before/after the provider.
       headers["x-ai-fallback"] = "0";
-      console.log("[AI] selected provider=%s model=%s (request started)", p.name, p.textModel);
+      if (p.name === "gemini") console.log(`Final Gemini model sent: ${finalTextModel}`);
+      console.log("[AI] selected provider=%s model=%s (request started)", p.name, finalTextModel);
     } else {
       console.log("[AI] selected provider=builtin (no external text key connected)");
     }

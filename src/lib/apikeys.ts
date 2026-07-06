@@ -2,6 +2,7 @@
 // and used to activate Google Gemini as the live provider for supported tasks.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry, ApiProvider } from "./types";
+import { GEMINI_FORCED_IMAGE_MODEL, GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./gemini-model";
 
 const KEY = "docos.apikeys";
 
@@ -16,20 +17,21 @@ export const API_PROVIDERS: ApiProvider[] = [
 ];
 
 export function useApiKeys(): ApiKeyEntry[] {
-  return useLocal<ApiKeyEntry[]>(KEY, []);
+  return reconcileGeminiModels(useLocal<ApiKeyEntry[]>(KEY, []));
 }
 
 export function saveApiKey(entry: Omit<ApiKeyEntry, "id" | "at"> & { id?: string }) {
-  const list = readLocal<ApiKeyEntry[]>(KEY, []);
+  const list = reconcileGeminiModels(readLocal<ApiKeyEntry[]>(KEY, []));
+  const cleanedEntry = cleanGeminiEntry(entry);
   if (entry.id) {
     writeLocal(
       KEY,
-      list.map((e) => (e.id === entry.id ? { ...e, ...entry, id: e.id } : e)),
+      list.map((e) => (e.id === entry.id ? { ...e, ...cleanedEntry, id: e.id } : e)),
     );
     return;
   }
   const created: ApiKeyEntry = {
-    ...entry,
+    ...cleanedEntry,
     id: crypto.randomUUID(),
     at: Date.now(),
   };
@@ -37,14 +39,34 @@ export function saveApiKey(entry: Omit<ApiKeyEntry, "id" | "at"> & { id?: string
 }
 
 export function deleteApiKey(id: string) {
-  writeLocal(KEY, readLocal<ApiKeyEntry[]>(KEY, []).filter((e) => e.id !== id));
+  writeLocal(KEY, reconcileGeminiModels(readLocal<ApiKeyEntry[]>(KEY, [])).filter((e) => e.id !== id));
 }
 
 export function markTested(id: string, result: string) {
   writeLocal(
     KEY,
     readLocal<ApiKeyEntry[]>(KEY, []).map((e) =>
-      e.id === id ? { ...e, lastTested: Date.now(), testResult: result } : e,
+      e.id === id ? { ...cleanGeminiEntry(e), lastTested: Date.now(), testResult: result } : cleanGeminiEntry(e),
     ),
   );
+}
+
+function cleanGeminiEntry<T extends Partial<ApiKeyEntry>>(entry: T): T {
+  if (entry.provider !== "Google Gemini") return entry;
+  return {
+    ...entry,
+    modelName: normalizeGeminiModel(entry.modelName) || GEMINI_TEXT_MODEL_DEFAULT_FULL,
+    imageModelName: GEMINI_FORCED_IMAGE_MODEL,
+  };
+}
+
+function reconcileGeminiModels(list: ApiKeyEntry[]): ApiKeyEntry[] {
+  let changed = false;
+  const next = list.map((entry) => {
+    const cleaned = cleanGeminiEntry(entry);
+    if (cleaned !== entry && JSON.stringify(cleaned) !== JSON.stringify(entry)) changed = true;
+    return cleaned as ApiKeyEntry;
+  });
+  if (changed) writeLocal(KEY, next);
+  return next;
 }

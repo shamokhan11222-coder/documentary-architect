@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
 import { EXPERTS } from "./experts";
+import { normalizeGeminiModel } from "./gemini-model";
 import type {
   IdeaCategory,
   PromptItem,
@@ -1002,7 +1003,7 @@ export const testProvider = createServerFn({ method: "POST" })
                 const methods = [...(m.supportedGenerationMethods ?? []), ...(m.supportedActions ?? [])].join(" ").toLowerCase();
                 return hay.includes("image") || methods.includes("image") || methods.includes("predict");
               })
-              .map((m) => (m.name ?? "").replace(/^models\//, ""))
+              .map((m) => normalizeGeminiModel(m.name))
               .filter(Boolean);
           } catch {
             return [] as string[];

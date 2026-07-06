@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { GEMINI_TTS_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "../../lib/gemini-model";
 
 // Text-to-speech for the Voice Studio. Returns base64 mp3 so the client can
 // store each paragraph's narration block in IndexedDB and measure duration.
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/audio/speech";
 const MODEL = "openai/gpt-4o-mini-tts";
-const GOOGLE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const VOICE_MAP: Record<string, string> = {
   deep: "onyx",
@@ -151,7 +151,8 @@ function pcmToWav(pcm: Buffer, sampleRate = 24000): Buffer {
 // Narrate with the user's own Google Gemini key (no Lovable AI involved).
 async function ttsWithGemini(body: Body): Promise<Response> {
   const provider = body.provider!;
-  const model = provider.ttsModel || "gemini-2.5-flash-preview-tts";
+  const model = normalizeGeminiModel(provider.ttsModel) || GEMINI_TTS_MODEL_DEFAULT_FULL;
+  console.log(`Final Gemini model sent: ${model}`);
   // A selected clone locks the gender: a male sample never yields a female
   // voice and vice-versa. Falls back to the profile map only when no clone.
   const profileKey = body.profile ?? "deep";
@@ -165,7 +166,7 @@ async function ttsWithGemini(body: Body): Promise<Response> {
   }
   const prompt = `${buildInstructions(body)}\n\nSay: ${body.text!.slice(0, 4000)}`;
   const upstream = await fetch(
-    `${GOOGLE}/${model}:generateContent?key=${encodeURIComponent(provider.apiKey ?? "")}`,
+    `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${encodeURIComponent(provider.apiKey ?? "")}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

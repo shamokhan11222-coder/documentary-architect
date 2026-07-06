@@ -3,6 +3,7 @@
 // function call, so any handler can resolve it without threading params.
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { makeProviderError } from "./provider-error";
+import { GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./gemini-model";
 
 export interface ServerProvider {
   name: "gemini" | "openai";
@@ -19,7 +20,7 @@ export function readProviderFromHeaders(): ServerProvider | null {
       return {
         name: "gemini",
         apiKey,
-        textModel: getRequestHeader("x-ai-text-model") || "gemini-2.5-flash",
+        textModel: normalizeGeminiModel(getRequestHeader("x-ai-text-model")) || GEMINI_TEXT_MODEL_DEFAULT_FULL,
         fallback: getRequestHeader("x-ai-fallback") === "1",
       };
     }
@@ -37,8 +38,6 @@ export function readProviderFromHeaders(): ServerProvider | null {
   return null;
 }
 
-const GEMINI = "https://generativelanguage.googleapis.com/v1beta/models";
-
 /** Direct call to Google's Generative Language API. Returns raw text output. */
 export async function geminiGenerateText(
   apiKey: string,
@@ -47,8 +46,10 @@ export async function geminiGenerateText(
   user: string,
   json: boolean,
 ): Promise<string> {
-  const endpoint = `${GEMINI}/${model}:generateContent`;
+  const finalModel = normalizeGeminiModel(model) || GEMINI_TEXT_MODEL_DEFAULT_FULL;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/${finalModel}:generateContent`;
   const startedAt = Date.now();
+  console.log(`Final Gemini model sent: ${finalModel}`);
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -63,7 +64,7 @@ export async function geminiGenerateText(
     const text = await res.text().catch(() => "");
     throw makeProviderError({
       provider: "gemini",
-      model,
+      model: finalModel,
       endpoint,
       httpStatus: res.status,
       requestId: res.headers.get("x-request-id") ?? res.headers.get("x-goog-request-id"),

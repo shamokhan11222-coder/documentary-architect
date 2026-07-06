@@ -5,6 +5,12 @@ import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
 import { getGeminiImageKeys, useGeminiImageKeys } from "./gemini-image-keys";
 import type { GeminiImageKey } from "./gemini-image-keys";
+import {
+  GEMINI_FORCED_IMAGE_MODEL,
+  GEMINI_TEXT_MODEL_DEFAULT_FULL,
+  GEMINI_TTS_MODEL_DEFAULT_FULL,
+  normalizeGeminiModel,
+} from "./gemini-model";
 
 const KEY = "docos.apikeys";
 const SETTINGS_KEY = "docos.provider.settings";
@@ -39,10 +45,8 @@ export const GEMINI_UNSUPPORTED_MESSAGE =
 
 // Separate Gemini models per task. The text model must never be used for image
 // generation, and the image model must never be used for text.
-export const GEMINI_TEXT_MODEL_DEFAULT = "gemini-2.5-flash";
-// No hardcoded Gemini image model. Image generation resolves the model from
-// Google's live models.list response for the user's key before every request.
-export const GEMINI_IMAGE_MODEL_DEFAULT = "";
+export const GEMINI_TEXT_MODEL_DEFAULT = GEMINI_TEXT_MODEL_DEFAULT_FULL;
+export const GEMINI_IMAGE_MODEL_DEFAULT = GEMINI_FORCED_IMAGE_MODEL;
 
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
@@ -113,6 +117,30 @@ function findGemini(list: ApiKeyEntry[]): ApiKeyEntry | null {
   return list.find((e) => e.provider === "Google Gemini" && e.apiKey.trim()) ?? null;
 }
 
+function resetSavedGeminiModelLabels(list: ApiKeyEntry[]): ApiKeyEntry[] {
+  let changed = false;
+  const next = list.map((entry) => {
+    if (entry.provider !== "Google Gemini") return entry;
+    const cleaned = {
+      ...entry,
+      modelName: normalizedGeminiTextModel(entry.modelName),
+      imageModelName: GEMINI_IMAGE_MODEL_DEFAULT,
+    };
+    if (cleaned.modelName !== entry.modelName || cleaned.imageModelName !== entry.imageModelName) changed = true;
+    return cleaned;
+  });
+  if (changed) writeLocal(KEY, next);
+  return next;
+}
+
+function normalizedGeminiTextModel(raw?: string): string {
+  return normalizeGeminiModel(raw) || GEMINI_TEXT_MODEL_DEFAULT;
+}
+
+function finalGeminiImageModel(): string {
+  return GEMINI_FORCED_IMAGE_MODEL;
+}
+
 function findOpenAI(list: ApiKeyEntry[]): ApiKeyEntry | null {
   return list.find((e) => e.provider === "OpenAI" && e.apiKey.trim()) ?? null;
 }
@@ -134,7 +162,7 @@ function resolveTextProvider(settings: ProviderSettings, list: ApiKeyEntry[]): A
   if (settings.text === "gemini") {
     const g = findGemini(list);
     return g
-      ? { name: "gemini", apiKey: g.apiKey.trim(), textModel: g.modelName?.trim() || "gemini-2.5-flash" }
+      ? { name: "gemini", apiKey: g.apiKey.trim(), textModel: normalizedGeminiTextModel(g.modelName) }
       : null;
   }
   return null; // built-in / disabled
@@ -142,13 +170,13 @@ function resolveTextProvider(settings: ProviderSettings, list: ApiKeyEntry[]): A
 
 /** Non-reactive read of the active text provider (Gemini or OpenAI). */
 export function getActiveTextProvider(): ActiveTextProvider | null {
-  return resolveTextProvider(getProviderSettings(), readLocal<ApiKeyEntry[]>(KEY, []));
+  return resolveTextProvider(getProviderSettings(), resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])));
 }
 
 /** Reactive hook for the active text provider. */
 export function useActiveTextProvider(): ActiveTextProvider | null {
   const settings = useProviderSettings();
-  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
   return resolveTextProvider(settings, list);
 }
 
@@ -216,7 +244,7 @@ function poolToImageProvider(keys: GeminiImageKey[]): ActiveImageProvider | null
     name: "gemini",
     label: "Gemini Image",
     apiKey: usable.key.trim(),
-    imageModel: usable.imageModel?.trim() || GEMINI_IMAGE_MODEL_DEFAULT,
+    imageModel: finalGeminiImageModel(),
     testPassed: true,
   };
 }
@@ -250,8 +278,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   // modelName). Never use the text modelName (e.g. gemini-2.5-flash) for images.
   let imageModel = entry.modelName?.trim() || "";
   if (choice === "gemini") {
-    const picked = entry.imageModelName?.trim() || "";
-    imageModel = picked || (imageModel.toLowerCase().includes("image") ? imageModel : GEMINI_IMAGE_MODEL_DEFAULT);
+    imageModel = finalGeminiImageModel();
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
@@ -278,32 +305,32 @@ function toProvider(e: ApiKeyEntry | null): ActiveProvider | null {
   return {
     name: "gemini",
     apiKey: e.apiKey.trim(),
-    textModel: e.modelName?.trim() || GEMINI_TEXT_MODEL_DEFAULT,
-    imageModel: GEMINI_IMAGE_MODEL_DEFAULT,
-    ttsModel: "gemini-2.5-flash-preview-tts",
+    textModel: normalizedGeminiTextModel(e.modelName),
+    imageModel: finalGeminiImageModel(),
+    ttsModel: GEMINI_TTS_MODEL_DEFAULT_FULL,
   };
 }
 
 /** Non-reactive read — safe in event handlers, fetch helpers and middleware. */
 export function getActiveProvider(): ActiveProvider | null {
-  return toProvider(findGemini(readLocal<ApiKeyEntry[]>(KEY, [])));
+  return toProvider(findGemini(resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, []))));
 }
 
 /** Reactive hook for UI. */
 export function useActiveProvider(): ActiveProvider | null {
-  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
   return toProvider(findGemini(list));
 }
 
 /** External image provider if the selected image choice has a connected key. */
 export function getActiveImageProvider(): ActiveImageProvider | null {
   const choice = getProviderSettings().image;
-  return resolveImageProvider(choice, readLocal<ApiKeyEntry[]>(KEY, []), getGeminiImageKeys());
+  return resolveImageProvider(choice, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), getGeminiImageKeys());
 }
 
 export function useActiveImageProvider(): ActiveImageProvider | null {
   const settings = useProviderSettings();
-  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
   const pool = useGeminiImageKeys();
   return resolveImageProvider(settings.image, list, pool);
 }
@@ -321,7 +348,7 @@ export function getImageProviderStatus(): {
 
 export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
   const settings = useProviderSettings();
-  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
   const pool = useGeminiImageKeys();
   return statusFor(settings.image, resolveImageProvider(settings.image, list, pool));
 }
@@ -391,7 +418,7 @@ export function imageProviderPayload() {
 /** First connected non-Puter image provider (Gemini or Recraft), used as an
  *  automatic fallback when Puter AI is unavailable or rate limited. */
 export function fallbackImageProviderPayload() {
-  const list = readLocal<ApiKeyEntry[]>(KEY, []);
+  const list = resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, []));
   const pool = getGeminiImageKeys();
   for (const choice of ["gemini", "recraft"] as ProviderChoice[]) {
     const p = resolveImageProvider(choice, list, pool);

@@ -24,6 +24,7 @@ import {
   useActiveImageProvider,
   useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
+  GEMINI_IMAGE_MODEL_DEFAULT,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
@@ -438,6 +439,7 @@ function DebugStatus() {
       <div className="grid gap-1">
         <div>Active Text Provider: {textLabel}</div>
         <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
+        <div>Final Gemini model sent: {GEMINI_IMAGE_MODEL_DEFAULT}</div>
         <div>Image Provider Status: {imageStatus.message}</div>
         <div>Active Thumbnail Provider: {providerLabel(settings.thumbnail)}</div>
         <div>Active Voice Provider: {providerLabel(settings.voice)}</div>
@@ -556,10 +558,9 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
     setTesting(true);
     try {
       const listed = await listGeminiModels(geminiKey.apiKey.trim());
-      const savedModel = geminiKey.imageModelName?.trim() || "";
-      const imageModel = listed.imageModels.some((m) => m.id === savedModel)
-        ? savedModel
-        : listed.imageModels[0]?.id;
+      const imageModel = listed.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT)
+        ? GEMINI_IMAGE_MODEL_DEFAULT
+        : "";
       if (!imageModel) {
         toast.error("Google returned no image-capable Gemini models for this key.");
         return;
@@ -570,7 +571,7 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
         imageModel,
         fallback: false,
       });
-      if (geminiKey.imageModelName?.trim() !== imageModel) saveApiKey({ ...geminiKey, imageModelName: imageModel });
+      if (geminiKey.imageModelName?.trim() !== GEMINI_IMAGE_MODEL_DEFAULT) saveApiKey({ ...geminiKey, imageModelName: GEMINI_IMAGE_MODEL_DEFAULT });
       toast.success("Gemini Image connected — set as active Image Provider");
     } catch (e) {
       // Surface the REAL Gemini error rather than a generic failure.
@@ -623,7 +624,7 @@ function GeminiModelDiagnostic({ keys }: { keys: ReturnType<typeof useApiKeys> }
     try {
       const r = await listGeminiModels(geminiKey.apiKey.trim());
       setResult(r);
-      setSelected(r.imageModels[0]?.id ?? "");
+      setSelected(r.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT) ? GEMINI_IMAGE_MODEL_DEFAULT : "");
       toast.success(`Found ${r.imageModels.length} image-capable Gemini model(s)`);
     } catch (e) {
       toast.error(imageErrorMessage(e, "Could not list Gemini models"));
@@ -637,11 +638,11 @@ function GeminiModelDiagnostic({ keys }: { keys: ReturnType<typeof useApiKeys> }
     setSaving(true);
     try {
       // Validate the selected model against the live endpoint BEFORE saving.
-      await validateGeminiImageModel(geminiKey.apiKey.trim(), selected);
-      saveApiKey({ ...geminiKey, imageModelName: selected });
+      await validateGeminiImageModel(geminiKey.apiKey.trim(), GEMINI_IMAGE_MODEL_DEFAULT);
+      saveApiKey({ ...geminiKey, imageModelName: GEMINI_IMAGE_MODEL_DEFAULT });
       saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
       markTested(geminiKey.id, IMAGE_PROVIDER_TEST_PASSED);
-      toast.success(`Gemini image model set: ${selected}`);
+      toast.success(`Final Gemini model sent: ${GEMINI_IMAGE_MODEL_DEFAULT}`);
     } catch (e) {
       toast.error(imageErrorMessage(e, "Selected Gemini model failed validation"));
     } finally {
@@ -676,7 +677,7 @@ function GeminiModelDiagnostic({ keys }: { keys: ReturnType<typeof useApiKeys> }
               >
                 {result.imageModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.displayName} ({m.id})
+                    {m.displayName}
                   </option>
                 ))}
               </select>
