@@ -39,6 +39,7 @@ export const ALL_KEYS_COOLING_MESSAGE =
 export interface RotatedImage {
   image: string;
   keyName: string;
+  model: string;
 }
 
 /** Generate ONE image using the Gemini image key pool. Picks the first available
@@ -63,7 +64,7 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
       const image = await callImageApi(prompt, references, payload);
       markKeyUsed(key.id);
       lastImageRequestAt = Date.now();
-      return { image, keyName: key.name };
+      return { image, keyName: key.name, model: payload.imageModel };
     } catch (e) {
       lastImageRequestAt = Date.now();
       const status = e instanceof ImageGenError ? e.status : null;
