@@ -89,9 +89,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "puter",
+  image: "builtin",
   voice: "gemini",
-  thumbnail: "puter",
+  thumbnail: "builtin",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -103,24 +103,15 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // stays selectable in API Settings for future use, but never routes here.
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
-  // Gemini image generation is DISABLED (Google returns "403 Project denied
-  // access" for images). Gemini stays available for text only. Any image or
-  // thumbnail routing to Gemini, the built-in AI, or OpenAI is coerced to the
-  // default Puter AI provider so Gemini is never called for images.
-  if (
-    next.image === "gemini" ||
-    next.image === "builtin" ||
-    next.image === "disabled" ||
-    next.image === "openai"
-  )
-    next.image = "puter";
-  if (
-    next.thumbnail === "gemini" ||
-    next.thumbnail === "builtin" ||
-    next.thumbnail === "disabled" ||
-    next.thumbnail === "openai"
-  )
-    next.thumbnail = "puter";
+  // Images/thumbnails default to Built-in Lovable AI (Lovable credits). Gemini
+  // image generation is DISABLED (Google returns "403 Project denied access")
+  // and OpenAI is not required, so any image/thumbnail routing to Gemini,
+  // OpenAI, or a "disabled" state is coerced to the built-in provider. External
+  // providers (Puter, Pollinations, HuggingFace, Recraft) stay selectable.
+  if (next.image === "gemini" || next.image === "disabled" || next.image === "openai")
+    next.image = "builtin";
+  if (next.thumbnail === "gemini" || next.thumbnail === "disabled" || next.thumbnail === "openai")
+    next.thumbnail = "builtin";
   return next;
 }
 
