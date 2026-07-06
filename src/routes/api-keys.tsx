@@ -303,6 +303,28 @@ function ApiKeysPage() {
               value={settings.text}
               onChange={(v) => saveProviderSettings({ text: v })}
             />
+            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm">
+              <span className="min-w-0">
+                <span className="block font-medium">Use external image provider</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {settings.image === "builtin" && settings.thumbnail === "builtin"
+                    ? "Off — using Built-in Lovable AI (Lovable credits)"
+                    : "On — using the selected external provider"}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0"
+                checked={!(settings.image === "builtin" && settings.thumbnail === "builtin")}
+                onChange={(e) =>
+                  saveProviderSettings(
+                    e.target.checked
+                      ? { image: "puter", thumbnail: "puter" }
+                      : { image: "builtin", thumbnail: "builtin" },
+                  )
+                }
+              />
+            </label>
             <ImageRouteRow
               label="Image Provider"
               hint="Storyboard images"
