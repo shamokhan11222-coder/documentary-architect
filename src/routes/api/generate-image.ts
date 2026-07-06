@@ -36,7 +36,7 @@ const PROVIDER_REQUIRED =
   "Recraft is not connected. Add your Recraft API key in API Settings and test the connection.";
 
 type Provider = {
-  name?: "gemini" | "openai" | "fal" | "replicate" | "recraft" | "builtin";
+  name?: "gemini" | "openai" | "fal" | "replicate" | "recraft" | "huggingface" | "pollinations" | "builtin";
   apiKey?: string;
   imageModel?: string;
   fallback?: boolean;
