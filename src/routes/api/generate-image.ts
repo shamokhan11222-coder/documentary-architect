@@ -1126,6 +1126,60 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
 const POLLINATIONS = "https://image.pollinations.ai/prompt";
 const HUGGINGFACE = "https://api-inference.huggingface.co/models";
 
+// Built-in Lovable AI image generation via the Lovable AI Gateway. Uses Lovable
+// credits and requires no user API key. This is the restored default provider.
+const GATEWAY_IMAGE_URL = "https://ai.gateway.lovable.dev/v1/images/generations";
+const BUILTIN_IMAGE_MODEL = "google/gemini-2.5-flash-image";
+
+async function generateWithBuiltin(body: Body): Promise<Response> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key)
+    return jsonError("Built-in Lovable AI is unavailable (missing LOVABLE_API_KEY).", 500, "NO_BUILTIN");
+  const model = BUILTIN_IMAGE_MODEL;
+  const content: unknown[] = [{ type: "text", text: body.prompt ?? "" }];
+  for (const ref of (body.references ?? []).slice(0, 3)) {
+    if (typeof ref === "string" && ref.startsWith("data:"))
+      content.push({ type: "image_url", image_url: { url: ref } });
+  }
+  const upstream = await fetch(GATEWAY_IMAGE_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Lovable-API-Key": key,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages: [{ role: "user", content }], modalities: ["image", "text"] }),
+  });
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => "");
+    logProviderCall("builtin", model, "", upstream.status, false, text);
+    return providerFail({
+      provider: "builtin",
+      model,
+      endpoint: GATEWAY_IMAGE_URL,
+      status: upstream.status,
+      rawBody: text,
+      headers: upstream.headers,
+    });
+  }
+  const data = (await upstream.json().catch(() => null)) as
+    | { data?: Array<{ b64_json?: string; url?: string }> }
+    | null;
+  const b64 = data?.data?.[0]?.b64_json;
+  const url = data?.data?.[0]?.url;
+  logProviderCall("builtin", model, "", upstream.status, true, b64 ? "b64 image" : url ? "url image" : "no image");
+  if (b64) return Response.json({ image: `data:image/png;base64,${b64}` });
+  if (url) return Response.json({ image: url });
+  return providerFail({
+    provider: "builtin",
+    model,
+    endpoint: GATEWAY_IMAGE_URL,
+    status: 502,
+    rawBody: JSON.stringify(data).slice(0, 20000),
+    code: "PROVIDER_ERROR",
+  });
+}
+
 async function generateWithPollinations(body: Body, provider: Provider): Promise<Response> {
   const model = provider.imageModel || "flux";
   const url = `${POLLINATIONS}/${encodeURIComponent(body.prompt ?? "")}?model=${encodeURIComponent(model)}&width=1024&height=1024&nologo=true`;
