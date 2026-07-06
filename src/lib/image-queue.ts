@@ -33,6 +33,7 @@ export interface ImageQueueSnapshot {
   items: QueueItemView[];
   currentScene: number | null;
   activeKeyName: string | null;
+  activeModel: string | null;
   completed: number;
   pending: number;
   failed: number;
@@ -46,8 +47,8 @@ export const DELAY_OPTIONS = [15000, 30000, 60000, 120000] as const;
 const DELAY_KEY = "docos.imageQueue.delay";
 
 export function getQueueDelay(): number {
-  const v = readLocal<number>(DELAY_KEY, 15000);
-  return (DELAY_OPTIONS as readonly number[]).includes(v) ? v : 15000;
+  const v = readLocal<number>(DELAY_KEY, 30000);
+  return (DELAY_OPTIONS as readonly number[]).includes(v) ? v : 30000;
 }
 export function setQueueDelay(ms: number) {
   writeLocal(DELAY_KEY, ms);
@@ -65,6 +66,7 @@ let items: Map<number, ItemState> = new Map();
 let sceneMap: Map<number, VisualScene> = new Map();
 let currentScene: number | null = null;
 let activeKeyName: string | null = null;
+let activeModel: string | null = null;
 let message: string | null = null;
 let nextRetryAt: number | null = null;
 let runner: Runner | null = null;
@@ -86,6 +88,7 @@ function build(): ImageQueueSnapshot {
     items: list,
     currentScene,
     activeKeyName,
+    activeModel,
     completed,
     pending,
     failed,
