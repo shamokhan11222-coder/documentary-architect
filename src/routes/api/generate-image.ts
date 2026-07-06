@@ -921,8 +921,9 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       availableImageModels: availableImageModelsFull,
     });
   }
-  // Requirement: print the EXACT model id sent to the API before every request.
-  console.log(`Final model sent to Gemini API: ${fullModel}`);
+  // Requirement: print the EXACT model id sent to the API before every request
+  // (image AND thumbnail both route through this function).
+  console.log(`Final model sent to Gemini: ${fullModel}`);
   const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
     const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineDataPart(ref) : null;
