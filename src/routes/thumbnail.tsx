@@ -305,10 +305,6 @@ function ThumbnailPage() {
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
-        <Button variant="secondary" onClick={handleGenerateLater} disabled={!selected || !!busy}>
-          {busy === "later" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <Clock className="mr-2 h-4 w-4" /> Generate Thumbnail Later
-        </Button>
         <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
           <Upload className="mr-2 h-4 w-4" /> Upload Thumbnail Manually
         </Button>
@@ -316,17 +312,26 @@ function ThumbnailPage() {
           <ImageOff className="mr-2 h-4 w-4" /> Use Placeholder Thumbnail
         </Button>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onUploadFile} />
-        {pack && !freeMode && (
-          <Button variant="secondary" onClick={handleAlternatives} disabled={!!busy}>
-            {busy === "alt" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Sparkles className="mr-2 h-4 w-4" /> Generate Alternatives
-          </Button>
-        )}
-        {pack && (
-          <Button variant="outline" onClick={handleReview} disabled={!!busy}>
-            {busy === "review" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Review Thumbnails
-          </Button>
+        {/* Developer-only actions */}
+        {dev && (
+          <>
+            <Button variant="secondary" onClick={handleGenerateLater} disabled={!selected || !!busy}>
+              {busy === "later" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Clock className="mr-2 h-4 w-4" /> Generate Thumbnail Later
+            </Button>
+            {pack && !freeMode && (
+              <Button variant="secondary" onClick={handleAlternatives} disabled={!!busy}>
+                {busy === "alt" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Sparkles className="mr-2 h-4 w-4" /> Generate Alternatives
+              </Button>
+            )}
+            {pack && (
+              <Button variant="outline" onClick={handleReview} disabled={!!busy}>
+                {busy === "review" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Review Thumbnails
+              </Button>
+            )}
+          </>
         )}
       </div>
 
@@ -340,18 +345,25 @@ function ThumbnailPage() {
       {selected && pack && (
         thumbnailReady ? (
           <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
-            First thumbnail ready. Not happy? Generate alternatives.
+            First thumbnail ready.
           </p>
         ) : providerError ? (
-          // Emergency Debug: surface the EXACT provider error, not a generic line.
-          <p className="mt-3 whitespace-pre-wrap break-words rounded-md bg-destructive/10 px-3 py-2 font-mono text-xs text-destructive">
-            {providerError}
-          </p>
+          dev ? (
+            // Developer Mode: surface the EXACT raw provider error.
+            <p className="mt-3 whitespace-pre-wrap break-words rounded-md bg-destructive/10 px-3 py-2 font-mono text-xs text-destructive">
+              {providerError}
+            </p>
+          ) : (
+            // Normal users: short, friendly message only.
+            <p className="mt-3 text-xs text-muted-foreground">
+              Gemini image quota reached. Try again later or upload a thumbnail.
+            </p>
+          )
         ) : null
       )}
 
       {/* Debug line — reflects the raw thumbnail state, never concept-only. */}
-      {selected && (
+      {selected && dev && (
         <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
           <div>Thumbnail Status: {thumbnailStatus}</div>
           <div>Has Image URL: {hasImageUrl ? "true" : "false"}</div>
