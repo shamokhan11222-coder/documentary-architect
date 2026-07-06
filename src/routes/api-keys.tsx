@@ -132,10 +132,9 @@ function ApiKeysPage() {
     // Saving a key immediately activates that provider by pointing the relevant
     // routing at it. No Gemini requirement — any supported provider activates.
     if (provider === "Google Gemini") {
-      // Gemini is text-only now (image generation returns 403 Project denied
-      // access). Adding a Gemini key activates it for TEXT only — image and
-      // thumbnail routing is left on the image providers (default Puter AI).
-      saveProviderSettings({ text: "gemini" });
+      // A saved Gemini key must also become the image + thumbnail provider so
+      // generation never falls back to the billed built-in gateway.
+      saveProviderSettings({ text: "gemini", image: "gemini", thumbnail: "gemini" });
     } else if (provider === "OpenAI") {
       applyPurposeRouting("openai", purpose.trim() || "text");
     } else if (provider === "Recraft") {
@@ -295,7 +294,7 @@ function ApiKeysPage() {
         <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium">Provider routing</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Choose which provider handles each task. Images and thumbnails use Built-in Lovable AI (Lovable credits) by default; external providers are optional.
+            Choose which provider handles each task. Images and thumbnails use your connected Gemini image key by default; built-in image generation is disabled.
           </p>
           <div className="mt-3 space-y-3">
             <TextRouteRow
@@ -306,22 +305,22 @@ function ApiKeysPage() {
             />
             <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm">
               <span className="min-w-0">
-                <span className="block font-medium">Use external image provider</span>
+                <span className="block font-medium">Use Gemini for images + thumbnails</span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {settings.image === "builtin" && settings.thumbnail === "builtin"
-                    ? "Off — using Built-in Lovable AI (Lovable credits)"
-                    : "On — using the selected external provider"}
+                  {settings.image === "gemini" && settings.thumbnail === "gemini"
+                    ? "On — using your Gemini API key"
+                    : "Off — using the selected external provider"}
                 </span>
               </span>
               <input
                 type="checkbox"
                 className="h-4 w-4 shrink-0"
-                checked={!(settings.image === "builtin" && settings.thumbnail === "builtin")}
+                checked={settings.image === "gemini" && settings.thumbnail === "gemini"}
                 onChange={(e) =>
                   saveProviderSettings(
                     e.target.checked
-                      ? { image: "puter", thumbnail: "puter" }
-                      : { image: "builtin", thumbnail: "builtin" },
+                      ? { image: "gemini", thumbnail: "gemini" }
+                      : { image: "puter", thumbnail: "puter" },
                   )
                 }
               />
@@ -358,7 +357,7 @@ function ApiKeysPage() {
               checked={settings.fallback}
               onChange={(e) => saveProviderSettings({ fallback: e.target.checked })}
             />
-            Use built-in AI if the external text or voice provider fails
+            Allow provider fallback where available
           </label>
         </div>
       )}
