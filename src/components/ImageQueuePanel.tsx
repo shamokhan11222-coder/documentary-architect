@@ -86,6 +86,7 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         <Stat label="Current scene" value={q.currentScene != null ? `#${q.currentScene}` : "—"} />
         <Stat label="Active key" value={q.activeKeyName ?? "—"} />
+        <Stat label="Provider / model" value={q.activeModel ? `Gemini · ${q.activeModel}` : "—"} />
         <Stat label="Completed" value={String(q.completed)} cls="text-green-600" />
         <Stat label="Pending" value={String(q.pending)} />
         <Stat label="Failed" value={String(q.failed)} cls={q.failed ? "text-red-600" : undefined} />

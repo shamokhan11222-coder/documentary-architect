@@ -26,6 +26,7 @@ import {
   isDailyLimit,
   isInvalidKeyOrModel,
 } from "./gemini-image-keys";
+import { updateGeminiImageKey } from "./gemini-image-keys";
 import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
@@ -39,6 +40,7 @@ export const ALL_KEYS_COOLING_MESSAGE =
 export interface RotatedImage {
   image: string;
   keyName: string;
+  model: string;
 }
 
 /** Generate ONE image using the Gemini image key pool. Picks the first available
@@ -63,7 +65,7 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
       const image = await callImageApi(prompt, references, payload);
       markKeyUsed(key.id);
       lastImageRequestAt = Date.now();
-      return { image, keyName: key.name };
+      return { image, keyName: key.name, model: payload.imageModel };
     } catch (e) {
       lastImageRequestAt = Date.now();
       const status = e instanceof ImageGenError ? e.status : null;
@@ -92,6 +94,44 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
 /** True when the user has configured the Gemini image key pool (rotation on). */
 export function hasGeminiImageKeyPool(): boolean {
   return getGeminiImageKeys().length > 0;
+}
+
+/** Result of resolving image-capable models from Google's live models list. */
+export interface ResolvedImageModel {
+  ok: boolean;
+  model?: string;
+  message?: string;
+}
+
+/** Before generating storyboard images, query Google's live models list for
+ *  each usable Gemini image key and persist the FIRST image-capable model it
+ *  returns. No model names are hardcoded — only models Google returns are used.
+ *  Returns the first resolved model (the one the queue will start with). */
+export async function ensureGeminiImageModels(): Promise<ResolvedImageModel> {
+  const keys = getGeminiImageKeys().filter((k) => k.status !== "disabled" && k.key.trim());
+  if (!keys.length) {
+    return { ok: false, message: "No usable Gemini image key. Add one in API Settings." };
+  }
+  let firstModel: string | undefined;
+  let lastError: string | undefined;
+  for (const k of keys) {
+    try {
+      const list = await listGeminiModels(k.key.trim());
+      const model = list.imageModels[0]?.id;
+      if (!model) {
+        lastError = "No image-capable model returned by Google for this key.";
+        continue;
+      }
+      if (k.imageModel !== model) updateGeminiImageKey(k.id, { imageModel: model });
+      if (!firstModel) firstModel = model;
+    } catch (e) {
+      lastError = imageErrorMessage(e, "Could not list Gemini models.");
+    }
+  }
+  if (!firstModel) {
+    return { ok: false, message: lastError ?? "No image-capable Gemini model returned by Google." };
+  }
+  return { ok: true, model: firstModel };
 }
 
 /** Generate a scene image through the key pool, returning the used key name. */
