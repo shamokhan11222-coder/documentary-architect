@@ -40,10 +40,9 @@ export const GEMINI_UNSUPPORTED_MESSAGE =
 // Separate Gemini models per task. The text model must never be used for image
 // generation, and the image model must never be used for text.
 export const GEMINI_TEXT_MODEL_DEFAULT = "gemini-2.5-flash";
-// Current, existing Gemini image model. The old
-// "gemini-2.0-flash-preview-image-generation" id no longer exists on v1beta
-// (404). The real model is resolved dynamically before every request.
-export const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-3.1-flash-image";
+// No hardcoded Gemini image model. Image generation resolves the model from
+// Google's live models.list response for the user's key before every request.
+export const GEMINI_IMAGE_MODEL_DEFAULT = "";
 
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
@@ -252,11 +251,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   let imageModel = entry.modelName?.trim() || "";
   if (choice === "gemini") {
     const picked = entry.imageModelName?.trim() || "";
-    imageModel = picked.toLowerCase().includes("image")
-      ? picked
-      : imageModel.toLowerCase().includes("image")
-        ? imageModel
-        : GEMINI_IMAGE_MODEL_DEFAULT;
+    imageModel = picked || (imageModel.toLowerCase().includes("image") ? imageModel : GEMINI_IMAGE_MODEL_DEFAULT);
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";

@@ -6,8 +6,8 @@ import { createFileRoute } from "@tanstack/react-router";
 // Gemini API version is resolved from this single constant and model availability
 // is read from Google's models list for the user's key.
 const GEMINI_HOST = "https://generativelanguage.googleapis.com";
-// Ordered by preference. When a model is missing on one version we try the next.
-const GEMINI_API_VERSIONS = ["v1beta", "v1"] as const;
+// Official Google AI Studio / Generative Language REST version for models.list.
+const GEMINI_API_VERSIONS = ["v1beta"] as const;
 const geminiModelsUrl = (version: string) => `${GEMINI_HOST}/${version}/models`;
 const geminiInteractionsUrl = (version: string) => `${GEMINI_HOST}/${version}/interactions`;
 // Gemini (Google AI Studio) auth — per the official Google docs
@@ -15,8 +15,8 @@ const geminiInteractionsUrl = (version: string) => `${GEMINI_HOST}/${version}/in
 // keys), not OAuth bearer tokens. We support API-key auth via x-goog-api-key and
 // ?key=; Authorization: Bearer is only for OAuth access tokens.
 const GEMINI_AUTH_HEADER = "x-goog-api-key";
-const GEMINI_AUTH_SCHEME = "x-goog-api-key (API key)";
-const GEMINI_QUERY_PARAM_USAGE = "none — API key is sent only in the x-goog-api-key header";
+const GEMINI_AUTH_SCHEME = "API-key auth only: x-goog-api-key header, with ?key query parameter fallback";
+const GEMINI_QUERY_PARAM_USAGE = "x-goog-api-key is tried first; ?key is tried as API-key fallback; Authorization Bearer is never used for API keys";
 const geminiAuthHeaders = (apiKey: string, extra?: Record<string, string>) => {
   const key = (apiKey ?? "").trim();
   return { [GEMINI_AUTH_HEADER]: key, ...(extra ?? {}) };
@@ -26,9 +26,9 @@ const maskKey = (k?: string) =>
   !k ? "(none)" : k.length <= 10 ? "****" : `${k.slice(0, 6)}…${k.slice(-4)}`;
 // Legacy alias kept for the non-Gemini helpers below.
 const GOOGLE = geminiModelsUrl(GEMINI_API_VERSIONS[0]);
-// UI fallback label only. Actual generation selects from Google's live models
-// list for the key before sending an image request.
-const GEMINI_IMAGE_MODEL_DEFAULT = "gemini-3.1-flash-image";
+// No hardcoded Gemini image fallback. Actual generation selects from Google's
+// live models list for the key before sending an image request.
+const GEMINI_IMAGE_MODEL_DEFAULT = "";
 const OPENAI = "https://api.openai.com/v1/images/generations";
 const FAL = "https://fal.run";
 const REPLICATE = "https://api.replicate.com/v1/models";
@@ -69,47 +69,69 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
 
   const version = GEMINI_API_VERSIONS[0];
   const listUrl = `${geminiModelsUrl(version)}?pageSize=200`;
-  const listUrlRedacted = listUrl;
-  const modelUrl = `${geminiModelsUrl(version)}/${model}`;
-  const modelUrlRedacted = modelUrl;
+  const queryListUrl = `${geminiModelsUrl(version)}?pageSize=200&key=${encodeURIComponent(apiKey)}`;
+  const queryListUrlRedacted = `${geminiModelsUrl(version)}?pageSize=200&key=(hidden)`;
+  let listUrlRedacted = listUrl;
+  const modelUrl = model ? `${geminiModelsUrl(version)}/${model}` : "";
+  let modelUrlRedacted = modelUrl;
   const generationUrl = geminiInteractionsUrl(version);
+  let generationUrlForDisplay = generationUrl;
   const generationBody = {
     model,
     input: [{ type: "text", text: "simple blue circle on white background" }],
   };
 
-  const requestHeaders = {
-    "Content-Type": "application/json",
-    [GEMINI_AUTH_HEADER]: maskKey(apiKey),
-  };
+  const headerAuthHeaders = { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" };
+  const queryAuthHeaders = { accept: "application/json" };
+  let listRequestHeaders: Record<string, string> = headerAuthHeaders;
+  let modelRequestHeaders: Record<string, string> = headerAuthHeaders;
+  let generationRequestHeaders: Record<string, string> = { "Content-Type": "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" };
+  let authMethodUsed = "x-goog-api-key header";
 
-  // 1. API key is present / well-formed.
+  // 1. API key is present. Format is informational only; Google decides validity.
   if (!apiKey) {
-    push("API key is valid (format)", "FAIL", "No API key provided.");
+    push("API key present", "FAIL", "No API key provided.");
   } else if (!/^[0-9A-Za-z_-]{20,}$/.test(apiKey)) {
-    // Format is informational only — Google decides validity. Both AI Studio
-    // formats (legacy AIza… and newer AQ…) are accepted; only reject strings
-    // that clearly cannot be a key (too short / illegal chars).
-    push("API key is valid (format)", "UNKNOWN", `Key present (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…) but is unusually short or has unexpected characters. Google will make the final decision.`);
+    push("API key present", "UNKNOWN", `Key present (${apiKey.length} chars). Format was not used to decide validity; Google will make the final decision.`);
   } else {
-    push("API key is valid (format)", "PASS", `Key present (${apiKey.length} chars, prefix ${apiKey.slice(0, 4)}…). Accepts both AIza… and newer AQ… Google AI Studio formats.`);
+    push("API key present", "PASS", `Key present (${apiKey.length} chars). No prefix-based validation is applied.`);
   }
 
   // Live models-list request (auth + connectivity + endpoint reachability).
   let listStatus = 0;
   let listBody = "";
+  let listBodyForDisplay = "";
   let listHeaders: Record<string, string> = {};
   let networkOk = false;
   let listStarted = Date.now();
   try {
     listStarted = Date.now();
-    const r = await fetch(listUrl, { headers: geminiAuthHeaders(apiKey) });
+    const headerRes = await fetch(listUrl, { headers: geminiAuthHeaders(apiKey, { accept: "application/json" }) });
     networkOk = true;
-    listStatus = r.status;
-    r.headers.forEach((v, k) => (listHeaders[k] = v));
-    listBody = await r.text();
+    const headerText = await headerRes.text();
+    const headerHeaders: Record<string, string> = {};
+    headerRes.headers.forEach((v, k) => (headerHeaders[k] = v));
+
+    const queryRes = await fetch(queryListUrl, { headers: { accept: "application/json" } });
+    const queryText = await queryRes.text();
+    const queryHeaders: Record<string, string> = {};
+    queryRes.headers.forEach((v, k) => (queryHeaders[k] = v));
+
+    listBodyForDisplay = [
+      `--- x-goog-api-key header ---\nGET ${listUrl}\nHeaders: ${JSON.stringify(headerAuthHeaders)}\nHTTP ${headerRes.status} ${headerRes.statusText}\n${headerText}`,
+      `--- key query parameter ---\nGET ${queryListUrlRedacted}\nHeaders: ${JSON.stringify(queryAuthHeaders)}\nHTTP ${queryRes.status} ${queryRes.statusText}\n${queryText}`,
+    ].join("\n\n");
+
+    const selected = headerRes.ok ? { res: headerRes, text: headerText, headers: headerHeaders, auth: "x-goog-api-key header", url: listUrl, reqHeaders: headerAuthHeaders } : { res: queryRes, text: queryText, headers: queryHeaders, auth: "key query parameter", url: queryListUrlRedacted, reqHeaders: queryAuthHeaders };
+    listStatus = selected.res.status;
+    listHeaders = selected.headers;
+    listBody = selected.text;
+    authMethodUsed = selected.auth;
+    listUrlRedacted = selected.url;
+    listRequestHeaders = selected.reqHeaders;
   } catch (e) {
     listBody = `Fetch failed: ${String(e).slice(0, 400)}`;
+    listBodyForDisplay = listBody;
   }
   const listMs = Date.now() - listStarted;
 
@@ -153,9 +175,13 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   let modelBody = "";
   let modelHeaders: Record<string, string> = {};
   let modelJson: GeminiModel | null = null;
-  if (apiKey) {
+  if (apiKey && model) {
     try {
-      const r = await fetch(modelUrl, { headers: geminiAuthHeaders(apiKey) });
+      const usingQueryAuth = authMethodUsed === "key query parameter";
+      const fetchModelUrl = usingQueryAuth ? `${modelUrl}?key=${encodeURIComponent(apiKey)}` : modelUrl;
+      modelUrlRedacted = usingQueryAuth ? `${modelUrl}?key=(hidden)` : modelUrl;
+      modelRequestHeaders = usingQueryAuth ? queryAuthHeaders : headerAuthHeaders;
+      const r = await fetch(fetchModelUrl, { headers: usingQueryAuth ? { accept: "application/json" } : geminiAuthHeaders(apiKey, { accept: "application/json" }) });
       modelStatus = r.status;
       r.headers.forEach((v, k) => (modelHeaders[k] = v));
       modelBody = await r.text();
@@ -170,12 +196,14 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   }
 
   // 5. Selected model exists.
-  const modelExists = modelStatus === 200 && !!modelJson?.name;
+  const modelExists = !!model && modelStatus === 200 && !!modelJson?.name;
   checks.push({
     id: 5,
-    label: `Selected model exists ("${model}")`,
-    status: modelExists ? "PASS" : "FAIL",
-    detail: modelExists
+    label: model ? `Selected model exists ("${model}")` : "Selected model exists",
+    status: !model ? "UNKNOWN" : modelExists ? "PASS" : "FAIL",
+    detail: !model
+      ? "No image model selected. Choose one returned by Google's models list."
+      : modelExists
       ? `Found ${bareModelId(modelJson!.name)} on ${version}.`
       : `Model lookup returned HTTP ${modelStatus}. It may not exist on ${version}.`,
   });
@@ -246,13 +274,19 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   let generationStatus = 0;
   let generationBodyText = "";
   let generationHeaders: Record<string, string> = {};
-  if (apiKey) {
+  if (apiKey && model) {
     try {
-      const r = await fetch(generationUrl, {
+      const usingQueryAuth = authMethodUsed === "key query parameter";
+      const generationFetchUrl = usingQueryAuth ? `${generationUrl}?key=${encodeURIComponent(apiKey)}` : generationUrl;
+      const generationRequestUrl = usingQueryAuth ? `${generationUrl}?key=(hidden)` : generationUrl;
+      generationRequestHeaders = usingQueryAuth ? { "Content-Type": "application/json" } : { "Content-Type": "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" };
+      const r = await fetch(generationFetchUrl, {
         method: "POST",
-        headers: geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
+        headers: usingQueryAuth ? { "Content-Type": "application/json" } : geminiAuthHeaders(apiKey, { "Content-Type": "application/json" }),
         body: JSON.stringify(generationBody),
       });
+      // Keep the redacted URL in the raw block below.
+      generationUrlForDisplay = generationRequestUrl;
       generationStatus = r.status;
       r.headers.forEach((v, k) => (generationHeaders[k] = v));
       generationBodyText = await r.text();
@@ -272,7 +306,7 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   return Response.json({
     model,
     apiVersion: version,
-    authMethod: GEMINI_AUTH_SCHEME,
+    authMethod: authMethodUsed,
     authHeaderName: GEMINI_AUTH_HEADER,
     usesBearer: false,
     queryParameterUsage: GEMINI_QUERY_PARAM_USAGE,
@@ -280,23 +314,23 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
     // Raw, verbatim request/response details — nothing summarised.
     modelsList: {
       requestUrl: listUrlRedacted,
-      requestHeaders,
+      requestHeaders: listRequestHeaders,
       requestBody: "(none — GET request)",
       responseCode: listStatus,
       responseHeaders: listHeaders,
-      responseBody: listBody.slice(0, 40000),
+      responseBody: listBodyForDisplay.slice(0, 40000),
     },
     modelLookup: {
       requestUrl: modelUrlRedacted,
-      requestHeaders,
+      requestHeaders: modelRequestHeaders,
       requestBody: "(none — GET request)",
       responseCode: modelStatus,
       responseHeaders: modelHeaders,
       responseBody: modelBody.slice(0, 40000),
     },
     generationRequest: {
-      requestUrl: generationUrl,
-      requestHeaders,
+      requestUrl: generationUrlForDisplay,
+      requestHeaders: generationRequestHeaders,
       requestBody: JSON.stringify(generationBody, null, 2),
       responseCode: generationStatus,
       responseHeaders: generationHeaders,
@@ -471,7 +505,7 @@ async function validateProvider(provider: Provider): Promise<Response> {
       if ("error" in listed) {
         return providerFail({
           provider: "gemini",
-          model: imageModel || "models list",
+      model: imageModel || "models list",
           endpoint: listed.requestUrl || `${GOOGLE}?pageSize=200`,
           status: listed.status,
           rawBody: listed.rawBody || listed.error,
@@ -480,7 +514,7 @@ async function validateProvider(provider: Provider): Promise<Response> {
           requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
         });
       }
-      if (imageModel && imageModel.toLowerCase().includes("image")) {
+      if (imageModel) {
         const available = listed.models.filter(isImageCapable).map((m) => bareModelId(m.name));
         if (!available.includes(imageModel)) {
           return providerFail({

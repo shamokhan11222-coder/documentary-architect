@@ -913,9 +913,13 @@ Return a JSON object:
 
 // Pings the active AI provider (Gemini, attached via request headers) to
 // report Connected / Failed. Not Configured is decided on the client.
-export const testProvider = createServerFn({ method: "POST" }).handler(async () => {
+export const testProvider = createServerFn({ method: "POST" })
+  .inputValidator((data?: { apiKey?: string }) => ({ apiKey: data?.apiKey?.trim() || "" }))
+  .handler(async ({ data }) => {
   const { readProviderFromHeaders } = await import("./provider.server");
-  const provider = readProviderFromHeaders();
+  const provider = data.apiKey
+    ? { name: "gemini" as const, apiKey: data.apiKey, textModel: "models list", fallback: false }
+    : readProviderFromHeaders();
   if (!provider) return { status: "lovable" as const };
 
   const version = "v1beta";
