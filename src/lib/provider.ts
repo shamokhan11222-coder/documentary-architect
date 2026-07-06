@@ -89,9 +89,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "builtin",
+  image: "gemini",
   voice: "gemini",
-  thumbnail: "builtin",
+  thumbnail: "gemini",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -103,8 +103,11 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // stays selectable in API Settings for future use, but never routes here.
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
-  if (next.image === "disabled") next.image = "builtin";
+  // Built-in image generation spends Lovable AI balance and causes 402 when
+  // that pool is empty. Images/thumbnails must stay on the user's provider.
+  if (next.image === "disabled" || next.image === "builtin") next.image = "gemini";
   if (next.thumbnail === "disabled") next.thumbnail = next.image;
+  if (next.thumbnail === "builtin") next.thumbnail = next.image;
   return next;
 }
 
@@ -133,7 +136,7 @@ function resetSavedGeminiModelLabels(list: ApiKeyEntry[]): ApiKeyEntry[] {
     const cleaned = {
       ...entry,
       modelName: normalizedGeminiTextModel(entry.modelName),
-      imageModelName: normalizeGeminiModel(entry.imageModelName) || GEMINI_IMAGE_MODEL_DEFAULT,
+      imageModelName: normalizeGeminiModel(entry.imageModelName),
     };
     if (cleaned.modelName !== entry.modelName || cleaned.imageModelName !== entry.imageModelName) changed = true;
     return cleaned;
@@ -217,7 +220,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "puter") return "puter-txt2img";
   if (choice === "huggingface") return "black-forest-labs/FLUX.1-schnell";
   if (choice === "pollinations") return "flux";
-  if (choice === "builtin") return "google/gemini-2.5-flash-image";
+  if (choice === "builtin") return "";
   return "";
 }
 
@@ -230,8 +233,8 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "puter") return "Puter AI";
   if (choice === "huggingface") return "HuggingFace";
   if (choice === "pollinations") return "Pollinations";
-  if (choice === "builtin") return "Built-in Lovable AI";
-  return "Built-in Lovable AI";
+  if (choice === "builtin") return "Gemini Image";
+  return "Gemini Image";
 }
 
 /** Puter AI needs no API key and runs entirely in the browser, so it resolves
@@ -259,19 +262,6 @@ function pollinationsImageProvider(): ActiveImageProvider {
   };
 }
 
-/** Built-in Lovable AI needs no API key and uses Lovable credits — resolves to
- *  a synthetic connected provider whenever it is the selected choice. */
-function builtinImageProvider(): ActiveImageProvider {
-  return {
-    id: "builtin",
-    name: "builtin",
-    label: "Built-in Lovable AI",
-    apiKey: "",
-    imageModel: "google/gemini-2.5-flash-image",
-    testPassed: true,
-  };
-}
-
 /** Resolve a connected Gemini image provider from the dedicated Gemini image
  *  key pool (the "Gemini Image Keys" panel). This is the primary source for
  *  Gemini image generation — no Recraft key is ever required. Prefers a usable
@@ -286,7 +276,7 @@ function poolToImageProvider(keys: GeminiImageKey[]): ActiveImageProvider | null
     name: "gemini",
     label: "Gemini Image",
     apiKey: usable.key.trim(),
-    imageModel: finalGeminiImageModel(),
+    imageModel: normalizeGeminiModel(usable.imageModel) || GEMINI_IMAGE_MODEL_DEFAULT,
     testPassed: true,
   };
 }
@@ -301,7 +291,6 @@ function resolveImageProvider(
   list: ApiKeyEntry[],
   poolKeys: GeminiImageKey[],
 ): ActiveImageProvider | null {
-  if (choice === "builtin") return builtinImageProvider();
   if (choice === "puter") return puterImageProvider();
   if (choice === "pollinations") return pollinationsImageProvider();
   const fromVault = toImageProvider(choice, findImageKey(choice, list));
@@ -312,7 +301,6 @@ function resolveImageProvider(
 
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   // Puter requires no key — it is always available client-side.
-  if (choice === "builtin") return builtinImageProvider();
   if (choice === "puter") return puterImageProvider();
   if (choice === "pollinations") return pollinationsImageProvider();
   if (!entry) return null;
@@ -331,7 +319,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   // modelName). Never use the text modelName (e.g. gemini-2.5-flash) for images.
   let imageModel = entry.imageModelName?.trim() || entry.modelName?.trim() || "";
   if (choice === "gemini") {
-    imageModel = finalGeminiImageModel();
+    imageModel = normalizeGeminiModel(entry.imageModelName) || GEMINI_IMAGE_MODEL_DEFAULT;
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
@@ -459,27 +447,21 @@ function notConnectedMessage(choice: ProviderChoice): string {
   }
 }
 
-/** Body payload passed to the image API route so the server can route. Image
- *  generation now always uses the built-in Lovable AI (Lovable credits) — the
- *  external image-provider API system is disabled for images/thumbnails. */
+/** Body payload passed to the image API route so the server can route. */
 export function imageProviderPayload() {
   const p = getActiveImageProvider();
   return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: getProviderSettings().fallback } : null;
 }
 
-/** Ordered image fallback chain. Gemini is intentionally excluded — Google
- *  returns "403 Project denied access" for images, so Gemini is never used for
- *  image or thumbnail generation. Order: Puter → Pollinations → HuggingFace →
- *  Recraft (last two only when a key is connected). */
+/** Ordered image fallback chain. Built-in AI is intentionally excluded because
+ *  it spends Lovable AI balance and returns 402 when that separate pool is empty. */
 export function imageFallbackChain(): Array<{
   name: ImageProviderName;
   apiKey: string;
   imageModel: string;
   fallback: boolean;
 }> {
-  if (!getProviderSettings().fallback) return [];
-  const p = builtinImageProvider();
-  return [{ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: true }];
+  return [];
 }
 
 /** First connected fallback provider after the currently active one. Kept for
@@ -494,9 +476,10 @@ export function thumbnailProviderPayload() {
   return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: settings.fallback } : null;
 }
 
-/** Image generation is always ready — it uses the built-in Lovable AI. */
+/** Image generation requires a real connected provider; no paid built-in fallback. */
 export function imageProviderReady(): { ok: boolean; message?: string } {
-  return { ok: true };
+  const status = getImageProviderStatus();
+  return status.ok ? { ok: true } : { ok: false, message: status.message };
 }
 
 export function ttsProviderPayload() {
