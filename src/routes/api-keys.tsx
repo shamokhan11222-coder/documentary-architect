@@ -294,7 +294,7 @@ function ApiKeysPage() {
         <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium">Provider routing</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Choose which provider handles each task. Image generation requires a connected external image provider.
+            Choose which provider handles each task. Images and thumbnails use Built-in Lovable AI (Lovable credits) by default; external providers are optional.
           </p>
           <div className="mt-3 space-y-3">
             <TextRouteRow
