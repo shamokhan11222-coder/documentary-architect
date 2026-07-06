@@ -916,7 +916,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     headers: redactedHeaders,
     body: reqBodyObj,
     time: new Date(auditStart).toISOString(),
-    references: input.length - 1,
+    references: parts.length - 1,
   });
   const upstream = await fetch(fetchEndpoint, {
     method: "POST",
