@@ -652,6 +652,33 @@ function bareModelId(name: string): string {
   return name.replace(/^models\//, "");
 }
 
+/** Extract a clean, bare Gemini model id from any incoming value.
+ *  Accepts friendly labels like "Nano Banana (gemini-2.5-flash-image)",
+ *  full ids like "models/gemini-2.5-flash-image", or bare ids. Returns the
+ *  bare id (no "models/" prefix, no label text). Empty string when none. */
+function extractBareModelId(raw: string): string {
+  let v = (raw ?? "").trim();
+  if (!v) return "";
+  // If a label wraps the id in parentheses, take the parenthesised value.
+  const paren = v.match(/\(([^)]+)\)/);
+  if (paren) v = paren[1].trim();
+  // Drop the "models/" prefix if present; keep only the id token.
+  v = v.replace(/^models\//, "").trim();
+  // If any stray label words remain, keep the last whitespace-separated token
+  // that looks like a model id.
+  if (/\s/.test(v)) {
+    const token = v.split(/\s+/).find((t) => /^[a-z0-9][a-z0-9.\-]*$/i.test(t));
+    if (token) v = token;
+  }
+  return v;
+}
+
+/** Ensure a model id carries the "models/" prefix required by the API. */
+function withModelsPrefix(id: string): string {
+  const bare = id.replace(/^models\//, "").trim();
+  return bare ? `models/${bare}` : "";
+}
+
 /** A model is image-capable if its id/displayName mentions "image" or it lists
  *  image generation among its supported methods/actions. */
 function isImageCapable(m: GeminiModel): boolean {
