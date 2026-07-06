@@ -89,9 +89,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "gemini",
+  image: "puter",
   voice: "gemini",
-  thumbnail: "gemini",
+  thumbnail: "puter",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -103,10 +103,24 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // stays selectable in API Settings for future use, but never routes here.
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
-  // Image generation must never touch the built-in AI or OpenAI. Any legacy
-  // built-in/OpenAI image routing is coerced to Gemini image.
-  if (next.image === "builtin" || next.image === "disabled" || next.image === "openai") next.image = "gemini";
-  if (next.thumbnail === "builtin" || next.thumbnail === "disabled" || next.thumbnail === "openai") next.thumbnail = "gemini";
+  // Gemini image generation is DISABLED (Google returns "403 Project denied
+  // access" for images). Gemini stays available for text only. Any image or
+  // thumbnail routing to Gemini, the built-in AI, or OpenAI is coerced to the
+  // default Puter AI provider so Gemini is never called for images.
+  if (
+    next.image === "gemini" ||
+    next.image === "builtin" ||
+    next.image === "disabled" ||
+    next.image === "openai"
+  )
+    next.image = "puter";
+  if (
+    next.thumbnail === "gemini" ||
+    next.thumbnail === "builtin" ||
+    next.thumbnail === "disabled" ||
+    next.thumbnail === "openai"
+  )
+    next.thumbnail = "puter";
   return next;
 }
 
