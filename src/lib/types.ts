@@ -394,6 +394,7 @@ export type ApiProvider =
   | "Fal.ai"
   | "Replicate"
   | "Recraft"
+  | "HuggingFace"
   | "ElevenLabs"
   | "Custom Provider";
 
