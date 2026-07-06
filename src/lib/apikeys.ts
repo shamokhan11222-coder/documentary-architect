@@ -12,6 +12,7 @@ export const API_PROVIDERS: ApiProvider[] = [
   "Fal.ai",
   "Replicate",
   "Recraft",
+  "HuggingFace",
   "ElevenLabs",
   "Custom Provider",
 ];
