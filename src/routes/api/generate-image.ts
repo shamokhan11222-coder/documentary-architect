@@ -487,6 +487,8 @@ function validationResult(r: Response, label: string): Response {
  *  full image. Uses each provider's lightweight auth/list endpoint. */
 async function validateProvider(provider: Provider): Promise<Response> {
   const name = provider.name;
+  // Built-in Lovable AI needs no API key — it is always available via credits.
+  if (name === "builtin") return Response.json({ ok: true });
   if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
   try {
     if (name === "recraft") {
