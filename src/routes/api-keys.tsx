@@ -492,14 +492,12 @@ function ImageRouteRow({
         value={value}
         onChange={(e) => onChange(e.target.value as ProviderChoice)}
       >
+        {/* Gemini image generation is disabled (Google returns 403 Project
+            denied access for images). Gemini remains available for text only. */}
+        <option value="puter">Puter AI (default)</option>
+        <option value="pollinations">Pollinations AI</option>
+        <option value="huggingface">HuggingFace / FLUX</option>
         <option value="recraft">Recraft V4.1 Utility Pro</option>
-        <option value="puter">Puter AI</option>
-        <option value="huggingface">HuggingFace</option>
-        <option value="pollinations">Pollinations</option>
-        <option value="gemini">Gemini Image</option>
-        <option value="openai">OpenAI Images</option>
-        <option value="fal">Fal.ai</option>
-        <option value="replicate">Replicate</option>
       </select>
     </div>
   );
