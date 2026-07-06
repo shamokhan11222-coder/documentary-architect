@@ -594,6 +594,13 @@ function toInteractionImageInput(ref: string) {
   return { type: "image", mime_type: m[1], data: m[2] };
 }
 
+/** generateContent inline image part: { inlineData: { mimeType, data } }. */
+function toInlineDataPart(ref: string) {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(ref);
+  if (!m) return null;
+  return { inlineData: { mimeType: m[1], data: m[2] } };
+}
+
 function extractGeminiInteractionImage(data: unknown): { data?: string; mimeType?: string } | null {
   const visit = (value: unknown): { data?: string; mimeType?: string } | null => {
     if (!value || typeof value !== "object") return null;
