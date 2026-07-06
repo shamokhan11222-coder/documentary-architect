@@ -104,7 +104,7 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
   if (next.image === "disabled") next.image = "builtin";
-  if (next.thumbnail === "disabled") next.thumbnail = next.image === "disabled" ? "builtin" : next.image;
+  if (next.thumbnail === "disabled") next.thumbnail = next.image;
   return next;
 }
 
