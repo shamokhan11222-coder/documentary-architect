@@ -71,14 +71,7 @@ function reconcile(list: GeminiImageKey[]): GeminiImageKey[] {
 }
 
 function reconcileModels(list: GeminiImageKey[]): GeminiImageKey[] {
-  let changed = false;
-  const next = list.map((k) => {
-    const normalized = normalizeGeminiModel(k.imageModel) || GEMINI_FORCED_IMAGE_MODEL;
-    if (normalized !== GEMINI_FORCED_IMAGE_MODEL || k.imageModel !== GEMINI_FORCED_IMAGE_MODEL) changed = true;
-    return { ...k, imageModel: GEMINI_FORCED_IMAGE_MODEL };
-  });
-  if (changed) write(next);
-  return next;
+  return list.map((k) => ({ ...k, imageModel: normalizeGeminiModel(k.imageModel) || GEMINI_FORCED_IMAGE_MODEL }));
 }
 
 export function addGeminiImageKey(name: string, key: string, imageModel?: string) {
@@ -98,7 +91,7 @@ export function addGeminiImageKey(name: string, key: string, imageModel?: string
 }
 
 export function updateGeminiImageKey(id: string, patch: Partial<GeminiImageKey>) {
-  write(read().map((k) => (k.id === id ? { ...k, ...patch, id: k.id, imageModel: GEMINI_FORCED_IMAGE_MODEL } : k)));
+  write(read().map((k) => (k.id === id ? { ...k, ...patch, id: k.id, imageModel: normalizeGeminiModel(patch.imageModel) || normalizeGeminiModel(k.imageModel) || GEMINI_FORCED_IMAGE_MODEL } : k)));
 }
 
 export function removeGeminiImageKey(id: string) {
