@@ -467,16 +467,36 @@ export function imageProviderPayload() {
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
-/** First connected non-Puter image provider (Gemini or Recraft), used as an
- *  automatic fallback when Puter AI is unavailable or rate limited. */
-export function fallbackImageProviderPayload() {
+/** Ordered image fallback chain. Gemini is intentionally excluded — Google
+ *  returns "403 Project denied access" for images, so Gemini is never used for
+ *  image or thumbnail generation. Order: Puter → Pollinations → HuggingFace →
+ *  Recraft (last two only when a key is connected). */
+export function imageFallbackChain(): Array<{
+  name: ImageProviderName;
+  apiKey: string;
+  imageModel: string;
+  fallback: boolean;
+}> {
   const list = resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, []));
   const pool = getGeminiImageKeys();
-  for (const choice of ["gemini", "recraft"] as ProviderChoice[]) {
-    const p = resolveImageProvider(choice, list, pool);
-    if (p) return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
-  }
-  return null;
+  const chain: Array<{ name: ImageProviderName; apiKey: string; imageModel: string; fallback: boolean }> = [];
+  const seen = new Set<string>();
+  const add = (p: ActiveImageProvider | null) => {
+    if (!p || p.name === "gemini" || seen.has(p.name)) return;
+    seen.add(p.name);
+    chain.push({ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false });
+  };
+  add(resolveImageProvider("puter", list, pool));
+  add(resolveImageProvider("pollinations", list, pool));
+  add(resolveImageProvider("huggingface", list, pool));
+  add(resolveImageProvider("recraft", list, pool));
+  return chain;
+}
+
+/** First connected fallback provider after the currently active one. Kept for
+ *  compatibility with existing callers. */
+export function fallbackImageProviderPayload() {
+  return imageFallbackChain()[0] ?? null;
 }
 
 export function thumbnailProviderPayload() {
