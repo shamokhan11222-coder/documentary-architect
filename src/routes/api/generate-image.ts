@@ -1123,6 +1123,45 @@ async function generateWithRecraft(body: Body, provider: Provider): Promise<Resp
   return providerFail({ provider: "recraft", model, endpoint: RECRAFT, status: 502, rawBody: JSON.stringify(data).slice(0, 20000), code: "PROVIDER_ERROR" });
 }
 
+const POLLINATIONS = "https://image.pollinations.ai/prompt";
+const HUGGINGFACE = "https://api-inference.huggingface.co/models";
+
+async function generateWithPollinations(body: Body, provider: Provider): Promise<Response> {
+  const model = provider.imageModel || "flux";
+  const url = `${POLLINATIONS}/${encodeURIComponent(body.prompt ?? "")}?model=${encodeURIComponent(model)}&width=1024&height=1024&nologo=true`;
+  const upstream = await fetch(url);
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => "");
+    logProviderCall("pollinations", model, "", upstream.status, false, text);
+    return providerFail({ provider: "pollinations", model, endpoint: POLLINATIONS, status: upstream.status, rawBody: text });
+  }
+  const buf = await upstream.arrayBuffer();
+  const mime = upstream.headers.get("content-type") || "image/jpeg";
+  const b64 = Buffer.from(buf).toString("base64");
+  logProviderCall("pollinations", model, "", upstream.status, true, "b64 image");
+  return Response.json({ image: `data:${mime};base64,${b64}` });
+}
+
+async function generateWithHuggingFace(body: Body, provider: Provider): Promise<Response> {
+  const model = provider.imageModel || "black-forest-labs/FLUX.1-schnell";
+  const endpoint = `${HUGGINGFACE}/${model}`;
+  const upstream = await fetch(endpoint, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json", Accept: "image/png" },
+    body: JSON.stringify({ inputs: body.prompt, options: { wait_for_model: true } }),
+  });
+  if (!upstream.ok) {
+    const text = await upstream.text().catch(() => "");
+    logProviderCall("huggingface", model, provider.apiKey, upstream.status, false, text);
+    return providerFail({ provider: "huggingface", model, endpoint, status: upstream.status, rawBody: text, headers: upstream.headers });
+  }
+  const buf = await upstream.arrayBuffer();
+  const mime = upstream.headers.get("content-type") || "image/png";
+  const b64 = Buffer.from(buf).toString("base64");
+  logProviderCall("huggingface", model, provider.apiKey, upstream.status, true, "b64 image");
+  return Response.json({ image: `data:${mime};base64,${b64}` });
+}
+
 export const Route = createFileRoute("/api/generate-image")({
   server: {
     handlers: {
@@ -1151,8 +1190,10 @@ export const Route = createFileRoute("/api/generate-image")({
           references: (body.references ?? []).length,
         });
 
+        if (provider.name === "pollinations") return generateWithPollinations(body, provider);
         if (!provider.apiKey) return jsonError(PROVIDER_REQUIRED, 400, "NO_PROVIDER");
         if (provider.name === "recraft") return generateWithRecraft(body, provider);
+        if (provider.name === "huggingface") return generateWithHuggingFace(body, provider);
         if (provider.name === "gemini") return generateWithGemini(body, provider);
         if (provider.name === "openai") return generateWithOpenAI(body, provider);
         if (provider.name === "fal") return generateWithFal(body, provider);
