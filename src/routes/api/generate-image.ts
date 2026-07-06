@@ -594,6 +594,13 @@ function toInteractionImageInput(ref: string) {
   return { type: "image", mime_type: m[1], data: m[2] };
 }
 
+/** generateContent inline image part: { inlineData: { mimeType, data } }. */
+function toInlineDataPart(ref: string) {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(ref);
+  if (!m) return null;
+  return { inlineData: { mimeType: m[1], data: m[2] } };
+}
+
 function extractGeminiInteractionImage(data: unknown): { data?: string; mimeType?: string } | null {
   const visit = (value: unknown): { data?: string; mimeType?: string } | null => {
     if (!value || typeof value !== "object") return null;
@@ -851,8 +858,11 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
       requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
     });
   }
-  const availableImageModels = listed.models.filter(isImageCapable).map((m) => bareModelId(m.name));
-  if (availableImageModels.length === 0) {
+  // Keep the EXACT model IDs Google returns (e.g. "models/gemini-2.5-flash-image").
+  // The "models/" prefix is never stripped and display names are never used.
+  const availableImageModelsFull = listed.models.filter(isImageCapable).map((m) => m.name);
+  const availableImageModels = availableImageModelsFull.map(bareModelId);
+  if (availableImageModelsFull.length === 0) {
     return providerFail({
       provider: "gemini",
       model: "models list",
@@ -865,25 +875,36 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     });
   }
   // Enforce a Gemini image model returned by Google's models list for this key —
-  // never a custom string and never a text model (e.g. gemini-2.5-flash).
-  const requested = (provider.imageModel || "").trim().replace(/^models\//, "");
-  let model = availableImageModels.includes(requested) ? requested : availableImageModels[0];
-  if (requested !== model) {
-    console.warn("[image][gemini] image model not returned by Google; using first returned image model", {
-      requested: requested || "(empty)",
-      selected: model,
-      availableImageModels,
+  // never a custom string, never a display name, and never a text model.
+  // Match the requested id against Google's returned ids by their bare form, but
+  // always send the EXACT returned name (with the "models/" prefix intact).
+  const requestedBare = (provider.imageModel || "").trim().replace(/^models\//, "");
+  const fullModel =
+    availableImageModelsFull.find((n) => bareModelId(n) === requestedBare) ?? availableImageModelsFull[0];
+  const model = fullModel; // exact returned ID, e.g. "models/gemini-2.5-flash-image"
+  if (requestedBare && bareModelId(fullModel) !== requestedBare) {
+    console.warn("[image][gemini] requested image model not returned by Google; using first returned image model", {
+      requested: requestedBare || "(empty)",
+      selected: fullModel,
+      availableImageModels: availableImageModelsFull,
     });
   }
-  const input: unknown[] = [{ type: "text", text: body.prompt }];
+  // Requirement: print the EXACT model ID returned by Google before every request.
+  console.log(`Using model:\n${fullModel}`);
+  const parts: unknown[] = [{ text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
-    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInteractionImageInput(ref) : null;
-    if (inline) input.push(inline);
+    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineDataPart(ref) : null;
+    if (inline) parts.push(inline);
   }
-  const reqBodyObj = { model, input };
+  const reqBodyObj = {
+    contents: [{ role: "user", parts }],
+    generationConfig: { responseModalities: ["IMAGE"] },
+  };
   const reqBody = JSON.stringify(reqBodyObj);
   const version = GEMINI_API_VERSIONS[0];
-  const baseEndpoint = geminiInteractionsUrl(version);
+  // Official generateContent endpoint. The model keeps its "models/" prefix, so
+  // the URL is .../v1beta/models/<exact-id>:generateContent.
+  const baseEndpoint = `${GEMINI_HOST}/${version}/${fullModel}:generateContent`;
   const usingQueryAuth = listed.authMethod === "key query parameter";
   const endpoint = usingQueryAuth ? `${baseEndpoint}?key=(hidden)` : baseEndpoint;
   const fetchEndpoint = usingQueryAuth ? `${baseEndpoint}?key=${encodeURIComponent(apiKey)}` : baseEndpoint;
@@ -902,7 +923,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     headers: redactedHeaders,
     body: reqBodyObj,
     time: new Date(auditStart).toISOString(),
-    references: input.length - 1,
+    references: parts.length - 1,
   });
   const upstream = await fetch(fetchEndpoint, {
     method: "POST",
