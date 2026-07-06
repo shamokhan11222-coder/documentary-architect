@@ -25,7 +25,16 @@ export interface ActiveProvider {
   ttsModel: string;
 }
 
-export type ImageProviderName = "gemini" | "openai" | "fal" | "replicate" | "recraft" | "puter" | "builtin";
+export type ImageProviderName =
+  | "gemini"
+  | "openai"
+  | "fal"
+  | "replicate"
+  | "recraft"
+  | "puter"
+  | "huggingface"
+  | "pollinations"
+  | "builtin";
 
 export interface ActiveImageProvider {
   id: string;
@@ -65,6 +74,8 @@ export type ProviderChoice =
   | "replicate"
   | "recraft"
   | "puter"
+  | "huggingface"
+  | "pollinations"
   | "disabled";
 
 export interface ProviderSettings {
@@ -192,7 +203,9 @@ function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry 
             ? "Replicate"
             : choice === "recraft"
               ? "Recraft"
-              : null;
+              : choice === "huggingface"
+                ? "HuggingFace"
+                : null;
   if (!provider) return null;
   return list.find((e) => e.provider === provider && e.apiKey.trim()) ?? null;
 }
@@ -204,6 +217,8 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "replicate") return "black-forest-labs/flux-schnell";
   if (choice === "recraft") return "recraftv4_1_utility_pro";
   if (choice === "puter") return "puter-txt2img";
+  if (choice === "huggingface") return "black-forest-labs/FLUX.1-schnell";
+  if (choice === "pollinations") return "flux";
   return "";
 }
 
@@ -214,6 +229,8 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "replicate") return "Replicate";
   if (choice === "recraft") return "Recraft V4.1 Utility Pro";
   if (choice === "puter") return "Puter AI";
+  if (choice === "huggingface") return "HuggingFace";
+  if (choice === "pollinations") return "Pollinations";
   return "Built-in AI disabled";
 }
 
@@ -226,6 +243,18 @@ function puterImageProvider(): ActiveImageProvider {
     label: "Puter AI",
     apiKey: "",
     imageModel: "puter-txt2img",
+    testPassed: true,
+  };
+}
+
+/** Pollinations needs no API key — resolves to a synthetic connected provider. */
+function pollinationsImageProvider(): ActiveImageProvider {
+  return {
+    id: "pollinations",
+    name: "pollinations",
+    label: "Pollinations",
+    apiKey: "",
+    imageModel: "flux",
     testPassed: true,
   };
 }
@@ -260,6 +289,7 @@ function resolveImageProvider(
   poolKeys: GeminiImageKey[],
 ): ActiveImageProvider | null {
   if (choice === "puter") return puterImageProvider();
+  if (choice === "pollinations") return pollinationsImageProvider();
   const fromVault = toImageProvider(choice, findImageKey(choice, list));
   if (fromVault) return fromVault;
   if (choice === "gemini") return poolToImageProvider(poolKeys);
@@ -269,8 +299,16 @@ function resolveImageProvider(
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
   // Puter requires no key — it is always available client-side.
   if (choice === "puter") return puterImageProvider();
+  if (choice === "pollinations") return pollinationsImageProvider();
   if (!entry) return null;
-  if (choice !== "gemini" && choice !== "openai" && choice !== "fal" && choice !== "replicate" && choice !== "recraft")
+  if (
+    choice !== "gemini" &&
+    choice !== "openai" &&
+    choice !== "fal" &&
+    choice !== "replicate" &&
+    choice !== "recraft" &&
+    choice !== "huggingface"
+  )
     return null;
 
   // For Gemini image, prefer the dedicated image model the user picked via the
