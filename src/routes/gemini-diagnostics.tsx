@@ -114,8 +114,8 @@ function GeminiDiagnosticsPage() {
         <div className="divide-y divide-border/50">
           <Row label="Gemini SDK version" value="None — direct REST (fetch), no SDK" />
           <Row label="API endpoint" value="https://generativelanguage.googleapis.com" mono />
-          <Row label="API version" value="v1beta (falls back to v1)" mono />
-          <Row label="Authentication method" value="x-goog-api-key header (official Google AI Studio auth)" />
+          <Row label="API version" value="v1beta" mono />
+          <Row label="Authentication method" value="API-key auth only: x-goog-api-key header, then ?key fallback; no Bearer token for API keys" />
           <Row
             label="Active API key detected"
             value={

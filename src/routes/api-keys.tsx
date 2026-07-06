@@ -172,7 +172,8 @@ function ApiKeysPage() {
         requestBody?: string;
         imageModels?: string[];
       };
-      const r = (await runTest()) as
+      const geminiForTest = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim());
+      const r = (await runTest({ data: { apiKey: geminiForTest?.apiKey.trim() || "" } })) as
         | ({ status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
         | ({ status: "failed"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
         | ({ status: "invalid"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
@@ -186,7 +187,7 @@ function ApiKeysPage() {
           d.authHeaderName ? `Auth header: ${d.authHeaderName}` : "",
           d.authScheme ? `Auth scheme: ${d.authScheme}` : "",
           typeof d.usesBearer === "boolean"
-            ? `Using: ${d.usesBearer ? "Authorization: Bearer" : "x-goog-api-key"}`
+            ? `Using Bearer: ${d.usesBearer ? "yes" : "no"}`
             : "",
           d.queryParameterUsage ? `Query parameter usage: ${d.queryParameterUsage}` : "",
           d.requestHeaders ? `Header names: ${Object.keys(d.requestHeaders).join(", ")}` : "",
