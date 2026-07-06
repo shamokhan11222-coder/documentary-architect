@@ -224,6 +224,7 @@ function defaultImageModel(choice: ProviderChoice): string {
   if (choice === "puter") return "puter-txt2img";
   if (choice === "huggingface") return "black-forest-labs/FLUX.1-schnell";
   if (choice === "pollinations") return "flux";
+  if (choice === "builtin") return "google/gemini-2.5-flash-image";
   return "";
 }
 
@@ -236,7 +237,8 @@ function imageLabel(choice: ProviderChoice): string {
   if (choice === "puter") return "Puter AI";
   if (choice === "huggingface") return "HuggingFace";
   if (choice === "pollinations") return "Pollinations";
-  return "Built-in AI disabled";
+  if (choice === "builtin") return "Built-in Lovable AI";
+  return "Built-in Lovable AI";
 }
 
 /** Puter AI needs no API key and runs entirely in the browser, so it resolves
@@ -260,6 +262,19 @@ function pollinationsImageProvider(): ActiveImageProvider {
     label: "Pollinations",
     apiKey: "",
     imageModel: "flux",
+    testPassed: true,
+  };
+}
+
+/** Built-in Lovable AI needs no API key and uses Lovable credits — resolves to
+ *  a synthetic connected provider whenever it is the selected choice. */
+function builtinImageProvider(): ActiveImageProvider {
+  return {
+    id: "builtin",
+    name: "builtin",
+    label: "Built-in Lovable AI",
+    apiKey: "",
+    imageModel: "google/gemini-2.5-flash-image",
     testPassed: true,
   };
 }
