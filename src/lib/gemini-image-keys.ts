@@ -180,3 +180,21 @@ export function isInvalidKeyOrModel(msg: string, code: string | null, status: nu
   if (status === 400 || status === 401 || status === 403 || status === 404) return true;
   return /api key not valid|invalid api key|api_key_invalid|permission denied|model not found|not found|is not found|unsupported/i.test(msg);
 }
+
+/** Message shown when a Gemini key's image free tier is unavailable (quota
+ *  limit is literally 0 — the account/project has no free image allowance). */
+export const GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE =
+  "Gemini image free tier is not available for this account/project. Add billing or switch image provider.";
+
+/** True when the quota error reports a hard zero limit (limit: 0 /
+ *  quotaValue: 0). This means retrying will NEVER succeed on this key, so the
+ *  key must be disabled instead of cooled down and retried. */
+export function isZeroQuotaError(msg: string): boolean {
+  if (!msg) return false;
+  if (!/quota|resource_exhausted|free.?tier|freetier|billing/i.test(msg)) return false;
+  return (
+    /"?(?:quota_?value|limit)"?\s*[:=]\s*"?0"?\b/i.test(msg) ||
+    /\blimit:\s*0\b/i.test(msg) ||
+    /free tier is not (?:enabled|available)/i.test(msg)
+  );
+}

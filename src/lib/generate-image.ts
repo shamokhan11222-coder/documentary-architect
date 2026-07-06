@@ -26,6 +26,7 @@ import {
   isDailyLimit,
   isInvalidKeyOrModel,
 } from "./gemini-image-keys";
+import { isZeroQuotaError, GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE } from "./gemini-image-keys";
 import { updateGeminiImageKey } from "./gemini-image-keys";
 import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
 import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "./gemini-model";
@@ -74,6 +75,14 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
       const msg =
         (e instanceof ImageGenError && e.debug?.providerMessage) ||
         (e instanceof Error ? e.message : String(e));
+      // Hard zero quota (free tier limit: 0) → billing required. Retrying will
+      // never succeed: disable this key permanently and stop retrying now.
+      const quotaProbe = `${msg} ${(e instanceof ImageGenError && e.debug?.rawBody) || ""}`;
+      if (isZeroQuotaError(quotaProbe)) {
+        console.warn("[image][rotation] disabling key — free tier unavailable (limit: 0)", { key: key.name });
+        markKeyDisabled(key.id, GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE);
+        throw new ImageGenError(GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE, "FREE_TIER_UNAVAILABLE", null);
+      }
       // Invalid key / model not found → disable this key and move on.
       if (isInvalidKeyOrModel(msg, code, status) && !isLimitError(msg, code, status)) {
         console.warn("[image][rotation] disabling key", { key: key.name, reason: msg });

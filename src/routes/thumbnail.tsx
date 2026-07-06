@@ -41,6 +41,14 @@ const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
 
 const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
 
+/** Normal-user friendly image error. Surfaces the specific "free tier not
+ *  available" guidance when Gemini's image free tier is unavailable (limit: 0),
+ *  otherwise a short generic quota line. Raw errors stay in Developer Mode. */
+function friendlyImgError(raw?: string | null): string {
+  if (raw && /free tier is not available/i.test(raw)) return raw;
+  return "Gemini image quota reached. Try again later or upload a thumbnail.";
+}
+
 /** A lightweight SVG placeholder thumbnail encoded as a data URL. Lets the user
  *  unblock export/SEO without a generated image. */
 function placeholderThumbnail(title: string): string {
@@ -179,7 +187,7 @@ function ThumbnailPage() {
         // Developer Debug panel (bottom-left) for the full raw response.
         const latest = getErrorDetails();
         if (dev && latest) toast.error(latest.message);
-        else toast.error("Gemini image quota reached. Try again later or upload a thumbnail.");
+        else toast.error(friendlyImgError(latest?.message));
       }
     });
   }
@@ -357,7 +365,7 @@ function ThumbnailPage() {
           ) : (
             // Normal users: short, friendly message only.
             <p className="mt-3 text-xs text-muted-foreground">
-              Gemini image quota reached. Try again later or upload a thumbnail.
+              {friendlyImgError(providerError)}
             </p>
           )
         ) : null
