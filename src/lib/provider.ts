@@ -108,10 +108,11 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // and OpenAI is not required, so any image/thumbnail routing to Gemini,
   // OpenAI, or a "disabled" state is coerced to the built-in provider. External
   // providers (Puter, Pollinations, HuggingFace, Recraft) stay selectable.
-  if (next.image === "gemini" || next.image === "disabled" || next.image === "openai")
-    next.image = "builtin";
-  if (next.thumbnail === "gemini" || next.thumbnail === "disabled" || next.thumbnail === "openai")
-    next.thumbnail = "builtin";
+  // Image generation always uses the built-in Lovable AI (Lovable credits). Any
+  // saved external image-provider selection (Puter, Pollinations, HuggingFace,
+  // Recraft, Gemini, OpenAI, disabled) is coerced to the built-in provider.
+  next.image = "builtin";
+  next.thumbnail = "builtin";
   return next;
 }
 
@@ -466,12 +467,11 @@ function notConnectedMessage(choice: ProviderChoice): string {
   }
 }
 
-/** Body payload passed to the image API route so the server can route. Returns
- *  the connected external image provider (Recraft), or null when none is
- *  connected — the built-in AI is never used for images. */
+/** Body payload passed to the image API route so the server can route. Image
+ *  generation now always uses the built-in Lovable AI (Lovable credits) — the
+ *  external image-provider API system is disabled for images/thumbnails. */
 export function imageProviderPayload() {
-  const p = getActiveImageProvider();
-  if (!p) return null;
+  const p = builtinImageProvider();
   return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
 }
 
@@ -485,21 +485,10 @@ export function imageFallbackChain(): Array<{
   imageModel: string;
   fallback: boolean;
 }> {
-  const list = resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, []));
-  const pool = getGeminiImageKeys();
-  const chain: Array<{ name: ImageProviderName; apiKey: string; imageModel: string; fallback: boolean }> = [];
-  const seen = new Set<string>();
-  const add = (p: ActiveImageProvider | null) => {
-    if (!p || p.name === "gemini" || seen.has(p.name)) return;
-    seen.add(p.name);
-    chain.push({ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false });
-  };
-  add(resolveImageProvider("builtin", list, pool));
-  add(resolveImageProvider("puter", list, pool));
-  add(resolveImageProvider("pollinations", list, pool));
-  add(resolveImageProvider("huggingface", list, pool));
-  add(resolveImageProvider("recraft", list, pool));
-  return chain;
+  // Image generation is fixed to the built-in Lovable AI (Lovable credits).
+  // External image providers are no longer part of the routing chain.
+  const p = builtinImageProvider();
+  return [{ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false }];
 }
 
 /** First connected fallback provider after the currently active one. Kept for
@@ -512,12 +501,9 @@ export function thumbnailProviderPayload() {
   return imageProviderPayload();
 }
 
-/** Whether image generation can start. Requires a connected Recraft key —
- *  generation never falls back to the built-in AI. */
+/** Image generation is always ready — it uses the built-in Lovable AI. */
 export function imageProviderReady(): { ok: boolean; message?: string } {
-  return getActiveImageProvider()
-    ? { ok: true }
-    : { ok: false, message: IMAGE_PROVIDER_NOT_CONNECTED };
+  return { ok: true };
 }
 
 export function ttsProviderPayload() {
