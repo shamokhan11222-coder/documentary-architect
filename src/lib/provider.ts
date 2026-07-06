@@ -133,7 +133,7 @@ function resetSavedGeminiModelLabels(list: ApiKeyEntry[]): ApiKeyEntry[] {
     const cleaned = {
       ...entry,
       modelName: normalizedGeminiTextModel(entry.modelName),
-      imageModelName: GEMINI_IMAGE_MODEL_DEFAULT,
+      imageModelName: normalizeGeminiModel(entry.imageModelName) || GEMINI_IMAGE_MODEL_DEFAULT,
     };
     if (cleaned.modelName !== entry.modelName || cleaned.imageModelName !== entry.imageModelName) changed = true;
     return cleaned;
