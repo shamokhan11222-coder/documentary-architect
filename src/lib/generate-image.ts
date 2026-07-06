@@ -10,6 +10,7 @@ import {
   thumbnailProviderPayload,
   imageFallbackChain,
   IMAGE_PROVIDER_NOT_CONNECTED,
+  getActiveImageProvider,
 } from "./provider";
 import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
@@ -50,10 +51,28 @@ export interface RotatedImage {
  *  next key; on invalid key / missing model disables it and tries the next.
  *  Throws ImageGenError(ALL_COOLING) when no key is available. */
 async function callWithRotation(prompt: string, references: string[]): Promise<RotatedImage> {
+  const poolSize = getGeminiImageKeys().length;
   // Try keys until one succeeds or all are cooling/disabled.
   for (;;) {
     const key = pickAvailableKey();
     if (!key) {
+      // If the user saved Gemini in the normal API vault instead of the
+      // dedicated rotation pool, still use it for the image queue. Do not create
+      // any fake cooldown state for 402/403/429 from this non-rotation path.
+      if (poolSize === 0) {
+        const active = getActiveImageProvider();
+        if (active?.name === "gemini" && active.apiKey.trim()) {
+          const payload: ImageProviderPayload = {
+            name: "gemini",
+            apiKey: active.apiKey.trim(),
+            imageModel: active.imageModel || GEMINI_FORCED_IMAGE_MODEL,
+            fallback: false,
+          };
+          const image = await callImageApi(prompt, references, payload);
+          lastImageRequestAt = Date.now();
+          return { image, keyName: "Gemini API key", model: payload.imageModel };
+        }
+      }
       throw new ImageGenError(ALL_KEYS_COOLING_MESSAGE, ALL_KEYS_COOLING_CODE, null);
     }
     const payload: ImageProviderPayload = {
@@ -69,7 +88,6 @@ async function callWithRotation(prompt: string, references: string[]): Promise<R
       lastImageRequestAt = Date.now();
       return { image, keyName: key.name, model: payload.imageModel };
     } catch (e) {
-      lastImageRequestAt = Date.now();
       const status = e instanceof ImageGenError ? e.status : null;
       const code = e instanceof ImageGenError ? e.code : null;
       const msg =
@@ -388,10 +406,9 @@ async function generate(prompt: string, references: string[], provider = imagePr
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   const active: ImageProviderPayload = provider;
   return enqueueAi(async () => {
-    // Ordered fallback: try the active provider first, then walk the chain
-    // (Puter → Pollinations → HuggingFace → Recraft). Gemini is never used for
-    // images. When every provider fails, surface the last error so the UI can
-    // offer Upload / Export Prompts.
+    // Ordered fallback: try the active provider first, then walk the optional
+    // chain. Built-in image fallback is disabled so 402 billing errors cannot
+    // appear after a Gemini key was connected.
     const chain: ImageProviderPayload[] = [active];
     for (const p of imageFallbackChain()) {
       if (!chain.some((c) => c.name === p.name)) chain.push(p as ImageProviderPayload);
@@ -406,7 +423,6 @@ async function generate(prompt: string, references: string[], provider = imagePr
         lastImageRequestAt = Date.now();
         return img;
       } catch (e) {
-        lastImageRequestAt = Date.now();
         lastErr = e;
         console.error(`[image] provider ${candidate.name} failed`, e);
         // Continue to the next provider in the chain regardless of error type.
