@@ -8,7 +8,7 @@ import { getCreditConfig } from "./credit-mode";
 import {
   imageProviderPayload,
   thumbnailProviderPayload,
-  fallbackImageProviderPayload,
+  imageFallbackChain,
   IMAGE_PROVIDER_NOT_CONNECTED,
 } from "./provider";
 import { enqueueAi } from "./ai-queue";
@@ -388,41 +388,31 @@ async function generate(prompt: string, references: string[], provider = imagePr
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   const active: ImageProviderPayload = provider;
   return enqueueAi(async () => {
-    // Puter AI: try the browser SDK first; if it is unavailable, automatically
-    // fall back to Gemini or Recraft when one is connected. Provider limits stop.
-    if (active.name === "puter") {
+    // Ordered fallback: try the active provider first, then walk the chain
+    // (Puter → Pollinations → HuggingFace → Recraft). Gemini is never used for
+    // images. When every provider fails, surface the last error so the UI can
+    // offer Upload / Export Prompts.
+    const chain: ImageProviderPayload[] = [active];
+    for (const p of imageFallbackChain()) {
+      if (!chain.some((c) => c.name === p.name)) chain.push(p as ImageProviderPayload);
+    }
+    let lastErr: unknown;
+    for (let i = 0; i < chain.length; i++) {
+      const candidate = chain[i];
       try {
-        const img = await callImageApi(prompt, references, active);
+        if (i > 0) console.warn(`[image] falling back to ${candidate.name}`);
+        const img = await callImageApi(prompt, references, candidate);
+        if (candidate.name === "puter") setPuterStatus("connected");
         lastImageRequestAt = Date.now();
         return img;
       } catch (e) {
         lastImageRequestAt = Date.now();
-        if (isRateLimitError(e)) throw e;
-        const fb = fallbackImageProviderPayload();
-        if (fb && fb.name !== "puter") {
-          console.error("[Puter] falling back to", fb.name, e);
-          try {
-            const img = await callImageApi(prompt, references, fb);
-            setPuterStatus("connected");
-            return img;
-          } finally {
-            lastImageRequestAt = Date.now();
-          }
-        }
-        throw e;
+        lastErr = e;
+        console.error(`[image] provider ${candidate.name} failed`, e);
+        // Continue to the next provider in the chain regardless of error type.
       }
     }
-    try {
-      const img = await callImageApi(prompt, references, active);
-      lastImageRequestAt = Date.now();
-      return img;
-    } catch (e) {
-      // Never block for minutes on provider limits. Surface it immediately so the
-      // queue can stop loading, mark the scene Provider Limit, and pause — the
-      // user resumes later. The per-request 90s timeout guarantees no long hang.
-      lastImageRequestAt = Date.now();
-      throw e;
-    }
+    throw lastErr ?? new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   }, "Image", { retryRateLimits: false });
 }
 
