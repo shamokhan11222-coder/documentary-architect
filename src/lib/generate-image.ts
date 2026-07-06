@@ -26,6 +26,7 @@ import {
   isDailyLimit,
   isInvalidKeyOrModel,
 } from "./gemini-image-keys";
+import { updateGeminiImageKey } from "./gemini-image-keys";
 import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
