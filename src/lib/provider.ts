@@ -103,16 +103,8 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // stays selectable in API Settings for future use, but never routes here.
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
-  // Images/thumbnails default to Built-in Lovable AI (Lovable credits). Gemini
-  // image generation is DISABLED (Google returns "403 Project denied access")
-  // and OpenAI is not required, so any image/thumbnail routing to Gemini,
-  // OpenAI, or a "disabled" state is coerced to the built-in provider. External
-  // providers (Puter, Pollinations, HuggingFace, Recraft) stay selectable.
-  // Image generation always uses the built-in Lovable AI (Lovable credits). Any
-  // saved external image-provider selection (Puter, Pollinations, HuggingFace,
-  // Recraft, Gemini, OpenAI, disabled) is coerced to the built-in provider.
-  next.image = "builtin";
-  next.thumbnail = "builtin";
+  if (next.image === "disabled") next.image = "builtin";
+  if (next.thumbnail === "disabled") next.thumbnail = next.image === "disabled" ? "builtin" : next.image;
   return next;
 }
 
@@ -337,7 +329,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   // For Gemini image, prefer the dedicated image model the user picked via the
   // "List Available Gemini Models" diagnostic (stored separately from the text
   // modelName). Never use the text modelName (e.g. gemini-2.5-flash) for images.
-  let imageModel = entry.modelName?.trim() || "";
+  let imageModel = entry.imageModelName?.trim() || entry.modelName?.trim() || "";
   if (choice === "gemini") {
     imageModel = finalGeminiImageModel();
   } else if (choice === "recraft") {
@@ -471,8 +463,8 @@ function notConnectedMessage(choice: ProviderChoice): string {
  *  generation now always uses the built-in Lovable AI (Lovable credits) — the
  *  external image-provider API system is disabled for images/thumbnails. */
 export function imageProviderPayload() {
-  const p = builtinImageProvider();
-  return { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false };
+  const p = getActiveImageProvider();
+  return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: getProviderSettings().fallback } : null;
 }
 
 /** Ordered image fallback chain. Gemini is intentionally excluded — Google
@@ -485,10 +477,9 @@ export function imageFallbackChain(): Array<{
   imageModel: string;
   fallback: boolean;
 }> {
-  // Image generation is fixed to the built-in Lovable AI (Lovable credits).
-  // External image providers are no longer part of the routing chain.
+  if (!getProviderSettings().fallback) return [];
   const p = builtinImageProvider();
-  return [{ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: false }];
+  return [{ name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: true }];
 }
 
 /** First connected fallback provider after the currently active one. Kept for
@@ -498,7 +489,9 @@ export function fallbackImageProviderPayload() {
 }
 
 export function thumbnailProviderPayload() {
-  return imageProviderPayload();
+  const settings = getProviderSettings();
+  const p = resolveImageProvider(settings.thumbnail, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), getGeminiImageKeys());
+  return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: settings.fallback } : null;
 }
 
 /** Image generation is always ready — it uses the built-in Lovable AI. */

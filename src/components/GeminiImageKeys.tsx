@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listGeminiModels, type GeminiModelInfo } from "@/lib/generate-image";
 import { GEMINI_IMAGE_MODEL_DEFAULT } from "@/lib/provider";
+import { preferredGeminiImageModel } from "@/lib/gemini-model";
 import {
   useGeminiImageKeys,
   addGeminiImageKey,
@@ -66,9 +67,9 @@ export function GeminiImageKeys() {
         const list = await listGeminiModels(k);
         if (cancelled) return;
         setModels(list.imageModels);
-        setModel(list.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT) ? GEMINI_IMAGE_MODEL_DEFAULT : "");
+        setModel(preferredGeminiImageModel(list.imageModels.map((m) => m.id), GEMINI_IMAGE_MODEL_DEFAULT));
         if (list.imageModels.length === 0) setModelError("This key has no image-capable Gemini models.");
-        else if (!list.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT)) setModelError(`${GEMINI_IMAGE_MODEL_DEFAULT} was not returned for this key.`);
+        else if (!list.imageModels.some((m) => m.id === GEMINI_IMAGE_MODEL_DEFAULT)) setModelError(`${GEMINI_IMAGE_MODEL_DEFAULT} was not returned for this key, so the best available image model was selected.`);
       } catch (e) {
         if (cancelled) return;
         setModels([]);
