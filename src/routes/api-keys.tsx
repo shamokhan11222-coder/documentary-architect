@@ -131,15 +131,10 @@ function ApiKeysPage() {
     // Saving a key immediately activates that provider by pointing the relevant
     // routing at it. No Gemini requirement — any supported provider activates.
     if (provider === "Google Gemini") {
-      // Route each requested task to Gemini. An empty purpose activates Gemini
-      // fully (text + image + thumbnail) so the image provider is never left
-      // "Not Activated" after adding a Gemini key.
-      const p = (purpose.trim() || "text,images,thumbnail").toLowerCase();
-      const patch: Partial<{ text: ProviderChoice; image: ProviderChoice; thumbnail: ProviderChoice }> = {};
-      if (p.includes("all") || p.includes("text")) patch.text = "gemini";
-      if (p.includes("all") || p.includes("image")) patch.image = "gemini";
-      if (p.includes("all") || p.includes("image") || p.includes("thumbnail")) patch.thumbnail = "gemini";
-      saveProviderSettings(patch);
+      // Gemini is text-only now (image generation returns 403 Project denied
+      // access). Adding a Gemini key activates it for TEXT only — image and
+      // thumbnail routing is left on the image providers (default Puter AI).
+      saveProviderSettings({ text: "gemini" });
     } else if (provider === "OpenAI") {
       applyPurposeRouting("openai", purpose.trim() || "text");
     } else if (provider === "Recraft") {
