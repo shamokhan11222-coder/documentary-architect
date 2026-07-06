@@ -357,7 +357,7 @@ function ThumbnailPage() {
           ) : (
             // Normal users: short, friendly message only.
             <p className="mt-3 text-xs text-muted-foreground">
-              Gemini image quota reached. Try again later or upload a thumbnail.
+              {friendlyImgError(providerError)}
             </p>
           )
         ) : null
