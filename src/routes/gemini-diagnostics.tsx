@@ -12,6 +12,7 @@ import {
   GEMINI_IMAGE_MODEL_DEFAULT,
   saveProviderSettings,
 } from "@/lib/provider";
+import { normalizeGeminiModel } from "@/lib/gemini-model";
 import {
   geminiDiagnostics,
   listGeminiModels,
@@ -94,12 +95,13 @@ function GeminiDiagnosticsPage() {
     if (!geminiKey) return;
     // Persist the picked IMAGE model separately from the text model, then route
     // image + thumbnail to Gemini. Never validated using text-model logic.
-    saveApiKey({ ...geminiKey, imageModelName: GEMINI_IMAGE_MODEL_DEFAULT });
+    const model = normalizeGeminiModel(id) || GEMINI_IMAGE_MODEL_DEFAULT;
+    saveApiKey({ ...geminiKey, imageModelName: model });
     saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
-    toast.success(`Final Gemini model sent: ${GEMINI_IMAGE_MODEL_DEFAULT}`);
+    toast.success(`Final Gemini model sent: ${model}`);
   }
 
-  const currentImageModel = GEMINI_IMAGE_MODEL_DEFAULT;
+  const currentImageModel = imageModel;
 
   return (
     <div className="mx-auto max-w-4xl p-6">
@@ -235,7 +237,7 @@ function GeminiDiagnosticsPage() {
                         <Button
                           size="sm"
                           variant={selected ? "secondary" : "default"}
-                          onClick={() => selectImageModel(GEMINI_IMAGE_MODEL_DEFAULT)}
+                          onClick={() => selectImageModel(m.id)}
                           disabled={selected}
                         >
                           {selected ? "Selected" : "Use this model"}

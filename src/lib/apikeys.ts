@@ -2,7 +2,7 @@
 // and used to activate Google Gemini as the live provider for supported tasks.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry, ApiProvider } from "./types";
-import { GEMINI_FORCED_IMAGE_MODEL, GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./gemini-model";
+import { GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./gemini-model";
 
 const KEY = "docos.apikeys";
 
@@ -57,7 +57,7 @@ function cleanGeminiEntry<T extends Partial<ApiKeyEntry>>(entry: T): T {
   return {
     ...entry,
     modelName: normalizeGeminiModel(entry.modelName) || GEMINI_TEXT_MODEL_DEFAULT_FULL,
-    imageModelName: GEMINI_FORCED_IMAGE_MODEL,
+    imageModelName: normalizeGeminiModel(entry.imageModelName),
   };
 }
 

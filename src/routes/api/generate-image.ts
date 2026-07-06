@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "../../lib/gemini-model";
+import { GEMINI_FORCED_IMAGE_MODEL, preferredGeminiImageModel, normalizeGeminiModel } from "../../lib/gemini-model";
 
 // Silent, internal image generation. Images are routed only through the user's
 // selected external image provider (Recraft is primary). The built-in AI is
@@ -76,7 +76,7 @@ async function geminiImageDiagnostics(apiKeyRaw?: string, imageModelRaw?: string
   const generationUrl = geminiInteractionsUrl(version);
   let generationUrlForDisplay = generationUrl;
   const generationBody = {
-    model,
+    model: bareModelId(model),
     input: [{ type: "text", text: "simple blue circle on white background" }],
   };
 
@@ -877,38 +877,25 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     });
   }
   const requestedModel = normalizeGeminiModel(provider.imageModel) || GEMINI_IMAGE_MODEL_DEFAULT;
-  const fullModel = GEMINI_IMAGE_MODEL_DEFAULT;
-  const model = fullModel;
-  if (!availableImageModelsFull.includes(fullModel)) {
-    return providerFail({
-      provider: "gemini",
-      model: fullModel,
-      endpoint: listed.requestUrl,
-      status: 404,
-      rawBody: JSON.stringify({ error: `Forced Gemini image model was not returned by Google models list.`, requestedModel, availableImageModels: availableImageModelsFull }, null, 2),
-      code: "MODEL_NOT_FOUND",
-      httpMethod: "GET",
-      requestHeaders: listed.authMethod === "key query parameter" ? { accept: "application/json" } : { accept: "application/json", [GEMINI_AUTH_HEADER]: "(hidden)" },
-    });
-  }
+  const fullModel = preferredGeminiImageModel(availableImageModelsFull, requestedModel);
+  const model = bareModelId(fullModel);
   // Requirement: print the EXACT model id sent to the API before every request
   // (image AND thumbnail both route through this function).
-  console.log(`Final Gemini model sent: ${fullModel}`);
-  console.log(`Final model sent to Gemini: ${fullModel}`);
-  const parts: unknown[] = [{ text: body.prompt }];
+  console.log(`Final Gemini model sent: ${model}`);
+  console.log(`Final model sent to Gemini: ${model}`);
+  const input: unknown[] = [{ type: "text", text: body.prompt }];
   for (const ref of (body.references ?? []).slice(0, 6)) {
-    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInlineDataPart(ref) : null;
-    if (inline) parts.push(inline);
+    const inline = typeof ref === "string" && ref.startsWith("data:") ? toInteractionImageInput(ref) : null;
+    if (inline) input.push(inline);
   }
   const reqBodyObj = {
-    contents: [{ role: "user", parts }],
-    generationConfig: { responseModalities: ["IMAGE"] },
+    model,
+    input,
   };
   const reqBody = JSON.stringify(reqBodyObj);
   const version = GEMINI_API_VERSIONS[0];
-  // Official generateContent endpoint. The model keeps its "models/" prefix, so
-  // the URL is .../v1beta/models/<exact-id>:generateContent.
-  const baseEndpoint = `${GEMINI_HOST}/${version}/${fullModel}:generateContent`;
+  // Official native Gemini image endpoint from Google's current REST docs.
+  const baseEndpoint = geminiInteractionsUrl(version);
   const usingQueryAuth = listed.authMethod === "key query parameter";
   const endpoint = usingQueryAuth ? `${baseEndpoint}?key=(hidden)` : baseEndpoint;
   const fetchEndpoint = usingQueryAuth ? `${baseEndpoint}?key=${encodeURIComponent(apiKey)}` : baseEndpoint;
@@ -927,7 +914,7 @@ async function generateWithGemini(body: Body, provider: Provider): Promise<Respo
     headers: redactedHeaders,
     body: reqBodyObj,
     time: new Date(auditStart).toISOString(),
-    references: parts.length - 1,
+    references: input.length - 1,
   });
   const upstream = await fetch(fetchEndpoint, {
     method: "POST",
