@@ -190,8 +190,7 @@ function VisualPage() {
     void refreshHave();
   }, [refreshHave]);
 
-  // ---- Gemini multi-key rotation queue wiring ----
-  const geminiImageKeys = useGeminiImageKeys();
+  // ---- Sequential image queue wiring (Puter → Pollinations) ----
   const haveRef = useRef(have);
   haveRef.current = have;
   useEffect(() => {
