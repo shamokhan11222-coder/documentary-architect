@@ -16,6 +16,11 @@ import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
+import {
+  generatePipelineImage,
+  sceneSeed,
+  CONSISTENCY_SUFFIX,
+} from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import {
   getGeminiImageKeys,
