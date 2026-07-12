@@ -74,6 +74,7 @@ let nextRetryAt: number | null = null;
 let runner: Runner | null = null;
 let loopToken = 0;
 let waitTimer: ReturnType<typeof setTimeout> | null = null;
+let stopAfterCurrent = false;
 
 const listeners = new Set<() => void>();
 let snapshot = build();
@@ -165,8 +166,18 @@ export function pauseImageQueue() {
   emit();
 }
 
+/** Finish the image currently generating, then stop the queue (do not cancel
+ *  the in-flight request). */
+export function stopAfterCurrentImage() {
+  if (state !== "running" && state !== "cooling") return;
+  stopAfterCurrent = true;
+  message = "Stopping after the current image…";
+  emit();
+}
+
 export function resumeImageQueue() {
   if (state !== "paused" && state !== "cooling") return;
+  stopAfterCurrent = false;
   state = "running";
   message = null;
   nextRetryAt = null;
