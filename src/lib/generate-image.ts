@@ -164,10 +164,24 @@ export async function ensureGeminiImageModels(): Promise<ResolvedImageModel> {
 
 /** Generate a scene image through the key pool, returning the used key name. */
 export async function generateSceneImageRotating(scene: VisualScene): Promise<RotatedImage> {
-  const { hasCharacter, images } = await collectDnaReferences();
-  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
-  const refs = images.slice(0, getCreditConfig().dnaReferences);
-  return enqueueAi(() => callWithRotation(prompt, refs), "Image", { retryRateLimits: false });
+  const { hasCharacter } = await collectDnaReferences();
+  const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+  return enqueueAi(
+    async () => {
+      const r = await generatePipelineImage(prompt, {
+        scene: scene.sceneNumber,
+        seed: sceneSeed(scene.sceneNumber),
+      });
+      lastImageRequestAt = Date.now();
+      return {
+        image: r.image,
+        keyName: r.provider === "puter" ? "Puter AI" : "Pollinations",
+        model: r.model,
+      };
+    },
+    "Image",
+    { retryRateLimits: false },
+  );
 }
 
 function combinedArtDirection(): string {
