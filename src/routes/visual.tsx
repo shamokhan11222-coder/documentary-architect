@@ -33,8 +33,7 @@ import {
   configureImageQueue,
   startImageQueue,
 } from "@/lib/image-queue";
-import { hasGeminiImageKeyPool, ensureGeminiImageModels, generateSceneImageRotating } from "@/lib/generate-image";
-import { useGeminiImageKeys } from "@/lib/gemini-image-keys";
+import { generateSceneImageRotating } from "@/lib/generate-image";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
