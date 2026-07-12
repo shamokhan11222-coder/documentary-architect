@@ -622,9 +622,7 @@ function VisualPage() {
         )}
       </div>
 
-      {hasMap && geminiImageKeys.length > 0 && (
-        <ImageQueuePanel onStart={startQueue} />
-      )}
+      {hasMap && <ImageQueuePanel onStart={startQueue} />}
 
       {hasMap && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
@@ -636,13 +634,11 @@ function VisualPage() {
                 value={imageProviderStatus.choice}
                 onChange={(e) => handleImageProviderChange(e.target.value as ProviderChoice)}
               >
-                <option value="puter">Puter AI</option>
-                <option value="recraft">Recraft V4.1 Utility Pro</option>
-                <option value="gemini">Gemini Image</option>
-                <option value="openai">OpenAI Images</option>
-                <option value="fal">Fal.ai</option>
-                <option value="replicate">Replicate</option>
-                <option value="disabled">Built-in AI disabled</option>
+                <option value="puter">Puter AI (primary)</option>
+                <option value="pollinations">Pollinations (fallback)</option>
+                <option value="gemini" disabled>Gemini Image — coming soon</option>
+                <option value="openai" disabled>OpenAI Images — coming soon</option>
+                <option value="recraft" disabled>Recraft — coming soon</option>
               </select>
             </label>
             <Button variant="outline" onClick={handleTestImageProvider} disabled={!!busy || !activeImageProvider}>
