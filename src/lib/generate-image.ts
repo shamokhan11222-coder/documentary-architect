@@ -176,6 +176,8 @@ export async function generateSceneImageRotating(scene: VisualScene): Promise<Ro
       const r = await generatePipelineImage(prompt, {
         scene: scene.sceneNumber,
         seed: sceneSeed(scene.sceneNumber),
+        width: 1280,
+        height: 720,
       });
       lastImageRequestAt = Date.now();
       return {
@@ -611,7 +613,7 @@ export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter } = await collectDnaReferences();
   const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
   const r = await enqueueAi(
-    () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber) }),
+    () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720 }),
     "Image",
     { retryRateLimits: false },
   );
