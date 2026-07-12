@@ -1,6 +1,8 @@
-// Live image-generation queue panel: controls + status + cooling keys.
+// Live image-generation queue panel: provider status, test images, controls.
+// Zero-budget pipeline: Puter AI (primary) → Pollinations (fallback).
 import { useEffect, useState } from "react";
-import { Play, Pause, RotateCcw, SkipForward, Square } from "lucide-react";
+import { Play, Pause, RotateCcw, SkipForward, Square, ImageIcon, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   useImageQueue,
@@ -8,10 +10,14 @@ import {
   resumeImageQueue,
   retryFailedImages,
   continueFromLastImage,
+  stopAfterCurrentImage,
   setQueueDelay,
   DELAY_OPTIONS,
 } from "@/lib/image-queue";
-import { useGeminiImageKeys } from "@/lib/gemini-image-keys";
+import { usePuterStatus } from "@/lib/puter-image";
+import { usePollinationsStatus } from "@/lib/pollinations-image";
+import { generateTestImage, type ImageSanityResult } from "@/lib/generate-image";
+import { buildDebugReport } from "@/lib/image-pipeline";
 
 function useNow(active: boolean) {
   const [, force] = useState(0);
@@ -32,21 +38,57 @@ function fmt(ms: number): string {
 
 export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
   const q = useImageQueue();
-  const keys = useGeminiImageKeys();
-  useNow(q.state === "cooling" || q.state === "running" || keys.some((k) => k.status === "cooling"));
+  const puter = usePuterStatus();
+  const pollinations = usePollinationsStatus();
+  useNow(q.state === "cooling" || q.state === "running");
 
-  const cooling = keys.filter((k) => k.status === "cooling");
+  const [testing, setTesting] = useState<null | "puter" | "pollinations">(null);
+  const [testImg, setTestImg] = useState<string | null>(null);
+  const [testInfo, setTestInfo] = useState<string | null>(null);
+  const [testedOk, setTestedOk] = useState(false);
+
   const running = q.state === "running" || q.state === "cooling";
+
+  async function runTest(only: "puter" | "pollinations") {
+    setTesting(only);
+    setTestInfo(null);
+    try {
+      const r: ImageSanityResult = await generateTestImage(only);
+      if (r.ok && r.image) {
+        setTestImg(r.image);
+        setTestInfo(`${r.provider} · ${r.model} · ${r.ms}ms`);
+        setTestedOk(true);
+        toast.success(`${only === "puter" ? "Puter" : "Pollinations"} test image generated.`);
+      } else {
+        setTestInfo(r.error ?? "Test failed.");
+        toast.error(r.error ?? "Test failed.");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setTestInfo(msg);
+      toast.error(msg);
+    } finally {
+      setTesting(null);
+    }
+  }
+
+  function copyDebug() {
+    const report = buildDebugReport() || "No image requests recorded yet.";
+    navigator.clipboard?.writeText(report).then(
+      () => toast.success("Debug report copied."),
+      () => toast.error("Could not copy debug report."),
+    );
+  }
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-medium">Image Queue (Gemini rotation)</div>
+        <div className="text-sm font-medium">Image Queue · Puter AI → Pollinations</div>
         <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" onClick={onStart} disabled={running}>
+          <Button size="sm" variant="outline" onClick={onStart} disabled={running || !testedOk}>
             <Play className="mr-1 h-4 w-4" /> Start Queue
           </Button>
-          {q.state === "running" || q.state === "cooling" ? (
+          {running ? (
             <Button size="sm" variant="outline" onClick={pauseImageQueue}>
               <Pause className="mr-1 h-4 w-4" /> Pause
             </Button>
@@ -55,6 +97,9 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
               <Play className="mr-1 h-4 w-4" /> Resume
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={stopAfterCurrentImage} disabled={!running}>
+            <Square className="mr-1 h-4 w-4" /> Stop After Current
+          </Button>
           <Button size="sm" variant="outline" onClick={retryFailedImages} disabled={q.failed === 0}>
             <RotateCcw className="mr-1 h-4 w-4" /> Retry Failed
           </Button>
@@ -63,6 +108,42 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
           </Button>
         </div>
       </div>
+
+      {/* Provider status + sanity test */}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Stat label="Puter AI (primary)" value={puter} />
+        <Stat label="Pollinations (fallback)" value={pollinations} />
+      </div>
+
+      {!testedOk && (
+        <div className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Generate at least one test image below before the full queue unlocks.
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => runTest("puter")} disabled={testing !== null}>
+          {testing === "puter" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-1 h-4 w-4" />}
+          Generate 1 Puter Test Image
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => runTest("pollinations")} disabled={testing !== null}>
+          {testing === "pollinations" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-1 h-4 w-4" />}
+          Generate 1 Pollinations Test Image
+        </Button>
+        <Button size="sm" variant="ghost" onClick={copyDebug}>
+          Copy Debug Report
+        </Button>
+      </div>
+
+      {testImg && (
+        <div className="mt-3 flex items-center gap-3">
+          <img src={testImg} alt="Test" className="h-24 w-24 rounded-md border border-border object-cover" />
+          <div className="text-xs text-muted-foreground">{testInfo}</div>
+        </div>
+      )}
+      {!testImg && testInfo && (
+        <div className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{testInfo}</div>
+      )}
 
       {/* Delay between requests */}
       <div className="mt-3">
@@ -85,40 +166,17 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
       {/* Live status */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         <Stat label="Current scene" value={q.currentScene != null ? `#${q.currentScene}` : "—"} />
-        <Stat label="Active key" value={q.activeKeyName ?? "—"} />
-        <Stat label="Provider / model" value={q.activeModel ? `Gemini · ${q.activeModel}` : "—"} />
+        <Stat label="Provider" value={q.activeKeyName ?? "—"} />
+        <Stat label="Model" value={q.activeModel ?? "—"} />
         <Stat label="Completed" value={String(q.completed)} cls="text-green-600" />
         <Stat label="Pending" value={String(q.pending)} />
         <Stat label="Failed" value={String(q.failed)} cls={q.failed ? "text-red-600" : undefined} />
-        <Stat label="Cooling keys" value={String(cooling.length)} cls={cooling.length ? "text-amber-600" : undefined} />
-        <Stat
-          label="Next retry"
-          value={q.nextRetryAt ? fmt(q.nextRetryAt - Date.now()) : "—"}
-        />
+        <Stat label="Total" value={String(q.total)} />
         <Stat label="State" value={q.state} />
       </div>
 
-      {q.state === "cooling" && (
-        <div className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-          All Gemini image keys are cooling down. Resume automatically when one becomes available.
-        </div>
-      )}
-      {q.message && q.state !== "cooling" && (
+      {q.message && (
         <div className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{q.message}</div>
-      )}
-
-      {cooling.length > 0 && (
-        <div className="mt-3 space-y-1">
-          <div className="text-xs font-medium text-muted-foreground">Cooling down</div>
-          {cooling.map((k) => (
-            <div key={k.id} className="flex items-center justify-between text-xs">
-              <span className="truncate">{k.name}</span>
-              <span className="text-amber-600">
-                {k.cooldownUntil ? fmt(k.cooldownUntil - Date.now()) : "—"} (fails: {k.failCount})
-              </span>
-            </div>
-          ))}
-        </div>
       )}
     </div>
   );
