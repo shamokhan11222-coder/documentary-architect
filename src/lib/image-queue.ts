@@ -43,12 +43,14 @@ export interface ImageQueueSnapshot {
   delayMs: number;
 }
 
-export const DELAY_OPTIONS = [15000, 30000, 60000, 120000] as const;
+// 12s between successful Puter requests, 20s when the Pollinations fallback is
+// in play. Longer options remain for slow / heavily rate-limited runs.
+export const DELAY_OPTIONS = [12000, 20000, 30000, 60000] as const;
 const DELAY_KEY = "docos.imageQueue.delay";
 
 export function getQueueDelay(): number {
-  const v = readLocal<number>(DELAY_KEY, 30000);
-  return (DELAY_OPTIONS as readonly number[]).includes(v) ? v : 30000;
+  const v = readLocal<number>(DELAY_KEY, 12000);
+  return (DELAY_OPTIONS as readonly number[]).includes(v) ? v : 12000;
 }
 export function setQueueDelay(ms: number) {
   writeLocal(DELAY_KEY, ms);
@@ -72,6 +74,7 @@ let nextRetryAt: number | null = null;
 let runner: Runner | null = null;
 let loopToken = 0;
 let waitTimer: ReturnType<typeof setTimeout> | null = null;
+let stopAfterCurrent = false;
 
 const listeners = new Set<() => void>();
 let snapshot = build();
@@ -163,8 +166,18 @@ export function pauseImageQueue() {
   emit();
 }
 
+/** Finish the image currently generating, then stop the queue (do not cancel
+ *  the in-flight request). */
+export function stopAfterCurrentImage() {
+  if (state !== "running" && state !== "cooling") return;
+  stopAfterCurrent = true;
+  message = "Stopping after the current image…";
+  emit();
+}
+
 export function resumeImageQueue() {
   if (state !== "paused" && state !== "cooling") return;
+  stopAfterCurrent = false;
   state = "running";
   message = null;
   nextRetryAt = null;
@@ -260,6 +273,15 @@ async function loop(token: number) {
         message = `Scene ${n}: ${imageErrorMessage(e)}`;
       }
       emit();
+    }
+    // Honor "Stop After Current Image".
+    if (stopAfterCurrent) {
+      stopAfterCurrent = false;
+      state = "paused";
+      currentScene = null;
+      message = "Stopped after the current image.";
+      emit();
+      return;
     }
     // Delay between image requests.
     if (token === loopToken && state === "running" && firstPending() != null) {

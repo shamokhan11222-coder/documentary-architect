@@ -33,8 +33,7 @@ import {
   configureImageQueue,
   startImageQueue,
 } from "@/lib/image-queue";
-import { hasGeminiImageKeyPool, ensureGeminiImageModels, generateSceneImageRotating } from "@/lib/generate-image";
-import { useGeminiImageKeys } from "@/lib/gemini-image-keys";
+import { generateSceneImageRotating } from "@/lib/generate-image";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -191,8 +190,7 @@ function VisualPage() {
     void refreshHave();
   }, [refreshHave]);
 
-  // ---- Gemini multi-key rotation queue wiring ----
-  const geminiImageKeys = useGeminiImageKeys();
+  // ---- Sequential image queue wiring (Puter → Pollinations) ----
   const haveRef = useRef(have);
   haveRef.current = have;
   useEffect(() => {
@@ -214,39 +212,29 @@ function VisualPage() {
 
   function startQueue() {
     if (!selected) return;
-    if (!hasGeminiImageKeyPool()) {
-      toast.error("Add at least one Gemini image key in API Settings to use the rotation queue.");
-      return;
-    }
     const pending = [...scenes].sort((a, b) => a.sceneNumber - b.sceneNumber);
     if (!pending.length) {
       toast.info("No storyboard scenes to generate.");
       return;
     }
     return withBusy("start-queue", async () => {
-      // 1. Resolve the FIRST image-capable Gemini model from Google's live
-      //    models list (no hardcoded model names) and persist it per key.
-      toast.info("Selecting image-capable Gemini model…");
-      const resolved = await ensureGeminiImageModels();
-      if (!resolved.ok || !resolved.model) {
-        toast.error(resolved.message ?? "No image-capable Gemini model available.");
-        return;
-      }
-      // 2. Generate ONE test image first. Only enable the queue if it succeeds.
+      // Zero-budget pipeline: Puter (primary) → Pollinations (fallback).
+      // Generate ONE test image first; only start the queue if it succeeds so
+      // we never launch the full run against a dead provider.
       const first = pending.find((s) => !have.has(s.sceneNumber)) ?? pending[0];
-      toast.info(`Testing image generation — Gemini · ${resolved.model}…`);
+      toast.info("Testing image generation — Puter → Pollinations…");
       try {
         const { image, keyName, model } = await generateSceneImageRotating(first);
         if (!isValidImage(image)) throw new Error("Test image returned no image");
         await putImage(sceneImageId(selected.id, first.sceneNumber), image);
         setHave((prev) => new Set(prev).add(first.sceneNumber));
-        toast.success(`Test image OK — Gemini · ${model} (${keyName}). Starting queue.`);
+        toast.success(`Test image OK — ${keyName} · ${model}. Starting queue.`);
       } catch (e) {
         toast.error(`Test image failed: ${imageErrorMessage(e)}`);
         return;
       }
-      // 3. Enable the queue for the remaining scenes (completed ones are skipped),
-      //    one image at a time with the configured 30–60s delay.
+      // Enable the queue for the remaining scenes (completed ones are skipped),
+      // one image at a time with the configured delay.
       startImageQueue(pending);
     });
   }
@@ -632,9 +620,7 @@ function VisualPage() {
         )}
       </div>
 
-      {hasMap && geminiImageKeys.length > 0 && (
-        <ImageQueuePanel onStart={startQueue} />
-      )}
+      {hasMap && <ImageQueuePanel onStart={startQueue} />}
 
       {hasMap && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
@@ -646,13 +632,11 @@ function VisualPage() {
                 value={imageProviderStatus.choice}
                 onChange={(e) => handleImageProviderChange(e.target.value as ProviderChoice)}
               >
-                <option value="puter">Puter AI</option>
-                <option value="recraft">Recraft V4.1 Utility Pro</option>
-                <option value="gemini">Gemini Image</option>
-                <option value="openai">OpenAI Images</option>
-                <option value="fal">Fal.ai</option>
-                <option value="replicate">Replicate</option>
-                <option value="disabled">Built-in AI disabled</option>
+                <option value="puter">Puter AI (primary)</option>
+                <option value="pollinations">Pollinations (fallback)</option>
+                <option value="gemini" disabled>Gemini Image — coming soon</option>
+                <option value="openai" disabled>OpenAI Images — coming soon</option>
+                <option value="recraft" disabled>Recraft — coming soon</option>
               </select>
             </label>
             <Button variant="outline" onClick={handleTestImageProvider} disabled={!!busy || !activeImageProvider}>

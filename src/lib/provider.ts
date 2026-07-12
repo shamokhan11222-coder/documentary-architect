@@ -89,9 +89,9 @@ export interface ProviderSettings {
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
   text: "gemini",
-  image: "gemini",
+  image: "puter",
   voice: "gemini",
-  thumbnail: "gemini",
+  thumbnail: "puter",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
   fallback: false,
@@ -103,11 +103,12 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // stays selectable in API Settings for future use, but never routes here.
   if (next.text === "openai") next.text = "gemini";
   if (next.voice === "openai") next.voice = "gemini";
-  // Built-in image generation spends Lovable AI balance and causes 402 when
-  // that pool is empty. Images/thumbnails must stay on the user's provider.
-  if (next.image === "disabled" || next.image === "builtin") next.image = "gemini";
-  if (next.thumbnail === "disabled") next.thumbnail = next.image;
-  if (next.thumbnail === "builtin") next.thumbnail = next.image;
+  // Zero-budget image pipeline: only Puter (primary) and Pollinations
+  // (fallback) are active image providers. Gemini / OpenAI / Recraft and the
+  // built-in AI remain selectable in API Settings ONLY as disabled future
+  // providers and must never route here, so any other choice coerces to Puter.
+  if (next.image !== "puter" && next.image !== "pollinations") next.image = "puter";
+  if (next.thumbnail !== "puter" && next.thumbnail !== "pollinations") next.thumbnail = "puter";
   return next;
 }
 

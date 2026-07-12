@@ -16,6 +16,11 @@ import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
+import {
+  generatePipelineImage,
+  sceneSeed,
+  CONSISTENCY_SUFFIX,
+} from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import {
   getGeminiImageKeys,
@@ -164,10 +169,24 @@ export async function ensureGeminiImageModels(): Promise<ResolvedImageModel> {
 
 /** Generate a scene image through the key pool, returning the used key name. */
 export async function generateSceneImageRotating(scene: VisualScene): Promise<RotatedImage> {
-  const { hasCharacter, images } = await collectDnaReferences();
-  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
-  const refs = images.slice(0, getCreditConfig().dnaReferences);
-  return enqueueAi(() => callWithRotation(prompt, refs), "Image", { retryRateLimits: false });
+  const { hasCharacter } = await collectDnaReferences();
+  const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+  return enqueueAi(
+    async () => {
+      const r = await generatePipelineImage(prompt, {
+        scene: scene.sceneNumber,
+        seed: sceneSeed(scene.sceneNumber),
+      });
+      lastImageRequestAt = Date.now();
+      return {
+        image: r.image,
+        keyName: r.provider === "puter" ? "Puter AI" : "Pollinations",
+        model: r.model,
+      };
+    },
+    "Image",
+    { retryRateLimits: false },
+  );
 }
 
 function combinedArtDirection(): string {
@@ -589,15 +608,26 @@ export async function geminiImageDiagnostics(apiKey: string, imageModel?: string
 }
 
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
-  const { hasCharacter, images } = await collectDnaReferences();
-  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
-  return generate(prompt, images.slice(0, getCreditConfig().dnaReferences));
+  const { hasCharacter } = await collectDnaReferences();
+  const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+  const r = await enqueueAi(
+    () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber) }),
+    "Image",
+    { retryRateLimits: false },
+  );
+  lastImageRequestAt = Date.now();
+  return r.image;
 }
 
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
-  const { images } = await collectDnaReferences();
-  const prompt = buildThumbnailPrompt(idea, combinedArtDirection());
-  return generate(prompt, images.slice(0, getCreditConfig().dnaReferences), thumbnailProviderPayload());
+  const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
+  const r = await enqueueAi(
+    () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+    "Thumbnail",
+    { retryRateLimits: false },
+  );
+  lastImageRequestAt = Date.now();
+  return r.image;
 }
 
 /** Result of the required one-image sanity test. Carries the exact provider,
@@ -612,31 +642,25 @@ export type ImageSanityResult = {
   rateLimited?: boolean;
 };
 
-export const IMAGE_SANITY_PROMPT = "simple blue circle on white background";
+export const IMAGE_SANITY_PROMPT =
+  "Minimal flat illustration of a blue circle centered on a clean white background.";
 
-/** Generate exactly ONE test image with the active image provider using a
- *  trivial prompt. Never runs the storyboard. Surfaces the exact provider,
- *  model, request time and real error. Hard-capped at 90s by callImageApi. */
-export async function generateTestImage(): Promise<ImageSanityResult> {
-  const provider = imageProviderPayload();
-  if (!provider) {
-    return { ok: false, provider: "none", model: "—", ms: 0, error: IMAGE_PROVIDER_NOT_CONNECTED };
-  }
+/** Generate exactly ONE test image with the zero-budget pipeline. `only`
+ *  forces a single provider so the UI can offer separate Puter / Pollinations
+ *  test buttons. Surfaces the exact provider, model, request time and real
+ *  error, and returns a real image the caller can display and store. */
+export async function generateTestImage(
+  only?: "puter" | "pollinations",
+): Promise<ImageSanityResult> {
   const start = Date.now();
   try {
-    const image = await callImageApi(IMAGE_SANITY_PROMPT, [], provider);
-    return {
-      ok: true,
-      provider: provider.name,
-        model: provider.name === "gemini" ? normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL : provider.imageModel ?? "(default)",
-      ms: Date.now() - start,
-      image,
-    };
+    const r = await generatePipelineImage(IMAGE_SANITY_PROMPT, { seed: 7, only });
+    return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - start, image: r.image };
   } catch (e) {
     return {
       ok: false,
-      provider: provider.name,
-      model: provider.name === "gemini" ? normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL : provider.imageModel ?? "(default)",
+      provider: only ?? "puter",
+      model: only === "pollinations" ? "flux" : "puter-txt2img",
       ms: Date.now() - start,
       error: imageErrorMessage(e),
       rateLimited: isRateLimitError(e),
