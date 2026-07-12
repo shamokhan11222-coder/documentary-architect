@@ -642,31 +642,25 @@ export type ImageSanityResult = {
   rateLimited?: boolean;
 };
 
-export const IMAGE_SANITY_PROMPT = "simple blue circle on white background";
+export const IMAGE_SANITY_PROMPT =
+  "Minimal flat illustration of a blue circle centered on a clean white background.";
 
-/** Generate exactly ONE test image with the active image provider using a
- *  trivial prompt. Never runs the storyboard. Surfaces the exact provider,
- *  model, request time and real error. Hard-capped at 90s by callImageApi. */
-export async function generateTestImage(): Promise<ImageSanityResult> {
-  const provider = imageProviderPayload();
-  if (!provider) {
-    return { ok: false, provider: "none", model: "—", ms: 0, error: IMAGE_PROVIDER_NOT_CONNECTED };
-  }
+/** Generate exactly ONE test image with the zero-budget pipeline. `only`
+ *  forces a single provider so the UI can offer separate Puter / Pollinations
+ *  test buttons. Surfaces the exact provider, model, request time and real
+ *  error, and returns a real image the caller can display and store. */
+export async function generateTestImage(
+  only?: "puter" | "pollinations",
+): Promise<ImageSanityResult> {
   const start = Date.now();
   try {
-    const image = await callImageApi(IMAGE_SANITY_PROMPT, [], provider);
-    return {
-      ok: true,
-      provider: provider.name,
-        model: provider.name === "gemini" ? normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL : provider.imageModel ?? "(default)",
-      ms: Date.now() - start,
-      image,
-    };
+    const r = await generatePipelineImage(IMAGE_SANITY_PROMPT, { seed: 7, only });
+    return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - start, image: r.image };
   } catch (e) {
     return {
       ok: false,
-      provider: provider.name,
-      model: provider.name === "gemini" ? normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL : provider.imageModel ?? "(default)",
+      provider: only ?? "puter",
+      model: only === "pollinations" ? "flux" : "puter-txt2img",
       ms: Date.now() - start,
       error: imageErrorMessage(e),
       rateLimited: isRateLimitError(e),
