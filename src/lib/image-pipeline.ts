@@ -191,9 +191,9 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
   }
 }
 
-/** Consistency suffix appended to every scene/thumbnail prompt for recurring
- *  character + documentary style stability. */
-export const CONSISTENCY_SUFFIX =
-  "Consistent recurring characters, identical clothing and proportions, simple MS Paint-inspired flat illustration, clean black outlines, limited color palette, uncluttered background, expressive poses, documentary explainer composition, no photorealism, no 3D render, no random text, no watermark.";
+/** Deprecated: the full documentary style + negative prompt now live inside the
+ *  prompt compiler (style-lock.ts). Kept empty so existing call sites that
+ *  append it do not double up style text. */
+export const CONSISTENCY_SUFFIX = "";
 
 export { PuterError, PollinationsError };
