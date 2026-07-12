@@ -608,15 +608,26 @@ export async function geminiImageDiagnostics(apiKey: string, imageModel?: string
 }
 
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
-  const { hasCharacter, images } = await collectDnaReferences();
-  const prompt = buildScenePrompt(scene, combinedArtDirection(), hasCharacter);
-  return generate(prompt, images.slice(0, getCreditConfig().dnaReferences));
+  const { hasCharacter } = await collectDnaReferences();
+  const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+  const r = await enqueueAi(
+    () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber) }),
+    "Image",
+    { retryRateLimits: false },
+  );
+  lastImageRequestAt = Date.now();
+  return r.image;
 }
 
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
-  const { images } = await collectDnaReferences();
-  const prompt = buildThumbnailPrompt(idea, combinedArtDirection());
-  return generate(prompt, images.slice(0, getCreditConfig().dnaReferences), thumbnailProviderPayload());
+  const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
+  const r = await enqueueAi(
+    () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+    "Thumbnail",
+    { retryRateLimits: false },
+  );
+  lastImageRequestAt = Date.now();
+  return r.image;
 }
 
 /** Result of the required one-image sanity test. Carries the exact provider,
