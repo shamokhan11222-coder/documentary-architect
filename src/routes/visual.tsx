@@ -214,39 +214,29 @@ function VisualPage() {
 
   function startQueue() {
     if (!selected) return;
-    if (!hasGeminiImageKeyPool()) {
-      toast.error("Add at least one Gemini image key in API Settings to use the rotation queue.");
-      return;
-    }
     const pending = [...scenes].sort((a, b) => a.sceneNumber - b.sceneNumber);
     if (!pending.length) {
       toast.info("No storyboard scenes to generate.");
       return;
     }
     return withBusy("start-queue", async () => {
-      // 1. Resolve the FIRST image-capable Gemini model from Google's live
-      //    models list (no hardcoded model names) and persist it per key.
-      toast.info("Selecting image-capable Gemini model…");
-      const resolved = await ensureGeminiImageModels();
-      if (!resolved.ok || !resolved.model) {
-        toast.error(resolved.message ?? "No image-capable Gemini model available.");
-        return;
-      }
-      // 2. Generate ONE test image first. Only enable the queue if it succeeds.
+      // Zero-budget pipeline: Puter (primary) → Pollinations (fallback).
+      // Generate ONE test image first; only start the queue if it succeeds so
+      // we never launch the full run against a dead provider.
       const first = pending.find((s) => !have.has(s.sceneNumber)) ?? pending[0];
-      toast.info(`Testing image generation — Gemini · ${resolved.model}…`);
+      toast.info("Testing image generation — Puter → Pollinations…");
       try {
         const { image, keyName, model } = await generateSceneImageRotating(first);
         if (!isValidImage(image)) throw new Error("Test image returned no image");
         await putImage(sceneImageId(selected.id, first.sceneNumber), image);
         setHave((prev) => new Set(prev).add(first.sceneNumber));
-        toast.success(`Test image OK — Gemini · ${model} (${keyName}). Starting queue.`);
+        toast.success(`Test image OK — ${keyName} · ${model}. Starting queue.`);
       } catch (e) {
         toast.error(`Test image failed: ${imageErrorMessage(e)}`);
         return;
       }
-      // 3. Enable the queue for the remaining scenes (completed ones are skipped),
-      //    one image at a time with the configured 30–60s delay.
+      // Enable the queue for the remaining scenes (completed ones are skipped),
+      // one image at a time with the configured delay.
       startImageQueue(pending);
     });
   }
