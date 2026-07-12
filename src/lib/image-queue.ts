@@ -274,6 +274,15 @@ async function loop(token: number) {
       }
       emit();
     }
+    // Honor "Stop After Current Image".
+    if (stopAfterCurrent) {
+      stopAfterCurrent = false;
+      state = "paused";
+      currentScene = null;
+      message = "Stopped after the current image.";
+      emit();
+      return;
+    }
     // Delay between image requests.
     if (token === loopToken && state === "running" && firstPending() != null) {
       await sleep(getQueueDelay(), token);
