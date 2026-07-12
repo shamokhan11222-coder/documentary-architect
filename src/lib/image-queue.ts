@@ -43,12 +43,14 @@ export interface ImageQueueSnapshot {
   delayMs: number;
 }
 
-export const DELAY_OPTIONS = [15000, 30000, 60000, 120000] as const;
+// 12s between successful Puter requests, 20s when the Pollinations fallback is
+// in play. Longer options remain for slow / heavily rate-limited runs.
+export const DELAY_OPTIONS = [12000, 20000, 30000, 60000] as const;
 const DELAY_KEY = "docos.imageQueue.delay";
 
 export function getQueueDelay(): number {
-  const v = readLocal<number>(DELAY_KEY, 30000);
-  return (DELAY_OPTIONS as readonly number[]).includes(v) ? v : 30000;
+  const v = readLocal<number>(DELAY_KEY, 12000);
+  return (DELAY_OPTIONS as readonly number[]).includes(v) ? v : 12000;
 }
 export function setQueueDelay(ms: number) {
   writeLocal(DELAY_KEY, ms);
