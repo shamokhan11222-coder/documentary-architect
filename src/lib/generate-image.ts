@@ -261,36 +261,6 @@ async function callImageApi(prompt: string, references: string[], provider: Imag
   return data.image;
 }
 
-async function generate(prompt: string, references: string[], provider = imageProviderPayload()): Promise<string> {
-  if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
-  const active: ImageProviderPayload = provider;
-  return enqueueAi(async () => {
-    // Ordered fallback: try the active provider first, then walk the optional
-    // chain. Built-in image fallback is disabled so 402 billing errors cannot
-    // appear after a Gemini key was connected.
-    const chain: ImageProviderPayload[] = [active];
-    for (const p of imageFallbackChain()) {
-      if (!chain.some((c) => c.name === p.name)) chain.push(p as ImageProviderPayload);
-    }
-    let lastErr: unknown;
-    for (let i = 0; i < chain.length; i++) {
-      const candidate = chain[i];
-      try {
-        if (i > 0) console.warn(`[image] falling back to ${candidate.name}`);
-        const img = await callImageApi(prompt, references, candidate);
-        if (candidate.name === "puter") setPuterStatus("connected");
-        lastImageRequestAt = Date.now();
-        return img;
-      } catch (e) {
-        lastErr = e;
-        console.error(`[image] provider ${candidate.name} failed`, e);
-        // Continue to the next provider in the chain regardless of error type.
-      }
-    }
-    throw lastErr ?? new Error(IMAGE_PROVIDER_NOT_CONNECTED);
-  }, "Image", { retryRateLimits: false });
-}
-
 export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {
   if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
   const finalProvider = provider.name === "gemini" ? { ...provider, imageModel: normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL } : provider;
