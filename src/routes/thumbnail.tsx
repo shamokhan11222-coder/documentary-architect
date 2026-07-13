@@ -253,15 +253,16 @@ function ThumbnailPage() {
     if (!selected) return;
     return withBusy("later", async () => {
       setProviderLimit(false);
-      const ideas = (await gen({
+      const laterResult = (await gen({
         data: {
           topic: selected.topic,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
         },
-      })) as ThumbnailIdea[];
-      saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
+      })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
+      setConceptProvider(laterResult.conceptProvider);
+      saveThumbnails({ topicId: selected.id, ideas: laterResult.ideas, generatedAt: Date.now() });
       setConceptPending(true);
       toast.success("Concept saved. Generate the image whenever you're ready.");
     });
