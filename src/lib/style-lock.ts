@@ -8,22 +8,26 @@
 // the image provider.
 import type { VisualScene, ThumbnailIdea } from "./types";
 
-/** Mandatory prefix prepended to EVERY image prompt. Forces one full-frame
- *  image and forbids any multi-panel / collage / text layout. */
+/** Mandatory prefix prepended to EVERY image prompt. Forces one very simple
+ *  MS Paint-style full-frame image with stick-figure humans only. */
 export const SINGLE_FRAME_PREFIX =
-  "Generate exactly one single full-frame image. Do not create a comic page, storyboard sheet, collage, grid, split screen, multi-panel composition, manga layout, frames, borders, captions, speech bubbles, text, logos, or watermarks.";
+  "Create one very simple 2D MS Paint-style educational explainer image. Use primitive hand-drawn shapes, uneven thick black outlines, flat solid colors, and a deliberately amateur sixth-grade drawing appearance. Human characters must be basic stick figures only: round white head, two small black eyes, simple mouth, one-line torso, thin line arms and legs. No hair unless the scene specifically requires it. No realistic body, no detailed clothes, no anime face, no chibi proportions, no cinematic background.";
 
 /** Mandatory negative instruction appended to EVERY image prompt. */
 export const NEGATIVE_PROMPT =
-  "No comic panels, no multi-panel page, no storyboard sheet, no collage, no split screen, no grid, no borders, no text, no captions, no speech bubbles, no logo, no watermark, no duplicate characters, no random extra people, no deformed hands, no inconsistent clothing, no mixed art styles, no photorealism, no 3D render.";
+  "NO anime, NO manga, NO chibi, NO cartoon mascot, NO detailed human character, NO realistic person, NO 3D, NO Pixar, NO Ghibli, NO cinematic illustration, NO detailed architecture, NO soft shading, NO gradients, NO realistic lighting, NO comic panels, NO collage, NO split screen, NO random text, NO watermark.";
 
-/** Default Stickmax documentary visual style. */
+/** Default Stickmax MS-Paint visual style. */
 export const GLOBAL_STYLE_LOCK =
-  "Simple hand-drawn digital illustration, MS Paint-inspired, flat solid colors, clean black outlines, minimal shading, simple geometry, uncluttered background, readable silhouettes, expressive body language, slightly imperfect handmade lines, documentary explainer aesthetic, visually clear at YouTube resolution. Not photorealism, not cinematic 3D, not anime, not manga, not a comic-book page, not a coloring book, not watercolor, not oil painting, no glossy render, no clay style, no Pixar style.";
+  "Crude MS Paint stick-figure diagram, primitive hand-drawn shapes, uneven thick rough black outlines, flat solid colors, no shading, no gradients, maximum 1-3 important objects, plain white background unless the scene clearly occurs outdoors, outdoor backgrounds still use primitive flat shapes only, no decorative details, no unnecessary buildings, no crowd unless required, readable like a simple classroom drawing.";
 
 /** Stable recurring-character description reused in every scene. */
 export const CHARACTER_STYLE_LOCK =
-  "The recurring main character is a simple bald stickman: round white head with a thick black outline, two dot eyes, a simple mouth, a thin black line body, consistent proportions and scale in every image. Reuse this exact character identity — never replace it with a different-looking person.";
+  "The recurring main character is a literal black line stick figure: round white head with a thick black outline, two small black eyes, a simple mouth, a single-line torso, thin line arms and legs, consistent proportions and scale in every image. Reuse this exact stick-figure identity — never replace it with a detailed, realistic, anime, or cartoon-mascot person.";
+
+/** Prepended on the single automatic retry when a result looks too polished. */
+export const STYLE_CORRECTION_PREFIX =
+  "STYLE CORRECTION: The previous result was too polished and character-based. Draw this like a crude MS Paint stick-figure diagram made by a school student. Replace all people with literal line stick figures and remove all decorative background detail.";
 
 /** Words that indicate a multi-scene / multi-panel prompt and must never be sent. */
 const FORBIDDEN_WORDS = [
