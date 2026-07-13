@@ -1,14 +1,13 @@
 // Unified zero-budget image pipeline shared by Storyboard Images and Thumbnails.
 //
-// Provider order is fixed: Puter AI (primary) -> Pollinations (fallback).
-// Gemini / OpenAI / Recraft are NEVER called here — they remain selectable in
-// API Settings only as disabled future providers.
+// Provider order is fixed: Pollinations (primary) -> Puter AI (fallback).
+// Gemini / OpenAI / Recraft / built-in image AI are NEVER called here — they
+// remain selectable in API Settings only as disabled future providers, and a
+// hard runtime guard throws before any network call if one is attempted.
 //
-// For every scene:
-//   1. Try Puter once.
-//   2. If Puter is rate limited / temporarily unavailable, wait 30s and retry
-//      Puter once.
-//   3. If Puter still fails, automatically try Pollinations.
+// For every scene / thumbnail:
+//   1. Try Pollinations once (deterministic seed, MS-Paint style prompt).
+//   2. If Pollinations fails, automatically fall back to Puter.
 // The exact provider error is preserved internally for the Developer debug report.
 import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import { pollinationsGenerateImage, PollinationsError, setPollinationsStatus } from "./pollinations-image";
@@ -16,6 +15,18 @@ import { recordTelemetry } from "./provider-telemetry";
 import { recordErrorDetails } from "./error-details";
 
 export type ImageProviderName = "puter" | "pollinations";
+
+/** Providers that must NEVER render storyboard/thumbnail pixels. Attempting any
+ *  of these stops before the network call. */
+const FORBIDDEN_IMAGE_PROVIDERS = ["gemini", "openai", "recraft", "builtin", "built-in", "fal", "replicate", "huggingface"];
+
+/** Hard runtime guard: reject any unsupported image provider before a request. */
+export function assertSupportedImageProvider(name: string | undefined, context: "scene" | "thumbnail" = "scene") {
+  if (name && FORBIDDEN_IMAGE_PROVIDERS.includes(name.toLowerCase())) {
+    if (context === "thumbnail") throw new Error("BUG: Unsupported thumbnail image provider attempted.");
+    throw new Error("BUG: Unsupported image provider attempted in Zero-Budget Mode.");
+  }
+}
 
 export interface PipelineResult {
   image: string; // permanent data URL
