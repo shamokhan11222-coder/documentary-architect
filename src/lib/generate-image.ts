@@ -30,6 +30,29 @@ function combinedArtDirection(): string {
     .join(" ");
 }
 
+/** Run the pipeline once; if the polished-fallback provider (Puter) produced the
+ *  image, retry EXACTLY once through the primary with a hard MS-Paint style
+ *  correction (Section F). Only one automatic retry is ever allowed. */
+async function runPipelineWithStyleGuard(prompt: string, opts: PipelineOptions): Promise<PipelineResult> {
+  const first = await generatePipelineImage(prompt, opts);
+  // Puter is the fallback and the source of over-polished/anime-looking output.
+  // A single automatic correction retry re-renders through Pollinations primary.
+  if (first.provider === "puter") {
+    try {
+      const corrected = await generatePipelineImage(`${STYLE_CORRECTION_PREFIX} ${prompt}`, {
+        ...opts,
+        only: "pollinations",
+        seed: (opts.seed ?? 0) + 1,
+      });
+      return corrected;
+    } catch {
+      // Correction retry failed — keep the original result rather than failing.
+      return first;
+    }
+  }
+  return first;
+}
+
 /** The Visual Style chosen at project creation, read from the active project so
  *  every Recraft prompt stays consistent with the user's selected look. */
 function selectedVisualStyle(): string {
