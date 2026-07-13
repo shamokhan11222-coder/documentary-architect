@@ -226,9 +226,9 @@ function ProjectsPage() {
       }
 
       setAutoStep("Designing thumbnails…");
-      const ideas = (await doThumbs({
+      const { ideas } = (await doThumbs({
         data: { topic: t.topic, script: story.script, angle: research.storyAngles?.[0], ...buildInjection(["thumbnail"]) },
-      })) as ThumbnailIdea[];
+      })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
       saveThumbnails({ topicId: t.id, ideas, generatedAt: Date.now() });
       for (let i = 0; i < ideas.length; i++) {
         setAutoStep(`Rendering thumbnails… ${i + 1}/${ideas.length}`);
