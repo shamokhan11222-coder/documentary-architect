@@ -33,7 +33,7 @@ import {
   configureImageQueue,
   startImageQueue,
 } from "@/lib/image-queue";
-import { generateSceneImageRotating } from "@/lib/generate-image";
+import { generateSceneImageResult } from "@/lib/generate-image";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
