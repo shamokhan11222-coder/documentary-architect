@@ -317,7 +317,7 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
     const { hasCharacter } = await collectDnaReferences();
     const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
     const r = await enqueueAi(
-      () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720 }),
+      () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720, purpose: "scene" }),
       "Image",
       { retryRateLimits: false },
     );
