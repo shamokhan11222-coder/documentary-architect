@@ -7,9 +7,10 @@
 // escalating schedule and move to the next key. Invalid keys / missing models are
 // disabled and skipped. State is persisted in localStorage (per browser).
 import { readLocal, writeLocal, useLocal } from "./local";
-import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "./gemini-model";
+import { normalizeGeminiModel } from "./gemini-model";
 
 const KEY = "docos.gemini.imageKeys";
+const DISABLED_IMAGE_MODEL = "disabled-zero-budget-mode";
 
 export type GeminiKeyStatus = "active" | "cooling" | "disabled";
 
@@ -71,7 +72,7 @@ function reconcile(list: GeminiImageKey[]): GeminiImageKey[] {
 }
 
 function reconcileModels(list: GeminiImageKey[]): GeminiImageKey[] {
-  return list.map((k) => ({ ...k, imageModel: normalizeGeminiModel(k.imageModel) || GEMINI_FORCED_IMAGE_MODEL }));
+  return list.map((k) => ({ ...k, imageModel: normalizeGeminiModel(k.imageModel) || DISABLED_IMAGE_MODEL }));
 }
 
 export function addGeminiImageKey(name: string, key: string, imageModel?: string) {
@@ -84,14 +85,14 @@ export function addGeminiImageKey(name: string, key: string, imageModel?: string
     lastUsed: null,
     failCount: 0,
     cooldownUntil: null,
-    imageModel: normalizeGeminiModel(imageModel) || GEMINI_FORCED_IMAGE_MODEL,
+    imageModel: normalizeGeminiModel(imageModel) || DISABLED_IMAGE_MODEL,
   };
   write([...list, entry]);
   return entry;
 }
 
 export function updateGeminiImageKey(id: string, patch: Partial<GeminiImageKey>) {
-  write(read().map((k) => (k.id === id ? { ...k, ...patch, id: k.id, imageModel: normalizeGeminiModel(patch.imageModel) || normalizeGeminiModel(k.imageModel) || GEMINI_FORCED_IMAGE_MODEL } : k)));
+  write(read().map((k) => (k.id === id ? { ...k, ...patch, id: k.id, imageModel: normalizeGeminiModel(patch.imageModel) || normalizeGeminiModel(k.imageModel) || DISABLED_IMAGE_MODEL } : k)));
 }
 
 export function removeGeminiImageKey(id: string) {
