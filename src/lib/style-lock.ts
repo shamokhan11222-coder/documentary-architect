@@ -122,12 +122,12 @@ export function buildScenePrompt(
       `${scene.mainSubject} ${scene.visualDescription}`,
     );
 
-  const subject = sanitizeFragment(scene.visualDescription);
-  const main = sanitizeFragment(scene.mainSubject);
-  const location = sanitizeFragment(scene.background);
+  const subject = simplifyFragment(sanitizeFragment(scene.visualDescription));
+  const main = simplifyFragment(sanitizeFragment(scene.mainSubject));
+  const location = simplifyFragment(sanitizeFragment(scene.background));
   const camera = resolveCamera(scene);
   const mood = sanitizeFragment(scene.emotion);
-  const artDir = sanitizeFragment(instructions);
+  const artDir = simplifyFragment(sanitizeFragment(instructions));
 
   const parts = [
     SINGLE_FRAME_PREFIX,
@@ -151,12 +151,12 @@ export function buildScenePrompt(
 
 /** Build a single full-frame thumbnail prompt (16:9). */
 export function buildThumbnailPrompt(idea: ThumbnailIdea, instructions: string): string {
-  const concept = sanitizeFragment(idea.mainVisualConcept);
-  const main = sanitizeFragment(idea.mainSubject);
-  const location = sanitizeFragment(idea.background);
+  const concept = simplifyFragment(sanitizeFragment(idea.mainVisualConcept));
+  const main = simplifyFragment(sanitizeFragment(idea.mainSubject));
+  const location = simplifyFragment(sanitizeFragment(idea.background));
   const mood = sanitizeFragment(idea.emotion);
-  const composition = sanitizeFragment(idea.composition);
-  const artDir = sanitizeFragment(instructions);
+  const composition = simplifyFragment(sanitizeFragment(idea.composition));
+  const artDir = simplifyFragment(sanitizeFragment(instructions));
 
   const parts = [
     SINGLE_FRAME_PREFIX,
