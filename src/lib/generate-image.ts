@@ -4,6 +4,7 @@ import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
+import { STYLE_CORRECTION_PREFIX } from "./style-lock";
 import { enqueueAi } from "./ai-queue";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import {
@@ -11,6 +12,8 @@ import {
   sceneSeed,
   CONSISTENCY_SUFFIX,
   type ImageProviderName,
+  type PipelineResult,
+  type PipelineOptions,
 } from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import type { VisualScene, ThumbnailIdea } from "./types";
