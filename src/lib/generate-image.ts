@@ -429,6 +429,65 @@ export async function generateSceneImage(scene: VisualScene): Promise<string> {
   return r.image;
 }
 
+// ---- Single normalized image result (Section 3) --------------------------
+// Every consolidated image request returns this exact shape so no two provider
+// paths can hand back incompatible results.
+export interface ImageResult {
+  success: boolean;
+  provider: ImageProviderName;
+  imageDataUrl?: string;
+  permanentImageKey?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  durationMs: number;
+}
+
+function looksLikeImage(dataUrl: string): boolean {
+  return typeof dataUrl === "string" && dataUrl.startsWith("data:image");
+}
+
+/** Decode a data URL and confirm it has non-zero width and height. A scene is
+ *  only complete when this returns true (Section 4). */
+export function validateImageDimensions(dataUrl: string): Promise<boolean> {
+  if (typeof window === "undefined" || !looksLikeImage(dataUrl)) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth > 0 && img.naturalHeight > 0);
+    img.onerror = () => resolve(false);
+    img.src = dataUrl;
+  });
+}
+
+/** Consolidated scene image request. Builds the prompt, calls the single
+ *  pipeline (Puter → Pollinations), validates the returned pixels and returns
+ *  one normalized result. Never throws — failures come back as success:false. */
+export async function generateSceneImageResult(scene: VisualScene): Promise<ImageResult> {
+  const start = Date.now();
+  try {
+    const { hasCharacter } = await collectDnaReferences();
+    const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+    const r = await enqueueAi(
+      () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720 }),
+      "Image",
+      { retryRateLimits: false },
+    );
+    lastImageRequestAt = Date.now();
+    const valid = await validateImageDimensions(r.image);
+    if (!valid) {
+      return { success: false, provider: r.provider, errorCode: "INVALID_IMAGE", errorMessage: "Image returned no valid pixels.", durationMs: Date.now() - start };
+    }
+    return { success: true, provider: r.provider, imageDataUrl: r.image, durationMs: Date.now() - start };
+  } catch (e) {
+    return {
+      success: false,
+      provider: "puter",
+      errorCode: e instanceof ImageGenError ? e.code ?? undefined : undefined,
+      errorMessage: imageErrorMessage(e),
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
   const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
   const r = await enqueueAi(
@@ -438,6 +497,34 @@ export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<strin
   );
   lastImageRequestAt = Date.now();
   return r.image;
+}
+
+/** Consolidated thumbnail request — same shared pipeline as storyboard scenes
+ *  (Section 2), returning the same normalized result shape. */
+export async function generateThumbnailImageResult(idea: ThumbnailIdea): Promise<ImageResult> {
+  const start = Date.now();
+  try {
+    const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
+    const r = await enqueueAi(
+      () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+      "Thumbnail",
+      { retryRateLimits: false },
+    );
+    lastImageRequestAt = Date.now();
+    const valid = await validateImageDimensions(r.image);
+    if (!valid) {
+      return { success: false, provider: r.provider, errorCode: "INVALID_IMAGE", errorMessage: "Image returned no valid pixels.", durationMs: Date.now() - start };
+    }
+    return { success: true, provider: r.provider, imageDataUrl: r.image, durationMs: Date.now() - start };
+  } catch (e) {
+    return {
+      success: false,
+      provider: "puter",
+      errorCode: e instanceof ImageGenError ? e.code ?? undefined : undefined,
+      errorMessage: imageErrorMessage(e),
+      durationMs: Date.now() - start,
+    };
+  }
 }
 
 /** Result of the required one-image sanity test. Carries the exact provider,
