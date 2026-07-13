@@ -341,7 +341,7 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
   const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
   const r = await enqueueAi(
-    () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+    () => runPipelineWithStyleGuard(prompt, { width: 1280, height: 720, purpose: "thumbnail" }),
     "Thumbnail",
     { retryRateLimits: false },
   );
