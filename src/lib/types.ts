@@ -175,6 +175,28 @@ export interface ThumbnailPack {
   generatedAt: number;
 }
 
+/** Normalized thumbnail composition schema (Phase 3 compositor). The AI/idea
+ *  layer produces this structured concept; the browser compositor renders the
+ *  illustration, headline text and graphic annotations as separate layers. */
+export type ThumbnailEmotion = "confused" | "shocked" | "curious" | "worried" | "excited";
+export type ThumbnailHighlight = "arrow" | "circle" | "cross" | "check" | "question marks";
+export type ThumbnailHighlightColor = "red" | "yellow" | "green";
+export type ThumbnailBackground = "plain white" | "flat solid color" | "simple outdoor";
+export type ThumbnailLayout = "text-top" | "text-left" | "split-left-right";
+
+export interface ThumbnailConcept {
+  headline: string; // 2 to 5 words
+  subheadline?: string; // optional, max 4 words
+  mainVisual: string; // one clear object or situation
+  characterCount: 0 | 1 | 2;
+  characterType: string; // "literal stick figure"
+  emotion: ThumbnailEmotion;
+  backgroundType: ThumbnailBackground;
+  highlightType: ThumbnailHighlight;
+  highlightColor: ThumbnailHighlightColor;
+  layout: ThumbnailLayout;
+}
+
 export interface Seo {
   topicId: string;
   titleOptions: string[];

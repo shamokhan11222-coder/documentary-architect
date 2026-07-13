@@ -6,7 +6,7 @@
 // single-image prompt from a scene and sanitizes it so no forbidden words
 // (comic, panel, storyboard sheet, collage, montage, sequence...) ever reach
 // the image provider.
-import type { VisualScene, ThumbnailIdea } from "./types";
+import type { VisualScene, ThumbnailIdea, ThumbnailConcept } from "./types";
 
 /** Mandatory prefix prepended to EVERY image prompt. Forces one very simple
  *  MS Paint-style full-frame image with stick-figure humans only. */
@@ -183,4 +183,57 @@ export function validatePrompt(prompt: string): string {
   if (!out.startsWith(SINGLE_FRAME_PREFIX)) out = `${SINGLE_FRAME_PREFIX} ${out}`;
   if (!out.includes(NEGATIVE_PROMPT)) out = `${out} ${NEGATIVE_PROMPT}`;
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Thumbnail COMPOSITOR illustration prompt.
+//
+// The compositor draws ALL text and graphic annotations (arrows/circles/checks)
+// programmatically on a canvas. The image provider is therefore asked ONLY for
+// a crude MS-Paint illustration: background + one main visual + literal stick
+// figures. It must NOT draw any letters, words, headlines, arrows or circles —
+// those are added afterwards as controlled layers.
+// ---------------------------------------------------------------------------
+
+const BACKGROUND_PROMPT: Record<string, string> = {
+  "plain white": "plain solid white background, nothing else in the background",
+  "flat solid color": "one flat solid pastel color background, no scenery",
+  "simple outdoor": "very simple outdoor background using only a flat ground line and flat sky, primitive flat shapes only",
+};
+
+/** Literal stick figure description — repeated verbatim so the provider cannot
+ *  drift into alien/mascot/anime/chibi characters. */
+export const LITERAL_STICK_FIGURE =
+  "Each person is a LITERAL stick figure only: a small plain white circular head with a thick black outline, two tiny black dot eyes, one short line for the mouth, one single thin straight black vertical line for the torso, two thin straight black lines for arms, two thin straight black lines for legs. No hair, no neck, no oval alien head, no big round mascot body, no bean body, no detailed hands, no clothing mass, no anime face, no chibi proportions, no shading.";
+
+export const THUMBNAIL_NEGATIVE =
+  "NO text, NO letters, NO words, NO numbers, NO captions, NO watermark, NO arrows, NO circles, NO checkmarks (these are added later), NO alien, NO mascot, NO bean-shaped character, NO round-bodied cartoon, NO Pixar, NO anime, NO chibi, NO detailed human, NO realistic person, NO 3D, NO gradients, NO soft shading, NO detailed background, NO busy scene.";
+
+/** Build the illustration-only prompt for a normalized thumbnail concept. */
+export function buildThumbnailIllustrationPrompt(concept: ThumbnailConcept, instructions = ""): string {
+  const visual = simplifyFragment(sanitizeFragment(concept.mainVisual || "one large simple object"));
+  const bg = BACKGROUND_PROMPT[concept.backgroundType] ?? BACKGROUND_PROMPT["plain white"];
+  const artDir = simplifyFragment(sanitizeFragment(instructions));
+
+  let people: string;
+  if (concept.characterCount === 0) {
+    people = "No people. Show only the single main object, large and centered.";
+  } else {
+    const n = concept.characterCount === 2 ? "Exactly two" : "Exactly one";
+    people = `${n} literal stick figure${concept.characterCount === 2 ? "s" : ""} with a ${concept.emotion} expression, clearly interacting with the main object. ${LITERAL_STICK_FIGURE}`;
+  }
+
+  const parts = [
+    SINGLE_FRAME_PREFIX,
+    "Draw ONE crude MS Paint educational explainer illustration for a YouTube thumbnail.",
+    `MAIN VISUAL: ${visual}. Make it large, simple and clearly the focal point.`,
+    people,
+    `BACKGROUND: ${bg}.`,
+    "COMPOSITION: one single strong visual idea, single full-frame, generous empty margins so text can be added later, no borders.",
+    "STYLE: crude MS Paint drawing, thick uneven rough black outlines, flat solid colors, no shading, no gradients, looks hand-drawn by a school student.",
+    artDir ? `Extra art direction: ${artDir}.` : "",
+    "FORMAT: 16:9 landscape, one single full-frame illustration.",
+    THUMBNAIL_NEGATIVE,
+  ];
+  return parts.filter(Boolean).join(" ");
 }

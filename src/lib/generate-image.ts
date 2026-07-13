@@ -3,8 +3,8 @@
 import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
-import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
-import { STYLE_CORRECTION_PREFIX } from "./style-lock";
+import { buildScenePrompt, STYLE_CORRECTION_PREFIX, buildThumbnailIllustrationPrompt } from "./style-lock";
+import { conceptFromIdea, composeThumbnail, validateComposedThumbnail } from "./thumbnail-compositor";
 import { enqueueAi } from "./ai-queue";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import {
@@ -339,14 +339,37 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
 }
 
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
-  const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
+  // Phase 3 compositor: normalize the idea into a strict concept, generate ONLY
+  // a crude MS-Paint illustration (no text/annotations), then draw the headline
+  // and graphic emphasis programmatically on a 1280x720 canvas.
+  const concept = conceptFromIdea(idea);
+  const prompt = buildThumbnailIllustrationPrompt(concept, combinedArtDirection());
   const r = await enqueueAi(
     () => runPipelineWithStyleGuard(prompt, { width: 1280, height: 720, purpose: "thumbnail" }),
     "Thumbnail",
     { retryRateLimits: false },
   );
   lastImageRequestAt = Date.now();
-  return r.image;
+  const final = await composeThumbnail(concept, r.image);
+  // Rejection rule: a composed thumbnail must always carry the headline layer.
+  // The text is programmatic so it cannot go missing, but if the canvas export
+  // is somehow invalid we allow exactly one illustration retry.
+  if (!validateComposedThumbnail(final)) {
+    const retry = await enqueueAi(
+      () =>
+        runPipelineWithStyleGuard(prompt, {
+          width: 1280,
+          height: 720,
+          purpose: "thumbnail",
+          only: "pollinations",
+          seed: 1,
+        }),
+      "Thumbnail",
+      { retryRateLimits: false },
+    );
+    return composeThumbnail(concept, retry.image);
+  }
+  return final;
 }
 
 /** Consolidated thumbnail request — same shared pipeline as storyboard scenes
@@ -354,18 +377,20 @@ export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<strin
 export async function generateThumbnailImageResult(idea: ThumbnailIdea): Promise<ImageResult> {
   const start = Date.now();
   try {
-    const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
+    const concept = conceptFromIdea(idea);
+    const prompt = buildThumbnailIllustrationPrompt(concept, combinedArtDirection());
     const r = await enqueueAi(
       () => runPipelineWithStyleGuard(prompt, { width: 1280, height: 720, purpose: "thumbnail" }),
       "Thumbnail",
       { retryRateLimits: false },
     );
     lastImageRequestAt = Date.now();
-    const valid = await validateImageDimensions(r.image);
+    const composed = await composeThumbnail(concept, r.image);
+    const valid = await validateImageDimensions(composed);
     if (!valid) {
       return { success: false, provider: r.provider, errorCode: "INVALID_IMAGE", errorMessage: "Image returned no valid pixels.", durationMs: Date.now() - start };
     }
-    return { success: true, provider: r.provider, imageDataUrl: r.image, durationMs: Date.now() - start };
+    return { success: true, provider: r.provider, imageDataUrl: composed, durationMs: Date.now() - start };
   } catch (e) {
     return {
       success: false,
