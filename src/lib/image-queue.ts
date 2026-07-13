@@ -1,23 +1,13 @@
-// Sequential image generation queue with Gemini multi-key rotation.
+// Sequential image generation queue on the single zero-budget pipeline.
 //
-// Runs images ONE BY ONE with a configurable delay between requests. Before each
-// image the rotation runner picks the first available Gemini key; if all keys are
-// cooling down the queue pauses and auto-resumes when a key becomes available.
-// Completed scenes are saved after every image and never regenerated.
+// Runs images ONE BY ONE with a configurable delay between requests. Every scene
+// flows through generateSceneImageResult (Puter primary → Pollinations fallback).
+// There is no Gemini key rotation. Completed scenes are saved after every image
+// (only when a valid image is produced) and are never regenerated. A failed
+// scene is marked failed and the queue continues to the next scene.
 import { useSyncExternalStore } from "react";
 import { readLocal, writeLocal } from "./local";
-import {
-  generateSceneImageRotating,
-  ALL_KEYS_COOLING_CODE,
-  imageErrorMessage,
-  ImageGenError,
-} from "./generate-image";
-import {
-  allCoolingOrDisabled,
-  nextRetryTime,
-  isLimitError,
-  isDailyLimit,
-} from "./gemini-image-keys";
+import { generateSceneImageResult } from "./generate-image";
 import type { VisualScene } from "./types";
 
 export type QueueState = "idle" | "running" | "paused" | "cooling" | "done";
@@ -245,35 +235,20 @@ async function loop(token: number) {
     currentScene = n;
     setItem(n, "running");
     emit();
-    try {
-      const { image, keyName, model } = await generateSceneImageRotating(scene);
-      if (token !== loopToken) return; // paused mid-request
-      activeKeyName = keyName;
-      activeModel = model;
-      await runner.save(scene, image); // save progress after every image
+    // One request per scene. The pipeline never throws — it returns a
+    // normalized result. A failure marks the scene failed and we move on.
+    const result = await generateSceneImageResult(scene);
+    if (token !== loopToken) return; // paused mid-request
+    if (result.success && result.imageDataUrl) {
+      activeKeyName = result.provider === "puter" ? "Puter AI" : "Pollinations";
+      activeModel = result.provider === "puter" ? "puter-txt2img" : "flux";
+      await runner.save(scene, result.imageDataUrl); // save only valid images
       setItem(n, "done");
-      emit();
-    } catch (e) {
-      if (token !== loopToken) return;
-      if (e instanceof ImageGenError && e.code === ALL_KEYS_COOLING_CODE) {
-        setItem(n, "cooling");
-        enterCooling(token);
-        return;
-      }
-      const msg = e instanceof Error ? e.message : String(e);
-      if (isLimitError(msg, e instanceof ImageGenError ? e.code : null, e instanceof ImageGenError ? e.status : null)) {
-        // Every key got cooled inside rotation but still limited — mark cooling.
-        setItem(n, "cooling");
-        if (allCoolingOrDisabled()) {
-          enterCooling(token);
-          return;
-        }
-      } else {
-        setItem(n, "failed");
-        message = `Scene ${n}: ${imageErrorMessage(e)}`;
-      }
-      emit();
+    } else {
+      setItem(n, "failed");
+      message = `Scene ${n}: ${result.errorMessage ?? "Image generation failed."}`;
     }
+    emit();
     // Honor "Stop After Current Image".
     if (stopAfterCurrent) {
       stopAfterCurrent = false;
@@ -289,30 +264,3 @@ async function loop(token: number) {
     }
   }
 }
-
-function enterCooling(token: number) {
-  state = "cooling";
-  currentScene = null;
-  const retry = nextRetryTime();
-  nextRetryAt = retry;
-  message = "All Gemini image keys are cooling down. Resume automatically when one becomes available.";
-  emit();
-  const wait = retry ? Math.max(1000, retry - Date.now() + 500) : 60000;
-  if (waitTimer) clearTimeout(waitTimer);
-  waitTimer = setTimeout(() => {
-    waitTimer = null;
-    if (token !== loopToken) return;
-    if (allCoolingOrDisabled()) {
-      // still cooling — check again later
-      enterCooling(token);
-      return;
-    }
-    state = "running";
-    message = null;
-    nextRetryAt = null;
-    emit();
-    void loop(token);
-  }, wait);
-}
-
-export { isDailyLimit };
