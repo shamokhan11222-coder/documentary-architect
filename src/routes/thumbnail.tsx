@@ -390,6 +390,8 @@ function ThumbnailPage() {
         <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
           <div>Thumbnail Status: {thumbnailStatus}</div>
           <div>Has Image URL: {hasImageUrl ? "true" : "false"}</div>
+          <div>Concept Provider: {conceptProvider ?? "—"}</div>
+          <div>Pixel Provider: {pixelProvider ?? "—"}</div>
           <div>Provider Error: {providerError ?? (providerLimit ? "rate_limited" : "none")}</div>
         </div>
       )}
