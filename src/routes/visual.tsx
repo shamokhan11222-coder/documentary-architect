@@ -223,16 +223,14 @@ function VisualPage() {
       // we never launch the full run against a dead provider.
       const first = pending.find((s) => !have.has(s.sceneNumber)) ?? pending[0];
       toast.info("Testing image generation — Puter → Pollinations…");
-      try {
-        const { image, keyName, model } = await generateSceneImageRotating(first);
-        if (!isValidImage(image)) throw new Error("Test image returned no image");
-        await putImage(sceneImageId(selected.id, first.sceneNumber), image);
-        setHave((prev) => new Set(prev).add(first.sceneNumber));
-        toast.success(`Test image OK — ${keyName} · ${model}. Starting queue.`);
-      } catch (e) {
-        toast.error(`Test image failed: ${imageErrorMessage(e)}`);
+      const test = await generateSceneImageResult(first);
+      if (!test.success || !test.imageDataUrl || !isValidImage(test.imageDataUrl)) {
+        toast.error(`Test image failed: ${test.errorMessage ?? "no image returned"}`);
         return;
       }
+      await putImage(sceneImageId(selected.id, first.sceneNumber), test.imageDataUrl);
+      setHave((prev) => new Set(prev).add(first.sceneNumber));
+      toast.success(`Test image OK — ${test.provider === "puter" ? "Puter AI" : "Pollinations"}. Starting queue.`);
       // Enable the queue for the remaining scenes (completed ones are skipped),
       // one image at a time with the configured delay.
       startImageQueue(pending);
