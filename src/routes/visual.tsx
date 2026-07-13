@@ -30,7 +30,6 @@ import {
   configureImageQueue,
   startImageQueue,
 } from "@/lib/image-queue";
-import { generateSceneImageResult } from "@/lib/generate-image";
 import { getImagePipelineDebug } from "@/lib/image-pipeline";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
@@ -227,14 +226,14 @@ function VisualPage() {
       // we never launch the full run against a dead provider.
       const first = pending.find((s) => !have.has(s.sceneNumber)) ?? pending[0];
       toast.info("Testing image generation — Puter → Pollinations…");
-      const test = await generateSceneImageResult(first);
-      if (!test.success || !test.imageDataUrl || !isValidImage(test.imageDataUrl)) {
-        toast.error(`Test image failed: ${test.errorMessage ?? "no image returned"}`);
+      const testImage = await generateSceneImage(first);
+      if (!isValidImage(testImage)) {
+        toast.error("Test image failed: no image returned");
         return;
       }
-      await putImage(sceneImageId(selected.id, first.sceneNumber), test.imageDataUrl);
+      await putImage(sceneImageId(selected.id, first.sceneNumber), testImage);
       setHave((prev) => new Set(prev).add(first.sceneNumber));
-      toast.success(`Test image OK — ${test.provider === "puter" ? "Puter AI" : "Pollinations"}. Starting queue.`);
+      toast.success("Test image OK — Puter AI / Pollinations. Starting queue.");
       // Enable the queue for the remaining scenes (completed ones are skipped),
       // one image at a time with the configured delay.
       startImageQueue(pending);
