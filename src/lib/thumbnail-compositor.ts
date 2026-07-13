@@ -114,7 +114,6 @@ async function ensureFont(): Promise<string> {
       "url(https://fonts.gstatic.com/s/permanentmarker/v16/Fh4uPib9Iyv2ucM6pGQMWimMp004La2Cf5b6jlg.woff2)",
     );
     await face.load();
-    // @ts-expect-error - fonts is available in browsers
     document.fonts.add(face);
     fontFamily = `"StickmaxMarker", ${fallback}`;
   } catch {
