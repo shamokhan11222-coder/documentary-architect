@@ -211,14 +211,14 @@ function ManagerPage() {
         const research = readLS<Research>("docos.research", id);
         if (!story) throw new Error("Story required before thumbnails");
         setTask(id, stage, "Thumbnail Designer → designing…");
-        const ideas = (await doThumbs({
+        const { ideas } = (await doThumbs({
           data: {
             topic,
             script: story.script,
             angle: research?.storyAngles?.[0],
             ...buildInjection(["thumbnail"]),
           },
-        })) as ThumbnailIdea[];
+        })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
         saveThumbnails({ topicId: id, ideas, generatedAt: Date.now() });
         for (let i = 0; i < ideas.length; i++) {
           if (cancelled.current) throw new Error("Stopped");
