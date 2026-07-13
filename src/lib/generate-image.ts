@@ -3,9 +3,7 @@
 import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
-import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
-import { STYLE_CORRECTION_PREFIX } from "./style-lock";
-import { buildThumbnailIllustrationPrompt } from "./style-lock";
+import { buildScenePrompt, STYLE_CORRECTION_PREFIX, buildThumbnailIllustrationPrompt } from "./style-lock";
 import { conceptFromIdea, composeThumbnail, validateComposedThumbnail } from "./thumbnail-compositor";
 import { enqueueAi } from "./ai-queue";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
