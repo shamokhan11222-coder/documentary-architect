@@ -540,7 +540,7 @@ export type ImageSanityResult = {
 };
 
 export const IMAGE_SANITY_PROMPT =
-  "Minimal flat illustration of a blue circle centered on a clean white background.";
+  "One simple hand-drawn black stick figure standing beside a small green tree on a plain white background, flat colors, thick rough black outlines, single full-frame 16:9 illustration, no text, no panels.";
 
 /** Generate exactly ONE test image with the zero-budget pipeline. `only`
  *  forces a single provider so the UI can offer separate Puter / Pollinations
