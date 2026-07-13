@@ -208,24 +208,26 @@ export interface PipelineOptions {
   height?: number;
   /** Force a specific single provider (used by the per-provider test buttons). */
   only?: ImageProviderName;
+  /** What is being rendered — drives the correct guard error message. */
+  purpose?: "scene" | "thumbnail";
 }
 
 /**
- * Generate one image via Puter -> Pollinations. Throws only when BOTH providers
+ * Generate one image via Pollinations -> Puter. Throws only when BOTH providers
  * fail; the caller (queue) then marks that single scene as Retry Waiting and
  * continues to the next scene.
  */
 export async function generatePipelineImage(prompt: string, opts: PipelineOptions = {}): Promise<PipelineResult> {
-  if ((opts as { only?: string }).only === "gemini") {
-    throw new Error("BUG: Gemini image provider is disabled in Zero-Budget Mode.");
-  }
+  const purpose = opts.purpose ?? "scene";
+  // Hard guard: block Gemini / OpenAI / Recraft / built-in before any request.
+  assertSupportedImageProvider((opts as { only?: string }).only, purpose);
   const flowId = ++flowCounter;
   console.info("[image-flow] started", {
     flowId,
-    activeProvider: "puter",
+    activeProvider: "pollinations",
     functionInvoked: "generatePipelineImage",
-    finalProviderRoute: "Puter AI primary → Pollinations fallback",
-    requestUrl: PUTER_REQUEST_URL,
+    finalProviderRoute: "Pollinations primary → Puter AI fallback",
+    requestUrl: POLLINATIONS_REQUEST_URL,
   });
   const start = Date.now();
   const width = opts.width ?? 1024;
@@ -243,33 +245,21 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
     return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
   }
 
-  // 1) Puter first.
+  // 1) Pollinations first (primary).
   try {
-    const image = await tryPuter(prompt, opts.scene, flowId);
-    setPuterStatus("connected");
-    return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
+    const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
+    return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
   } catch (firstErr) {
-    // 2) If temporary, wait 30s and retry Puter once.
-    if (isTemporaryPuterFailure(firstErr)) {
-      setPuterStatus("rate-limited");
-      await sleep(30_000);
-      try {
-        const image = await tryPuter(prompt, opts.scene, flowId);
-        setPuterStatus("connected");
-        return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
-      } catch {
-        /* fall through to Pollinations */
-      }
-    }
-    // 3) Automatic Pollinations fallback.
+    // 2) Automatic Puter fallback.
     try {
-      const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
-      return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
+      const image = await tryPuter(prompt, opts.scene, flowId);
+      setPuterStatus("connected");
+      return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
     } catch (fallbackErr) {
-      recordErrorDetails(fallbackErr, { provider: "pollinations" });
+      recordErrorDetails(fallbackErr, { provider: "puter" });
       const firstMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
       const secondMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-      throw new Error(`Both providers failed. Puter: ${firstMsg} | Pollinations: ${secondMsg}`);
+      throw new Error(`Both providers failed. Pollinations: ${firstMsg} | Puter: ${secondMsg}`);
     }
   }
 }
