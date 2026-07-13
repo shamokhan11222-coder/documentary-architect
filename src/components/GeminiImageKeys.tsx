@@ -1,6 +1,6 @@
 // API Settings: legacy Gemini image keys are visible only as disabled future
 // provider state. They are never used by the image-generation runtime.
-import { KeyRound } from "lucide-react";
+import { KeyRound, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useGeminiImageKeys,
