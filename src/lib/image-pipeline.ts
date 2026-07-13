@@ -108,14 +108,6 @@ export function sceneSeed(sceneNumber: number): number {
   return (baseProjectSeed() + sceneNumber) % 1_000_000;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function isTemporaryPuterFailure(e: unknown): boolean {
-  if (e instanceof PuterError) return e.kind === "rate-limit" || e.kind === "offline";
-  const msg = e instanceof Error ? e.message : String(e);
-  return /rate.?limit|429|quota|resource_exhausted|unavailable|timeout|offline/i.test(msg);
-}
-
 const PUTER_REQUEST_URL = "puter.ai.txt2img(browser-sdk)";
 const POLLINATIONS_REQUEST_URL = "https://image.pollinations.ai/prompt/[encoded-prompt]";
 
