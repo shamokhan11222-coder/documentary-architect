@@ -221,11 +221,6 @@ async function loop(token: number) {
       emit();
       return;
     }
-    // All keys cooling down → pause and schedule auto-resume.
-    if (allCoolingOrDisabled()) {
-      enterCooling(token);
-      return;
-    }
     const scene = sceneMap.get(n);
     if (!scene) {
       setItem(n, "failed");
