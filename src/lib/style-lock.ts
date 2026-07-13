@@ -50,6 +50,34 @@ const FORBIDDEN_WORDS = [
   "speech bubble",
 ];
 
+/** Style/subject phrases that push the model toward polished anime/cinematic
+ *  output. Each is rewritten to a crude MS-Paint equivalent before sending. */
+const SUBJECT_REWRITES: Array<[RegExp, string]> = [
+  [/\byoung\s+handsome\s+(man|woman|boy|girl)\b/gi, "basic stick figure"],
+  [/\bhandsome\s+(man|woman|boy|girl)\b/gi, "basic stick figure"],
+  [/\bbeautiful\s+(woman|girl|man|boy)\b/gi, "basic stick figure"],
+  [/\bexpressive\s+animated\s+character\b/gi, "basic stick figure"],
+  [/\billustrated\s+character\b/gi, "basic stick figure"],
+  [/\bcartoon\s+(person|character)\b/gi, "basic stick figure"],
+  [/\banimated\s+character\b/gi, "basic stick figure"],
+  [/\b(young|handsome|beautiful|realistic|detailed)\s+(man|woman|boy|girl|person|people)\b/gi, "basic stick figure"],
+  [/\bcinematic\s+city\b/gi, "a few simple flat shapes"],
+  [/\bbeautiful\s+architecture\b/gi, "one simple flat building shape"],
+  [/\bdetailed\s+(environment|buildings|city|background|architecture)\b/gi, "a plain background with a few flat shapes"],
+  [/\bmodern\s+city\b/gi, "a few simple flat shapes"],
+  [/\bcinematic\b/gi, "simple"],
+  [/\bphotorealistic\b/gi, "simple flat"],
+  [/\brealistic\b/gi, "simple flat"],
+];
+
+/** Simplify a scene fragment: replace polished/cinematic subject wording with
+ *  crude MS-Paint stick-figure equivalents (Section D). */
+export function simplifyFragment(text: string): string {
+  let out = text || "";
+  for (const [re, rep] of SUBJECT_REWRITES) out = out.replace(re, rep);
+  return out.replace(/\s{2,}/g, " ").trim();
+}
+
 /** Camera views allowed for a single scene. */
 const CAMERA_VIEWS = [
   "wide shot",
