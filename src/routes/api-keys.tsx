@@ -441,7 +441,7 @@ function DebugStatus() {
       <div className="grid gap-1">
         <div>Active Text Provider: {textLabel}</div>
         <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
-        <div>Final Gemini model sent: {GEMINI_IMAGE_MODEL_DEFAULT}</div>
+        <div>Image Route: Puter AI primary → Pollinations fallback</div>
         <div>Image Provider Status: {imageStatus.message}</div>
         <div>Active Thumbnail Provider: {providerLabel(settings.thumbnail)}</div>
         <div>Active Voice Provider: {providerLabel(settings.voice)}</div>
