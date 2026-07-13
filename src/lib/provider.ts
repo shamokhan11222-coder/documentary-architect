@@ -3,7 +3,6 @@
 // generation and must never be used as a silent fallback.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
-import { getGeminiImageKeys, useGeminiImageKeys } from "./gemini-image-keys";
 import type { GeminiImageKey } from "./gemini-image-keys";
 import {
   GEMINI_FORCED_IMAGE_MODEL,
