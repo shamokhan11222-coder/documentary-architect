@@ -1,13 +1,13 @@
 // Sequential image generation queue on the single zero-budget pipeline.
 //
 // Runs images ONE BY ONE with a configurable delay between requests. Every scene
-// flows through generateSceneImageResult (Puter primary → Pollinations fallback).
+// flows through generateSceneImage (Puter primary → Pollinations fallback).
 // There is no Gemini key rotation. Completed scenes are saved after every image
 // (only when a valid image is produced) and are never regenerated. A failed
 // scene is marked failed and the queue continues to the next scene.
 import { useSyncExternalStore } from "react";
 import { readLocal, writeLocal } from "./local";
-import { generateSceneImageResult } from "./generate-image";
+import { generateSceneImage, imageErrorMessage } from "./generate-image";
 import type { VisualScene } from "./types";
 
 export type QueueState = "idle" | "running" | "paused" | "cooling" | "done";
@@ -230,18 +230,19 @@ async function loop(token: number) {
     currentScene = n;
     setItem(n, "running");
     emit();
-    // One request per scene. The pipeline never throws — it returns a
-    // normalized result. A failure marks the scene failed and we move on.
-    const result = await generateSceneImageResult(scene);
-    if (token !== loopToken) return; // paused mid-request
-    if (result.success && result.imageDataUrl) {
-      activeKeyName = result.provider === "puter" ? "Puter AI" : "Pollinations";
-      activeModel = result.provider === "puter" ? "puter-txt2img" : "flux";
-      await runner.save(scene, result.imageDataUrl); // save only valid images
+    // One generateSceneImage() call per scene. A failure marks the scene failed
+    // and the queue moves on; completed images are never regenerated.
+    try {
+      const image = await generateSceneImage(scene);
+      if (token !== loopToken) return; // paused mid-request
+      activeKeyName = "Puter AI / Pollinations";
+      activeModel = "puter-txt2img / flux";
+      await runner.save(scene, image); // save only valid images
       setItem(n, "done");
-    } else {
+    } catch (e) {
+      if (token !== loopToken) return;
       setItem(n, "failed");
-      message = `Scene ${n}: ${result.errorMessage ?? "Image generation failed."}`;
+      message = `Scene ${n}: ${imageErrorMessage(e, "Image generation failed.")}`;
     }
     emit();
     // Honor "Stop After Current Image".

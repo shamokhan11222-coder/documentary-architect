@@ -26,9 +26,14 @@ export interface PipelineResult {
 }
 
 export interface PipelineDebugEntry {
+  flowId: number;
   provider: ImageProviderName;
   model: string;
   scene?: number;
+  functionInvoked: string;
+  finalProviderRoute: string;
+  requestUrl: string;
+  requestDomain: string;
   startedAt: number;
   responseMs: number;
   error?: string;
@@ -38,6 +43,7 @@ export interface PipelineDebugEntry {
 
 const debugLog: PipelineDebugEntry[] = [];
 const MAX_DEBUG = 200;
+let flowCounter = 0;
 
 export function getImagePipelineDebug(): PipelineDebugEntry[] {
   return [...debugLog];
@@ -57,7 +63,7 @@ export function buildDebugReport(): string {
       const scene = e.scene != null ? ` scene#${e.scene}` : "";
       const status = e.ok ? "OK" : `FAIL: ${e.error ?? "unknown"}`;
       const fb = e.fallbackUsed ? " [fallback]" : "";
-      return `${t}${scene} ${e.provider}/${e.model}${fb} ${e.responseMs}ms ${status}`;
+      return `${t} flow#${e.flowId}${scene} ${e.functionInvoked} ${e.provider}/${e.model}${fb} ${e.responseMs}ms ${e.requestDomain} ${status}`;
     })
     .join("\n");
 }
@@ -99,31 +105,86 @@ function isTemporaryPuterFailure(e: unknown): boolean {
   return /rate.?limit|429|quota|resource_exhausted|unavailable|timeout|offline/i.test(msg);
 }
 
-async function tryPuter(prompt: string, scene: number | undefined): Promise<string> {
+const PUTER_REQUEST_URL = "puter.ai.txt2img(browser-sdk)";
+const POLLINATIONS_REQUEST_URL = "https://image.pollinations.ai/prompt/[encoded-prompt]";
+
+async function tryPuter(prompt: string, scene: number | undefined, flowId: number): Promise<string> {
   const startedAt = Date.now();
   try {
     const image = await puterGenerateImage(prompt);
-    pushDebug({ provider: "puter", model: "puter-txt2img", scene, startedAt, responseMs: Date.now() - startedAt, ok: true });
+    pushDebug({
+      flowId,
+      provider: "puter",
+      model: "puter-txt2img",
+      scene,
+      functionInvoked: "generatePipelineImage → puterGenerateImage",
+      finalProviderRoute: "Puter AI primary → Pollinations fallback",
+      requestUrl: PUTER_REQUEST_URL,
+      requestDomain: "puter.ai browser SDK",
+      startedAt,
+      responseMs: Date.now() - startedAt,
+      ok: true,
+    });
     recordTelemetry({ lastProvider: "puter", lastStatus: "success", lastError: null });
     return image;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    pushDebug({ provider: "puter", model: "puter-txt2img", scene, startedAt, responseMs: Date.now() - startedAt, ok: false, error: msg });
+    pushDebug({
+      flowId,
+      provider: "puter",
+      model: "puter-txt2img",
+      scene,
+      functionInvoked: "generatePipelineImage → puterGenerateImage",
+      finalProviderRoute: "Puter AI primary → Pollinations fallback",
+      requestUrl: PUTER_REQUEST_URL,
+      requestDomain: "puter.ai browser SDK",
+      startedAt,
+      responseMs: Date.now() - startedAt,
+      ok: false,
+      error: msg,
+    });
     recordTelemetry({ lastProvider: "puter", lastStatus: "error", lastError: msg });
     throw e;
   }
 }
 
-async function tryPollinations(prompt: string, seed: number, opts: { width: number; height: number }, scene: number | undefined): Promise<string> {
+async function tryPollinations(prompt: string, seed: number, opts: { width: number; height: number }, scene: number | undefined, flowId: number): Promise<string> {
   const startedAt = Date.now();
   try {
     const image = await pollinationsGenerateImage(prompt, { ...opts, seed, model: POLLINATIONS_MODEL });
-    pushDebug({ provider: "pollinations", model: POLLINATIONS_MODEL, scene, startedAt, responseMs: Date.now() - startedAt, ok: true, fallbackUsed: true });
+    pushDebug({
+      flowId,
+      provider: "pollinations",
+      model: POLLINATIONS_MODEL,
+      scene,
+      functionInvoked: "generatePipelineImage → pollinationsGenerateImage",
+      finalProviderRoute: "Puter AI primary → Pollinations fallback",
+      requestUrl: POLLINATIONS_REQUEST_URL,
+      requestDomain: "image.pollinations.ai",
+      startedAt,
+      responseMs: Date.now() - startedAt,
+      ok: true,
+      fallbackUsed: true,
+    });
     recordTelemetry({ lastProvider: "pollinations", lastStatus: "success", lastError: null });
     return image;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    pushDebug({ provider: "pollinations", model: POLLINATIONS_MODEL, scene, startedAt, responseMs: Date.now() - startedAt, ok: false, error: msg, fallbackUsed: true });
+    pushDebug({
+      flowId,
+      provider: "pollinations",
+      model: POLLINATIONS_MODEL,
+      scene,
+      functionInvoked: "generatePipelineImage → pollinationsGenerateImage",
+      finalProviderRoute: "Puter AI primary → Pollinations fallback",
+      requestUrl: POLLINATIONS_REQUEST_URL,
+      requestDomain: "image.pollinations.ai",
+      startedAt,
+      responseMs: Date.now() - startedAt,
+      ok: false,
+      error: msg,
+      fallbackUsed: true,
+    });
     recordTelemetry({ lastProvider: "pollinations", lastStatus: "error", lastError: msg });
     throw e;
   }
@@ -144,6 +205,17 @@ export interface PipelineOptions {
  * continues to the next scene.
  */
 export async function generatePipelineImage(prompt: string, opts: PipelineOptions = {}): Promise<PipelineResult> {
+  if ((opts as { only?: string }).only === "gemini") {
+    throw new Error("BUG: Gemini image provider is disabled in Zero-Budget Mode.");
+  }
+  const flowId = ++flowCounter;
+  console.info("[image-flow] started", {
+    flowId,
+    activeProvider: "puter",
+    functionInvoked: "generatePipelineImage",
+    finalProviderRoute: "Puter AI primary → Pollinations fallback",
+    requestUrl: PUTER_REQUEST_URL,
+  });
   const start = Date.now();
   const width = opts.width ?? 1024;
   const height = opts.height ?? 1024;
@@ -151,18 +223,18 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
 
   // Explicit single-provider test path.
   if (opts.only === "pollinations") {
-    const image = await tryPollinations(prompt, seed, { width, height }, opts.scene);
+    const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
     return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
   }
   if (opts.only === "puter") {
-    const image = await tryPuter(prompt, opts.scene);
+    const image = await tryPuter(prompt, opts.scene, flowId);
     setPuterStatus("connected");
     return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
   }
 
   // 1) Puter first.
   try {
-    const image = await tryPuter(prompt, opts.scene);
+    const image = await tryPuter(prompt, opts.scene, flowId);
     setPuterStatus("connected");
     return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
   } catch (firstErr) {
@@ -171,7 +243,7 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
       setPuterStatus("rate-limited");
       await sleep(30_000);
       try {
-        const image = await tryPuter(prompt, opts.scene);
+        const image = await tryPuter(prompt, opts.scene, flowId);
         setPuterStatus("connected");
         return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
       } catch {
@@ -180,7 +252,7 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
     }
     // 3) Automatic Pollinations fallback.
     try {
-      const image = await tryPollinations(prompt, seed, { width, height }, opts.scene);
+      const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
       return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
     } catch (fallbackErr) {
       recordErrorDetails(fallbackErr, { provider: "pollinations" });

@@ -14,26 +14,23 @@ import {
   saveVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
-import { generateSceneImage, testImageProvider, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
+import { generateSceneImage, generateTestImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
 import { usePuterStatus, type PuterStatus } from "@/lib/puter-image";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import {
-  imageProviderPayload,
   imageProviderReady,
+  enforceZeroBudgetImageRouting,
   saveProviderSettings,
-  useActiveImageProvider,
   useImageProviderStatus,
-  IMAGE_PROVIDER_TEST_PASSED,
   type ProviderChoice,
 } from "@/lib/provider";
-import { markTested } from "@/lib/apikeys";
 import { ImageQueuePanel } from "@/components/ImageQueuePanel";
 import {
   configureImageQueue,
   startImageQueue,
 } from "@/lib/image-queue";
-import { generateSceneImageResult } from "@/lib/generate-image";
+import { getImagePipelineDebug } from "@/lib/image-pipeline";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
@@ -158,12 +155,12 @@ function VisualPage() {
   const doCheck = useServerFn(checkImageConsistency);
   const credit = useCreditConfig();
   const imageProviderStatus = useImageProviderStatus();
-  const activeImageProvider = useActiveImageProvider();
   const telemetry = useTelemetry();
   const freeMode = useFreeMode();
   const puterStatus = usePuterStatus();
   const canGenerateImages = hasMap && imageProviderStatus.ok;
   const [busy, setBusy] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
   // Which scenes already have a generated image (smart cache — never redo these)
@@ -172,6 +169,12 @@ function VisualPage() {
   const [failed, setFailed] = useState<Set<number>>(new Set());
   // Scenes deferred by a rate limit — NOT permanent failures. They resume later.
   const [rateLimited, setRateLimited] = useState<Set<number>>(new Set());
+  const debugEntries = getImagePipelineDebug();
+  const lastDebug = debugEntries[debugEntries.length - 1] ?? null;
+
+  useEffect(() => {
+    enforceZeroBudgetImageRouting();
+  }, []);
 
   const refreshHave = useCallback(async () => {
     if (!selected || !map || !Array.isArray(map.scenes)) {
@@ -223,14 +226,14 @@ function VisualPage() {
       // we never launch the full run against a dead provider.
       const first = pending.find((s) => !have.has(s.sceneNumber)) ?? pending[0];
       toast.info("Testing image generation — Puter → Pollinations…");
-      const test = await generateSceneImageResult(first);
-      if (!test.success || !test.imageDataUrl || !isValidImage(test.imageDataUrl)) {
-        toast.error(`Test image failed: ${test.errorMessage ?? "no image returned"}`);
+      const testImage = await generateSceneImage(first);
+      if (!isValidImage(testImage)) {
+        toast.error("Test image failed: no image returned");
         return;
       }
-      await putImage(sceneImageId(selected.id, first.sceneNumber), test.imageDataUrl);
+      await putImage(sceneImageId(selected.id, first.sceneNumber), testImage);
       setHave((prev) => new Set(prev).add(first.sceneNumber));
-      toast.success(`Test image OK — ${test.provider === "puter" ? "Puter AI" : "Pollinations"}. Starting queue.`);
+      toast.success("Test image OK — Puter AI / Pollinations. Starting queue.");
       // Enable the queue for the remaining scenes (completed ones are skipped),
       // one image at a time with the configured delay.
       startImageQueue(pending);
@@ -323,7 +326,7 @@ function VisualPage() {
     // configured, do not start generation and never fall back to built-in AI.
     const ready = imageProviderReady();
     if (!ready.ok) {
-      toast.error(ready.message ?? "Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.");
+      toast.error(ready.message ?? "Zero-Budget image mode is ready: Puter AI primary, Pollinations fallback.");
       return;
     }
     return withBusy(key, async () => {
@@ -400,20 +403,10 @@ function VisualPage() {
     setBusy("test-provider");
     void (async () => {
       try {
-        if (imageProviderStatus.choice === "puter") {
-          const ok = typeof window !== "undefined" && !!(window as unknown as { puter?: { ai?: { txt2img?: unknown } } }).puter?.ai?.txt2img;
-          if (ok) toast.success("Puter AI is ready — no API key required.");
-          else toast.error("Puter AI SDK not loaded yet. Reload the page and try again.");
-          return;
-        }
-        const provider = imageProviderPayload();
-        if (!provider) {
-          toast.error("Recraft is not connected. Add your Recraft API key in API Settings.");
-          return;
-        }
-        await testImageProvider(provider);
-        if (activeImageProvider) markTested(activeImageProvider.id, IMAGE_PROVIDER_TEST_PASSED);
-      toast.success("Image provider connection successful — ready to generate");
+        const provider = imageProviderStatus.choice === "pollinations" ? "pollinations" : "puter";
+        const result = await generateTestImage(provider);
+        if (!result.ok) throw new Error(result.error ?? "Image provider test failed");
+        toast.success(`${provider === "puter" ? "Puter AI" : "Pollinations"} test image generated — ready to generate`);
       } catch (e) {
         toast.error(imageErrorMessage(e, "Image provider test failed"));
       } finally {
@@ -637,7 +630,7 @@ function VisualPage() {
                 <option value="recraft" disabled>Recraft — coming soon</option>
               </select>
             </label>
-            <Button variant="outline" onClick={handleTestImageProvider} disabled={!!busy || !activeImageProvider}>
+            <Button variant="outline" onClick={handleTestImageProvider} disabled={!!busy}>
               {busy === "test-provider" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Test Image Provider
             </Button>
@@ -661,7 +654,7 @@ function VisualPage() {
           )}
           {!imageProviderStatus.connected && (
             <p className="mt-3 text-xs text-amber-600">
-              Image provider not connected. Connect Gemini Image, OpenAI Images, Fal.ai, or Replicate.
+              Zero-Budget image mode uses Puter AI primary and Pollinations fallback.
             </p>
           )}
           {imageProviderStatus.connected && !imageProviderStatus.testPassed && (
@@ -670,11 +663,32 @@ function VisualPage() {
           <div className="mt-3 grid gap-1 font-mono text-xs text-muted-foreground">
             <div>Active Image Provider: {imageProviderStatus.connected ? imageProviderStatus.label : "Built-in AI disabled"}</div>
             <div>Provider Status: {imageProviderStatus.message}</div>
+            <div>Final Provider Route: Puter AI primary → Pollinations fallback</div>
             {imageProviderStatus.choice === "puter" && (
               <div>Puter AI: {puterStatusLabel(busy?.startsWith("all") || busy?.startsWith("next") || busy === "one" || busy === "next-available" ? "generating" : puterStatus)}</div>
             )}
             <div>Last Image Error: {telemetry.lastError ?? "—"}</div>
           </div>
+          <label className="mt-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={devMode}
+              onChange={(e) => setDevMode(e.target.checked)}
+            />
+            <span className="font-medium">Developer Mode</span>
+          </label>
+          {devMode && (
+            <div className="mt-3 grid gap-1 rounded-md bg-muted/50 p-3 font-mono text-[11px] text-muted-foreground">
+              <div>active provider: {imageProviderStatus.label}</div>
+              <div>function invoked: {lastDebug?.functionInvoked ?? "generateSceneImage → generatePipelineImage"}</div>
+              <div>final provider route: {lastDebug?.finalProviderRoute ?? "Puter AI primary → Pollinations fallback"}</div>
+              <div>request URL/domain: {lastDebug ? `${lastDebug.requestUrl} / ${lastDebug.requestDomain}` : "—"}</div>
+              <div>fallback used: {lastDebug?.fallbackUsed ? "yes" : "no"}</div>
+              <div>exact error: {lastDebug?.error ?? telemetry.lastError ?? "—"}</div>
+              <div>flow count: {debugEntries.length}</div>
+            </div>
+          )}
         </div>
       )}
 

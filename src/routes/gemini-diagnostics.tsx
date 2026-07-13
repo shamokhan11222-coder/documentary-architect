@@ -10,7 +10,6 @@ import {
   useActiveImageProvider,
   GEMINI_TEXT_MODEL_DEFAULT,
   GEMINI_IMAGE_MODEL_DEFAULT,
-  saveProviderSettings,
 } from "@/lib/provider";
 import { normalizeGeminiModel } from "@/lib/gemini-model";
 import {
@@ -97,8 +96,7 @@ function GeminiDiagnosticsPage() {
     // image + thumbnail to Gemini. Never validated using text-model logic.
     const model = normalizeGeminiModel(id) || GEMINI_IMAGE_MODEL_DEFAULT;
     saveApiKey({ ...geminiKey, imageModelName: model });
-    saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
-    toast.success(`Final Gemini model sent: ${model}`);
+    toast.info(`Saved for future Gemini image support only: ${model}. Active images remain Puter → Pollinations.`);
   }
 
   const currentImageModel = imageModel;
@@ -238,9 +236,9 @@ function GeminiDiagnosticsPage() {
                           size="sm"
                           variant={selected ? "secondary" : "default"}
                           onClick={() => selectImageModel(m.id)}
-                          disabled={selected}
+                          disabled
                         >
-                          {selected ? "Selected" : "Use this model"}
+                          Disabled in Zero-Budget Mode
                         </Button>
                       </li>
                     );
