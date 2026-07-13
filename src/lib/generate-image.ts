@@ -356,7 +356,7 @@ export async function generateThumbnailImageResult(idea: ThumbnailIdea): Promise
   try {
     const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
     const r = await enqueueAi(
-      () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+      () => runPipelineWithStyleGuard(prompt, { width: 1280, height: 720, purpose: "thumbnail" }),
       "Thumbnail",
       { retryRateLimits: false },
     );
