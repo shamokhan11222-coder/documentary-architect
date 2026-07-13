@@ -43,19 +43,6 @@ export function extractJson<T = unknown>(raw: string): T {
 }
 
 /**
- * Calls the Lovable AI Gateway and returns parsed JSON.
- * `schemaHint` is appended so the model knows the exact shape to return.
- */
-export async function callAiJson<T = unknown>(
-  system: string,
-  user: string,
-): Promise<T> {
-  const fullSystem = `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`;
-
-  return callAiJson;
-}
-
-/**
  * Force the Lovable AI Gateway for JSON generation, ignoring any BYOK Gemini /
  * OpenAI provider headers. Used ONLY by features that must never touch the
  * user's Google AI Studio key (e.g. thumbnail concept generation). Research,
@@ -118,7 +105,11 @@ export async function callAiJsonGateway<T = unknown>(
   }
 }
 
-async function callAiJsonOriginal<T = unknown>(
+/**
+ * Calls the Lovable AI Gateway and returns parsed JSON, honoring an active BYOK
+ * Gemini/OpenAI provider when one is set (shared by Research, Story, SEO, etc.).
+ */
+export async function callAiJson<T = unknown>(
   system: string,
   user: string,
 ): Promise<T> {
