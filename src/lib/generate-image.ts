@@ -4,6 +4,7 @@ import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
+import { STYLE_CORRECTION_PREFIX } from "./style-lock";
 import { enqueueAi } from "./ai-queue";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
 import {
@@ -11,6 +12,8 @@ import {
   sceneSeed,
   CONSISTENCY_SUFFIX,
   type ImageProviderName,
+  type PipelineResult,
+  type PipelineOptions,
 } from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import type { VisualScene, ThumbnailIdea } from "./types";
@@ -25,6 +28,29 @@ function combinedArtDirection(): string {
     .map((s) => s.trim())
     .filter(Boolean)
     .join(" ");
+}
+
+/** Run the pipeline once; if the polished-fallback provider (Puter) produced the
+ *  image, retry EXACTLY once through the primary with a hard MS-Paint style
+ *  correction (Section F). Only one automatic retry is ever allowed. */
+async function runPipelineWithStyleGuard(prompt: string, opts: PipelineOptions): Promise<PipelineResult> {
+  const first = await generatePipelineImage(prompt, opts);
+  // Puter is the fallback and the source of over-polished/anime-looking output.
+  // A single automatic correction retry re-renders through Pollinations primary.
+  if (first.provider === "puter") {
+    try {
+      const corrected = await generatePipelineImage(`${STYLE_CORRECTION_PREFIX} ${prompt}`, {
+        ...opts,
+        only: "pollinations",
+        seed: (opts.seed ?? 0) + 1,
+      });
+      return corrected;
+    } catch {
+      // Correction retry failed — keep the original result rather than failing.
+      return first;
+    }
+  }
+  return first;
 }
 
 /** The Visual Style chosen at project creation, read from the active project so
@@ -245,7 +271,7 @@ export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter } = await collectDnaReferences();
   const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
   const r = await enqueueAi(
-    () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720 }),
+    () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720, purpose: "scene" }),
     "Image",
     { retryRateLimits: false },
   );
@@ -291,7 +317,7 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
     const { hasCharacter } = await collectDnaReferences();
     const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
     const r = await enqueueAi(
-      () => generatePipelineImage(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720 }),
+      () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720, purpose: "scene" }),
       "Image",
       { retryRateLimits: false },
     );
@@ -315,7 +341,7 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
 export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<string> {
   const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
   const r = await enqueueAi(
-    () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+    () => runPipelineWithStyleGuard(prompt, { width: 1280, height: 720, purpose: "thumbnail" }),
     "Thumbnail",
     { retryRateLimits: false },
   );
@@ -330,7 +356,7 @@ export async function generateThumbnailImageResult(idea: ThumbnailIdea): Promise
   try {
     const prompt = `${buildThumbnailPrompt(idea, combinedArtDirection())} ${CONSISTENCY_SUFFIX}`;
     const r = await enqueueAi(
-      () => generatePipelineImage(prompt, { width: 1280, height: 720 }),
+      () => runPipelineWithStyleGuard(prompt, { width: 1280, height: 720, purpose: "thumbnail" }),
       "Thumbnail",
       { retryRateLimits: false },
     );
