@@ -569,8 +569,18 @@ Generate 10 distinct high-CTR thumbnail ideas.
 
 Return a JSON object:
 { "ideas": [ ${THUMB_SHAPE} ] }`;
-    const result = await callAiJson<{ ideas: ThumbnailIdea[] }>(THUMB_RULES, user);
-    return (result.ideas ?? []) as ThumbnailIdea[];
+    // Thumbnail CONCEPTS always route through the Lovable AI Gateway — never the
+    // user's BYOK Gemini key or generativelanguage.googleapis.com. If the gateway
+    // fails we build deterministic local concepts so the pixel pipeline can run.
+    try {
+      const result = await callAiJsonGateway<{ ideas: ThumbnailIdea[] }>(THUMB_RULES, user);
+      const ideas = (result.ideas ?? []) as ThumbnailIdea[];
+      if (!ideas.length) throw new Error("No concepts returned");
+      return { ideas, conceptProvider: "Lovable AI Gateway" };
+    } catch (e) {
+      console.error("[thumbnail] concept gateway failed, using local fallback:", e instanceof Error ? e.message : e);
+      return { ideas: fallbackThumbnailConcepts(data.topic, data.angle), conceptProvider: "Local Fallback" };
+    }
   });
 
 export const regenerateThumbnail = createServerFn({ method: "POST" })
@@ -587,7 +597,13 @@ Return a JSON object with this exact shape: ${THUMB_SHAPE}
 
 CURRENT IDEA:
 ${JSON.stringify(data.idea)}`;
-    return await callAiJson<ThumbnailIdea>(THUMB_RULES, user);
+    // Concept text always uses the Lovable Gateway (no BYOK Gemini).
+    try {
+      return await callAiJsonGateway<ThumbnailIdea>(THUMB_RULES, user);
+    } catch (e) {
+      console.error("[thumbnail] regen gateway failed, using local fallback:", e instanceof Error ? e.message : e);
+      return fallbackThumbnailConcepts(data.topic, undefined, 1)[0];
+    }
   });
 
 // ---------------- SEO Engine ----------------
