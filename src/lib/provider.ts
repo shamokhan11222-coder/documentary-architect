@@ -1,11 +1,10 @@
-// Active AI provider resolution (client side). Images are intentionally routed
-// only to a real external image provider. The built-in AI is disabled for image
-// generation and must never be used as a silent fallback.
+// Active AI provider resolution (client side). Zero-Budget Mode forces every
+// image and thumbnail request through Puter AI with Pollinations as fallback.
+// Gemini / OpenAI / Recraft stay in API Settings only as disabled future image
+// providers and must never become an active image route.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
-import type { GeminiImageKey } from "./gemini-image-keys";
 import {
-  GEMINI_FORCED_IMAGE_MODEL,
   GEMINI_TEXT_MODEL_DEFAULT_FULL,
   GEMINI_TTS_MODEL_DEFAULT_FULL,
   normalizeGeminiModel,
@@ -45,8 +44,9 @@ export interface ActiveImageProvider {
 }
 
 export const IMAGE_PROVIDER_NOT_CONNECTED =
-  "No image provider is connected. Add your Google Gemini image key in API Settings.";
+  "Zero-Budget image mode is ready: Puter AI primary, Pollinations fallback.";
 export const IMAGE_PROVIDER_TEST_PASSED = "Image provider test passed";
+export const GEMINI_IMAGE_DISABLED_MESSAGE = "BUG: Gemini image provider is disabled in Zero-Budget Mode.";
 
 export const GEMINI_UNSUPPORTED_MESSAGE =
   "Gemini does not support this task in the current setup. Please connect another provider.";
@@ -54,13 +54,13 @@ export const GEMINI_UNSUPPORTED_MESSAGE =
 // Separate Gemini models per task. The text model must never be used for image
 // generation, and the image model must never be used for text.
 export const GEMINI_TEXT_MODEL_DEFAULT = GEMINI_TEXT_MODEL_DEFAULT_FULL;
-export const GEMINI_IMAGE_MODEL_DEFAULT = GEMINI_FORCED_IMAGE_MODEL;
+export const GEMINI_IMAGE_MODEL_DEFAULT = "disabled-zero-budget-mode";
 
 // Tasks Gemini can handle in this setup. Kept as a map so the UI and the
 // server can agree on what is/ isn't routable to Gemini.
 export const GEMINI_SUPPORTS: Record<AiTask, boolean> = {
   text: true,
-  image: true,
+  image: false,
   tts: true,
 };
 
@@ -106,9 +106,13 @@ function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSetting
   // (fallback) are active image providers. Gemini / OpenAI / Recraft and the
   // built-in AI remain selectable in API Settings ONLY as disabled future
   // providers and must never route here, so any other choice coerces to Puter.
-  if (next.image !== "puter" && next.image !== "pollinations") next.image = "puter";
-  if (next.thumbnail !== "puter" && next.thumbnail !== "pollinations") next.thumbnail = "puter";
+  next.image = "puter";
+  next.thumbnail = "puter";
   return next;
+}
+
+function sanitizeProviderSettingsForStorage(s: Partial<ProviderSettings> | null): ProviderSettings {
+  return normalizeSettings(s);
 }
 
 /** Non-reactive read of routing settings. */
@@ -122,7 +126,14 @@ export function useProviderSettings(): ProviderSettings {
 }
 
 export function saveProviderSettings(next: Partial<ProviderSettings>) {
-  writeLocal(SETTINGS_KEY, { ...getProviderSettings(), ...next });
+  writeLocal(SETTINGS_KEY, sanitizeProviderSettingsForStorage({ ...getProviderSettings(), ...next }));
+}
+
+/** Clears stale active image-provider settings without deleting keys, projects,
+ *  scenes, thumbnails, or generated image data. Called on image/settings pages so
+ *  old saved Gemini/OpenAI/Recraft routes cannot linger in React/localStorage. */
+export function enforceZeroBudgetImageRouting() {
+  writeLocal(SETTINGS_KEY, sanitizeProviderSettingsForStorage(readLocal<Partial<ProviderSettings>>(SETTINGS_KEY, {})));
 }
 
 function findGemini(list: ApiKeyEntry[]): ApiKeyEntry | null {
@@ -150,7 +161,7 @@ function normalizedGeminiTextModel(raw?: string): string {
 }
 
 function finalGeminiImageModel(): string {
-  return GEMINI_FORCED_IMAGE_MODEL;
+  return GEMINI_IMAGE_MODEL_DEFAULT;
 }
 
 function findOpenAI(list: ApiKeyEntry[]): ApiKeyEntry | null {
@@ -262,41 +273,8 @@ function pollinationsImageProvider(): ActiveImageProvider {
   };
 }
 
-/** Resolve a connected Gemini image provider from the dedicated Gemini image
- *  key pool (the "Gemini Image Keys" panel). This is the primary source for
- *  Gemini image generation — no Recraft key is ever required. Prefers a usable
- *  (non-disabled) key, then falls back to any key that has a value. */
-function poolToImageProvider(keys: GeminiImageKey[]): ActiveImageProvider | null {
-  const usable =
-    keys.find((k) => k.status !== "disabled" && k.key.trim()) ??
-    keys.find((k) => k.key.trim());
-  if (!usable) return null;
-  return {
-    id: usable.id,
-    name: "gemini",
-    label: "Gemini Image",
-    apiKey: usable.key.trim(),
-    imageModel: normalizeGeminiModel(usable.imageModel) || GEMINI_IMAGE_MODEL_DEFAULT,
-    testPassed: true,
-  };
-}
-
-/** Resolve the active image provider for a given choice. For Gemini we accept
- *  EITHER a Google Gemini key in the API vault OR a key from the Gemini image
- *  key pool — so image generation never requires Recraft. Recraft (and every
- *  other provider) is only ever consulted when it is the explicitly selected
- *  choice. */
-function resolveImageProvider(
-  choice: ProviderChoice,
-  list: ApiKeyEntry[],
-  poolKeys: GeminiImageKey[],
-): ActiveImageProvider | null {
-  if (choice === "puter") return puterImageProvider();
-  if (choice === "pollinations") return pollinationsImageProvider();
-  const fromVault = toImageProvider(choice, findImageKey(choice, list));
-  if (fromVault) return fromVault;
-  if (choice === "gemini") return poolToImageProvider(poolKeys);
-  return null;
+function resolveImageProvider(choice: ProviderChoice): ActiveImageProvider {
+  return choice === "pollinations" ? pollinationsImageProvider() : puterImageProvider();
 }
 
 function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): ActiveImageProvider | null {
@@ -319,7 +297,7 @@ function toImageProvider(choice: ProviderChoice, entry: ApiKeyEntry | null): Act
   // modelName). Never use the text modelName (e.g. gemini-2.5-flash) for images.
   let imageModel = entry.imageModelName?.trim() || entry.modelName?.trim() || "";
   if (choice === "gemini") {
-    imageModel = normalizeGeminiModel(entry.imageModelName) || GEMINI_IMAGE_MODEL_DEFAULT;
+    throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
   } else if (choice === "recraft") {
     // Force a Recraft image model. Ignore any label a user might have typed.
     imageModel = imageModel.toLowerCase().startsWith("recraft") ? imageModel : "recraftv4_1_utility_pro";
@@ -365,15 +343,12 @@ export function useActiveProvider(): ActiveProvider | null {
 
 /** External image provider if the selected image choice has a connected key. */
 export function getActiveImageProvider(): ActiveImageProvider | null {
-  const choice = getProviderSettings().image;
-  return resolveImageProvider(choice, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), [] as GeminiImageKey[]);
+  return resolveImageProvider(getProviderSettings().image);
 }
 
 export function useActiveImageProvider(): ActiveImageProvider | null {
   const settings = useProviderSettings();
-  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
-  const pool = [] as GeminiImageKey[];
-  return resolveImageProvider(settings.image, list, pool);
+  return resolveImageProvider(settings.image);
 }
 
 export function getImageProviderStatus(): {
@@ -389,9 +364,7 @@ export function getImageProviderStatus(): {
 
 export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
   const settings = useProviderSettings();
-  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
-  const pool = [] as GeminiImageKey[];
-  return statusFor(settings.image, resolveImageProvider(settings.image, list, pool));
+  return statusFor(settings.image, resolveImageProvider(settings.image));
 }
 
 /** Image generation status for the SELECTED provider. The built-in AI is never
@@ -450,6 +423,7 @@ function notConnectedMessage(choice: ProviderChoice): string {
 /** Body payload passed to the image API route so the server can route. */
 export function imageProviderPayload() {
   const p = getActiveImageProvider();
+  if (p?.name === "gemini") throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
   return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: getProviderSettings().fallback } : null;
 }
 
@@ -472,7 +446,8 @@ export function fallbackImageProviderPayload() {
 
 export function thumbnailProviderPayload() {
   const settings = getProviderSettings();
-  const p = resolveImageProvider(settings.thumbnail, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), [] as GeminiImageKey[]);
+  const p = resolveImageProvider(settings.thumbnail);
+  if (p?.name === "gemini") throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
   return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: settings.fallback } : null;
 }
 

@@ -4,15 +4,8 @@ import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
 import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
-import { getCreditConfig } from "./credit-mode";
-import {
-  imageProviderPayload,
-  IMAGE_PROVIDER_NOT_CONNECTED,
-} from "./provider";
 import { enqueueAi } from "./ai-queue";
-import { recordTelemetry } from "./provider-telemetry";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
-import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import {
   generatePipelineImage,
   sceneSeed,
@@ -20,8 +13,6 @@ import {
   type ImageProviderName,
 } from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
-import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
-import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "./gemini-model";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
 // Legacy Gemini image-key rotation has been fully removed. All storyboard and
@@ -51,7 +42,18 @@ function selectedVisualStyle(): string {
   }
 }
 
-type ImageProviderPayload = NonNullable<ReturnType<typeof imageProviderPayload>>;
+type ZeroBudgetTestProvider = {
+  name?: string;
+  apiKey?: string;
+  imageModel?: string;
+  fallback?: boolean;
+};
+
+export const GEMINI_IMAGE_DISABLED_MESSAGE = "BUG: Gemini image provider is disabled in Zero-Budget Mode.";
+
+function assertNotGeminiImageProvider(provider: { name?: string } | null | undefined) {
+  if (provider?.name === "gemini") throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
+}
 
 /** Error thrown by the image pipeline, carrying the backend's machine code and
  *  HTTP status so the UI can show a specific message instead of a generic one. */
@@ -125,22 +127,6 @@ export const IMAGE_TIMEOUT_MS = 90_000;
 export const THUMBNAIL_TIMEOUT_MS = 90_000;
 const TIMEOUT_MESSAGE = "Request timed out. Provider may be slow or unavailable.";
 
-/** fetch() that aborts after `ms` and reports a clear timeout error. */
-async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") {
-      throw new ImageGenError(TIMEOUT_MESSAGE, "TIMEOUT", null);
-    }
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 // Timestamp of the last image request, used to enforce the Free Mode delay.
 let lastImageRequestAt = 0;
 
@@ -152,142 +138,14 @@ export function getImageCooldownRemainingMs(): number {
 // AUDIT: monotonic counter of image API requests actually sent from the client.
 // One user click of "Generate Image" must produce exactly ONE increment here;
 // provider limits are surfaced immediately and never retried endlessly.
-let imageRequestAuditCount = 0;
-
-async function callImageApi(prompt: string, references: string[], provider: ImageProviderPayload): Promise<string> {
-  recordTelemetry({ lastProvider: provider.name, lastStatus: null, lastError: null });
-  // Print the provider actually used before EVERY image request.
-  const providerLabel =
-    provider.name === "gemini"
-      ? "Gemini Image"
-      : provider.name.charAt(0).toUpperCase() + provider.name.slice(1);
-  console.log(`Using provider: ${providerLabel}`);
-  const finalProvider = provider.name === "gemini" ? { ...provider, imageModel: normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL } : provider;
-  if (provider.name === "gemini") console.log(`Final Gemini model sent: ${finalProvider.imageModel}`);
-  console.log(`Model: ${finalProvider.imageModel ?? GEMINI_IMAGE_MODEL_DEFAULT}`);
-  console.info("[image] request started", { provider: finalProvider.name, model: finalProvider.imageModel });
-  // Puter AI generates entirely client-side via the browser SDK — no server call.
-  if (provider.name === "puter") {
-    try {
-      const img = await Promise.race([
-        puterGenerateImage(prompt),
-        new Promise<never>((_, rej) =>
-          setTimeout(() => rej(new ImageGenError(TIMEOUT_MESSAGE, "TIMEOUT", null)), IMAGE_TIMEOUT_MS),
-        ),
-      ]);
-      recordTelemetry({ lastProvider: "puter", lastStatus: "success", lastError: null });
-      console.info("[image] response received", { provider: "puter" });
-      return img;
-    } catch (e) {
-      if (e instanceof ImageGenError && e.code === "TIMEOUT") {
-        recordTelemetry({ lastProvider: "puter", lastStatus: "error", lastError: e.message });
-        console.error("[image] request failed", { provider: "puter", error: e.message });
-        throw e;
-      }
-      const msg = e instanceof Error ? e.message : "Puter image generation failed";
-      recordTelemetry({ lastProvider: "puter", lastStatus: "error", lastError: msg });
-      console.error("[image] request failed", { provider: "puter", error: msg });
-      const rateLimited = e instanceof PuterError && e.kind === "rate-limit";
-      throw new ImageGenError(rateLimited ? `429 ${msg}` : msg, rateLimited ? "RATE_LIMIT" : "PROVIDER_ERROR", rateLimited ? 429 : null);
-    }
+export async function testImageProvider(provider: ZeroBudgetTestProvider | null): Promise<void> {
+  if (!provider) throw new Error("Zero-Budget image mode is ready: Puter AI primary, Pollinations fallback.");
+  assertNotGeminiImageProvider(provider);
+  if (provider.name !== "puter" && provider.name !== "pollinations") {
+    throw new Error("Image provider is disabled in Zero-Budget Mode. Use Puter AI or Pollinations.");
   }
-  const res = await fetchWithTimeout(
-    "/api/generate-image",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, references, provider: finalProvider }),
-    },
-    IMAGE_TIMEOUT_MS,
-  );
-  const auditNo = ++imageRequestAuditCount;
-  const auditStart = Date.now();
-  console.info("[AUDIT][image] request sent", {
-    totalRequestsSent: auditNo,
-    endpoint: "/api/generate-image",
-    provider: finalProvider.name,
-    model: finalProvider.imageModel ?? "(default)",
-    time: new Date(auditStart).toISOString(),
-  });
-  if (!res.ok) {
-    console.info("[AUDIT][image] response received", {
-      totalRequestsSent: auditNo,
-      endpoint: "/api/generate-image",
-      provider: finalProvider.name,
-      model: finalProvider.imageModel ?? "(default)",
-      responseCode: res.status,
-      ms: Date.now() - auditStart,
-    });
-    let msg = `Image generation failed (${res.status})`;
-    let code: string | null = null;
-    let debug: ImageErrorDebug | null = null;
-    try {
-      const j = await res.json();
-      if (j?.error) msg = j.error;
-      if (j?.code) code = j.code;
-      if (j?.debug) debug = j.debug as ImageErrorDebug;
-    } catch {
-      /* ignore */
-    }
-    // Emergency Debug: log the exact provider response verbatim.
-    console.error("[image][DEBUG] provider error", {
-      provider: debug?.provider ?? finalProvider.name,
-      model: debug?.model ?? finalProvider.imageModel ?? "(default)",
-      endpoint: debug?.endpoint ?? "/api/generate-image",
-      httpStatus: debug?.httpStatus ?? res.status,
-      requestId: debug?.requestId ?? null,
-      retryAfter: debug?.retryAfter ?? null,
-      code: debug?.code ?? code,
-      providerMessage: debug?.providerMessage ?? msg,
-      rawBody: debug?.rawBody ?? msg,
-      durationMs: Date.now() - auditStart,
-    });
-    recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "error", lastError: msg });
-    console.error("[image] request failed", { provider: finalProvider.name, status: res.status, error: msg });
-    // Keep a 429 prefix for legacy rate-limit detectors, but image queue retry is disabled.
-    throw new ImageGenError(res.status === 429 ? `429 ${msg}` : msg, code, res.status, debug);
-  }
-  console.info("[AUDIT][image] response received", {
-    totalRequestsSent: auditNo,
-    endpoint: "/api/generate-image",
-    provider: finalProvider.name,
-    model: finalProvider.imageModel ?? "(default)",
-    responseCode: res.status,
-    ms: Date.now() - auditStart,
-  });
-  const data = (await res.json()) as { image: string };
-  recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "success", lastError: null });
-  console.info("[image] response received", { provider: finalProvider.name });
-  return data.image;
-}
-
-export async function testImageProvider(provider: ImageProviderPayload | null): Promise<void> {
-  if (!provider) throw new Error(IMAGE_PROVIDER_NOT_CONNECTED);
-  const finalProvider = provider.name === "gemini" ? { ...provider, imageModel: normalizeGeminiModel(provider.imageModel) || GEMINI_FORCED_IMAGE_MODEL } : provider;
-  if (provider.name === "gemini") console.log(`Final Gemini model sent: ${finalProvider.imageModel}`);
-  const res = await fetchWithTimeout(
-    "/api/generate-image",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: finalProvider, test: true }),
-    },
-    IMAGE_TIMEOUT_MS,
-  );
-  if (!res.ok) {
-    let msg = `Image provider test failed (${res.status})`;
-    let code: string | null = null;
-    try {
-      const j = await res.json();
-      if (j?.error) msg = j.error;
-      if (j?.code) code = j.code;
-    } catch {
-      /* ignore */
-    }
-    recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "error", lastError: msg });
-    throw new ImageGenError(msg, code, res.status);
-  }
-  recordTelemetry({ lastProvider: finalProvider.name, lastStatus: "success", lastError: null });
+  const r = await generateTestImage(provider.name);
+  if (!r.ok) throw new Error(r.error ?? "Image provider test failed.");
 }
 
 export type GeminiModelInfo = { id: string; displayName: string };
@@ -329,50 +187,23 @@ export type GeminiDiagnostics = {
 /** Diagnostic: run a full raw Gemini connection check (no content generated).
  *  Returns the request URL, API version, HTTP status and full response body. */
 export async function geminiDiagnostics(apiKey: string, imageModel?: string): Promise<GeminiDiagnostics> {
-  const res = await fetchWithTimeout(
-    "/api/generate-image",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "geminiDiagnostics", apiKey, imageModel }),
-    },
-    IMAGE_TIMEOUT_MS,
-  );
-  return (await res.json()) as GeminiDiagnostics;
+  void apiKey;
+  void imageModel;
+  throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
 }
 
 /** Diagnostic: list the Gemini models a key can access, filtered to image-capable
  *  ones. Returns the exact endpoint + API version used for debugging. */
 export async function listGeminiModels(apiKey: string): Promise<GeminiModelList> {
-  const res = await fetchWithTimeout(
-    "/api/generate-image",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "listGeminiModels", apiKey }),
-    },
-    IMAGE_TIMEOUT_MS,
-  );
-  if (!res.ok) {
-    let msg = `Could not list Gemini models (${res.status})`;
-    let code: string | null = null;
-    let debug: ImageErrorDebug | null = null;
-    try {
-      const j = await res.json();
-      if (j?.error) msg = j.error;
-      if (j?.code) code = j.code;
-      if (j?.debug) debug = j.debug as ImageErrorDebug;
-    } catch {
-      /* ignore */
-    }
-    throw new ImageGenError(msg, code, res.status, debug);
-  }
-  return (await res.json()) as GeminiModelList;
+  void apiKey;
+  throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
 }
 
 /** Validate a specific Gemini image model exists and works before saving it. */
 export async function validateGeminiImageModel(apiKey: string, imageModel: string): Promise<void> {
-  await testImageProvider({ name: "gemini", apiKey, imageModel, fallback: false });
+  void apiKey;
+  void imageModel;
+  throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
 }
 
 export type ImageDiagCheck = {
@@ -405,16 +236,9 @@ export type ImageDiagnostics = {
 /** Run the comprehensive Gemini IMAGE provider diagnostics (no image is
  *  generated). Returns PASS/FAIL checks plus the exact raw Google responses. */
 export async function geminiImageDiagnostics(apiKey: string, imageModel?: string): Promise<ImageDiagnostics> {
-  const res = await fetchWithTimeout(
-    "/api/generate-image",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "geminiImageDiagnostics", apiKey, imageModel }),
-    },
-    IMAGE_TIMEOUT_MS,
-  );
-  return (await res.json()) as ImageDiagnostics;
+  void apiKey;
+  void imageModel;
+  throw new Error(GEMINI_IMAGE_DISABLED_MESSAGE);
 }
 
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
