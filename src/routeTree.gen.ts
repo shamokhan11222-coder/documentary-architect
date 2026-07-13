@@ -34,6 +34,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as GeminiImageDiagnosticsRouteImport } from './routes/gemini-image-diagnostics'
 import { Route as GeminiDiagnosticsRouteImport } from './routes/gemini-diagnostics'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FaqRouteImport } from './routes/faq'
@@ -176,6 +177,11 @@ const InstructionsRoute = InstructionsRouteImport.update({
   path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GeminiImageDiagnosticsRoute = GeminiImageDiagnosticsRouteImport.update({
+  id: '/gemini-image-diagnostics',
+  path: '/gemini-image-diagnostics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GeminiDiagnosticsRoute = GeminiDiagnosticsRouteImport.update({
   id: '/gemini-diagnostics',
   path: '/gemini-diagnostics',
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
+  '/gemini-image-diagnostics': typeof GeminiImageDiagnosticsRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
+  '/gemini-image-diagnostics': typeof GeminiImageDiagnosticsRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -358,6 +366,7 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
+  '/gemini-image-diagnostics': typeof GeminiImageDiagnosticsRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -403,6 +412,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/forgot-password'
     | '/gemini-diagnostics'
+    | '/gemini-image-diagnostics'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -446,6 +456,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/forgot-password'
     | '/gemini-diagnostics'
+    | '/gemini-image-diagnostics'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -489,6 +500,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/forgot-password'
     | '/gemini-diagnostics'
+    | '/gemini-image-diagnostics'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -533,6 +545,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GeminiDiagnosticsRoute: typeof GeminiDiagnosticsRoute
+  GeminiImageDiagnosticsRoute: typeof GeminiImageDiagnosticsRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LandingRoute: typeof LandingRoute
@@ -740,6 +753,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gemini-image-diagnostics': {
+      id: '/gemini-image-diagnostics'
+      path: '/gemini-image-diagnostics'
+      fullPath: '/gemini-image-diagnostics'
+      preLoaderRoute: typeof GeminiImageDiagnosticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gemini-diagnostics': {
       id: '/gemini-diagnostics'
       path: '/gemini-diagnostics'
@@ -869,6 +889,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   GeminiDiagnosticsRoute: GeminiDiagnosticsRoute,
+  GeminiImageDiagnosticsRoute: GeminiImageDiagnosticsRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LandingRoute: LandingRoute,
@@ -901,3 +922,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
