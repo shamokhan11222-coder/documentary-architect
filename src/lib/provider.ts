@@ -3,7 +3,6 @@
 // generation and must never be used as a silent fallback.
 import { readLocal, writeLocal, useLocal } from "./local";
 import type { ApiKeyEntry } from "./types";
-import { getGeminiImageKeys, useGeminiImageKeys } from "./gemini-image-keys";
 import type { GeminiImageKey } from "./gemini-image-keys";
 import {
   GEMINI_FORCED_IMAGE_MODEL,
@@ -367,13 +366,13 @@ export function useActiveProvider(): ActiveProvider | null {
 /** External image provider if the selected image choice has a connected key. */
 export function getActiveImageProvider(): ActiveImageProvider | null {
   const choice = getProviderSettings().image;
-  return resolveImageProvider(choice, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), getGeminiImageKeys());
+  return resolveImageProvider(choice, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), [] as GeminiImageKey[]);
 }
 
 export function useActiveImageProvider(): ActiveImageProvider | null {
   const settings = useProviderSettings();
   const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
-  const pool = useGeminiImageKeys();
+  const pool = [] as GeminiImageKey[];
   return resolveImageProvider(settings.image, list, pool);
 }
 
@@ -391,7 +390,7 @@ export function getImageProviderStatus(): {
 export function useImageProviderStatus(): ReturnType<typeof getImageProviderStatus> {
   const settings = useProviderSettings();
   const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
-  const pool = useGeminiImageKeys();
+  const pool = [] as GeminiImageKey[];
   return statusFor(settings.image, resolveImageProvider(settings.image, list, pool));
 }
 
@@ -473,7 +472,7 @@ export function fallbackImageProviderPayload() {
 
 export function thumbnailProviderPayload() {
   const settings = getProviderSettings();
-  const p = resolveImageProvider(settings.thumbnail, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), getGeminiImageKeys());
+  const p = resolveImageProvider(settings.thumbnail, resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])), [] as GeminiImageKey[]);
   return p ? { name: p.name, apiKey: p.apiKey, imageModel: p.imageModel, fallback: settings.fallback } : null;
 }
 
