@@ -20,27 +20,23 @@ import {
   useImageProviderStatus,
   GEMINI_SUPPORTS,
   useProviderSettings,
+  enforceZeroBudgetImageRouting,
   saveProviderSettings,
   useActiveImageProvider,
   useActiveTextProvider,
   IMAGE_PROVIDER_TEST_PASSED,
-  GEMINI_IMAGE_MODEL_DEFAULT,
   type ProviderChoice,
 } from "@/lib/provider";
 import { testProvider } from "@/lib/ai.functions";
 import {
   testImageProvider,
   imageErrorMessage,
-  listGeminiModels,
-  validateGeminiImageModel,
-  type GeminiModelList,
 } from "@/lib/generate-image";
 import type { ApiProvider } from "@/lib/types";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { QueuePanel } from "@/components/QueuePanel";
 import { GeminiImageKeys } from "@/components/GeminiImageKeys";
-import { preferredGeminiImageModel } from "@/lib/gemini-model";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
@@ -91,9 +87,8 @@ function ApiKeysPage() {
     const all = p.includes("all");
     const patch: Record<string, "openai" | "recraft"> = {};
     if (prov === "openai" && (all || p.includes("text"))) patch.text = "openai";
-    if (all || p.includes("image")) patch.image = prov;
-    if (all || p.includes("thumbnail")) patch.thumbnail = prov;
     if (Object.keys(patch).length) saveProviderSettings(patch as never);
+    enforceZeroBudgetImageRouting();
   }
 
   // Test the connection using current form values (no save required). On success,
@@ -103,18 +98,17 @@ function ApiKeysPage() {
     setFormTesting(true);
     try {
       const isOpenAI = provider === "OpenAI";
-      const name = isOpenAI ? ("openai" as const) : ("recraft" as const);
-      await testImageProvider({ name, apiKey: apiKey.trim(), imageModel: modelName.trim(), fallback: false });
+      await testImageProvider({ name: "puter", fallback: false });
       const purposeVal = purpose.trim() || (isOpenAI ? "text" : "images,thumbnail");
       saveApiKey({ provider, apiKey: apiKey.trim(), purpose: purposeVal, modelName: modelName.trim() });
-      applyPurposeRouting(name, purposeVal);
+      applyPurposeRouting(isOpenAI ? "openai" : "recraft", purposeVal);
       const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
         (k) => k.provider === provider && k.apiKey === apiKey.trim(),
       );
       if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
       setApiKey("");
       toast.success(
-        isOpenAI ? "OpenAI connected — routing updated" : "Recraft connected — set as active Image Provider",
+        isOpenAI ? "OpenAI connected — text routing updated" : "Recraft saved for future image support; active images remain Puter → Pollinations",
       );
     } catch (e) {
       toast.error(imageErrorMessage(e, `${provider} connection failed`));
@@ -132,13 +126,11 @@ function ApiKeysPage() {
     // Saving a key immediately activates that provider by pointing the relevant
     // routing at it. No Gemini requirement — any supported provider activates.
     if (provider === "Google Gemini") {
-      // A saved Gemini key must also become the image + thumbnail provider so
-      // generation never falls back to the billed built-in gateway.
-      saveProviderSettings({ text: "gemini", image: "gemini", thumbnail: "gemini" });
+      saveProviderSettings({ text: "gemini" });
     } else if (provider === "OpenAI") {
       applyPurposeRouting("openai", purpose.trim() || "text");
     } else if (provider === "Recraft") {
-      saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
+      enforceZeroBudgetImageRouting();
     }
     setApiKey("");
     setPurpose("");
@@ -303,26 +295,19 @@ function ApiKeysPage() {
               value={settings.text}
               onChange={(v) => saveProviderSettings({ text: v })}
             />
-            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm">
+            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm opacity-75">
               <span className="min-w-0">
                 <span className="block font-medium">Use Gemini for images + thumbnails</span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {settings.image === "gemini" && settings.thumbnail === "gemini"
-                    ? "On — using your Gemini API key"
-                    : "Off — using the selected external provider"}
+                  Disabled — Zero-Budget Mode uses Puter AI with Pollinations fallback
                 </span>
               </span>
               <input
                 type="checkbox"
                 className="h-4 w-4 shrink-0"
-                checked={settings.image === "gemini" && settings.thumbnail === "gemini"}
-                onChange={(e) =>
-                  saveProviderSettings(
-                    e.target.checked
-                      ? { image: "gemini", thumbnail: "gemini" }
-                      : { image: "puter", thumbnail: "puter" },
-                  )
-                }
+                checked={false}
+                disabled
+                onChange={() => enforceZeroBudgetImageRouting()}
               />
             </label>
             <ImageRouteRow
@@ -509,11 +494,11 @@ function ImageRouteRow({
         value={value}
         onChange={(e) => onChange(e.target.value as ProviderChoice)}
       >
-        <option value="gemini">Gemini Image</option>
         <option value="puter">Puter AI</option>
         <option value="pollinations">Pollinations AI</option>
-        <option value="huggingface">HuggingFace / FLUX</option>
-        <option value="recraft">Recraft V4.1 Utility Pro</option>
+        <option value="gemini" disabled>Gemini Image — disabled</option>
+        <option value="openai" disabled>OpenAI Images — disabled</option>
+        <option value="recraft" disabled>Recraft — disabled</option>
       </select>
     </div>
   );
@@ -561,39 +546,7 @@ function RecraftTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
  *  as the active Image + Thumbnail provider. */
 function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
   const activeImage = useActiveImageProvider();
-  const [testing, setTesting] = useState(false);
   const geminiKey = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim());
-
-  async function run() {
-    if (!geminiKey) {
-      toast.error("Add a Google Gemini API key first (Provider: Google Gemini).");
-      return;
-    }
-    // Route image + thumbnail to Gemini so the payload targets the image model.
-    saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
-    setTesting(true);
-    try {
-      const listed = await listGeminiModels(geminiKey.apiKey.trim());
-      const imageModel = preferredGeminiImageModel(listed.imageModels.map((m) => m.id), geminiKey.imageModelName || GEMINI_IMAGE_MODEL_DEFAULT);
-      if (!imageModel) {
-        toast.error("Google returned no image-capable Gemini models for this key.");
-        return;
-      }
-      await testImageProvider({
-        name: "gemini",
-        apiKey: geminiKey.apiKey.trim(),
-        imageModel,
-        fallback: false,
-      });
-      if (geminiKey.imageModelName?.trim() !== imageModel) saveApiKey({ ...geminiKey, imageModelName: imageModel });
-      toast.success("Gemini Image connected — set as active Image Provider");
-    } catch (e) {
-      // Surface the REAL Gemini error rather than a generic failure.
-      toast.error(imageErrorMessage(e, "Gemini Image connection failed"));
-    } finally {
-      setTesting(false);
-    }
-  }
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border p-2">
@@ -601,12 +554,11 @@ function GeminiImageTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
         {geminiKey
           ? activeImage?.name === "gemini"
             ? `Gemini Image active · ${activeImage.imageModel}`
-            : "Gemini key detected — test to activate Gemini Image."
+            : "Gemini key detected — image generation disabled in Zero-Budget Mode."
           : "No Gemini key yet — add one above (Provider: Google Gemini)."}
       </div>
-      <Button size="sm" variant="outline" onClick={run} disabled={testing || !geminiKey}>
-        {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-        Test Gemini Image
+      <Button size="sm" variant="outline" disabled>
+        Gemini Image Disabled
       </Button>
     </div>
   );
@@ -623,91 +575,17 @@ function ImageKeyTest({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
  *  active Gemini image model. Never hardcodes a model that Gemini can't confirm. */
 function GeminiModelDiagnostic({ keys }: { keys: ReturnType<typeof useApiKeys> }) {
   const geminiKey = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim());
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<GeminiModelList | null>(null);
-  const [selected, setSelected] = useState("");
-
-  async function listModels() {
-    if (!geminiKey) {
-      toast.error("Add a Google Gemini API key first (Provider: Google Gemini).");
-      return;
-    }
-    setLoading(true);
-    setResult(null);
-    try {
-      const r = await listGeminiModels(geminiKey.apiKey.trim());
-      setResult(r);
-      setSelected(preferredGeminiImageModel(r.imageModels.map((m) => m.id), geminiKey.imageModelName || GEMINI_IMAGE_MODEL_DEFAULT));
-      toast.success(`Found ${r.imageModels.length} image-capable Gemini model(s)`);
-    } catch (e) {
-      toast.error(imageErrorMessage(e, "Could not list Gemini models"));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function validateAndSave() {
-    if (!geminiKey || !selected) return;
-    setSaving(true);
-    try {
-      // Validate the selected model against the live endpoint BEFORE saving.
-      await validateGeminiImageModel(geminiKey.apiKey.trim(), selected);
-      saveApiKey({ ...geminiKey, imageModelName: selected });
-      saveProviderSettings({ image: "gemini", thumbnail: "gemini" });
-      markTested(geminiKey.id, IMAGE_PROVIDER_TEST_PASSED);
-      toast.success(`Final Gemini model sent: ${selected}`);
-    } catch (e) {
-      toast.error(imageErrorMessage(e, "Selected Gemini model failed validation"));
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div className="rounded-md border border-dashed border-border p-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 text-xs text-muted-foreground">
-          List Available Gemini Models — pick a real image model instead of guessing.
+          Gemini image model diagnostics are disabled in Zero-Budget Mode.
         </div>
-        <Button size="sm" variant="outline" onClick={listModels} disabled={loading || !geminiKey}>
-          {loading && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-          List Available Gemini Models
+        <Button size="sm" variant="outline" disabled={!geminiKey || true}>
+          Disabled
         </Button>
       </div>
-      {result && (
-        <div className="mt-3 space-y-2 border-t border-border pt-3">
-          <div className="font-mono text-[11px] text-muted-foreground">
-            <div>Endpoint: {result.endpoint}</div>
-            <div>API version: {result.apiVersion}</div>
-            <div>Image models: {result.imageModels.length} · Total: {result.allModels.length}</div>
-          </div>
-          {result.imageModels.length > 0 ? (
-            <div className="flex items-center gap-2">
-              <select
-                className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                {result.imageModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName}
-                  </option>
-                ))}
-              </select>
-              <Button size="sm" onClick={validateAndSave} disabled={saving || !selected}>
-                {saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                Validate &amp; Save
-              </Button>
-            </div>
-          ) : (
-            <div className="text-xs text-amber-600">
-              No image-capable models were returned for this key. This key may not have image
-              generation access.
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -725,13 +603,13 @@ function RecraftKeyTestInner({ keys }: { keys: ReturnType<typeof useApiKeys> }) 
       return;
     }
     // Ensure routing points at Recraft so the payload targets it.
-    saveProviderSettings({ image: "recraft", thumbnail: "recraft" });
+      enforceZeroBudgetImageRouting();
     setTesting(true);
     try {
-      const provider = { name: "recraft" as const, apiKey: recraftKey.apiKey.trim(), imageModel: "recraftv4_1_utility_pro", fallback: false };
+      const provider = { name: "puter" as const, fallback: false };
       await testImageProvider(provider);
       markTested(recraftKey.id, IMAGE_PROVIDER_TEST_PASSED);
-      toast.success("Recraft connected — set as active Image Provider");
+      toast.success("Recraft saved for future use; active images remain Puter → Pollinations");
     } catch (e) {
       markTested(recraftKey.id, "Failed");
       toast.error(imageErrorMessage(e, "Recraft connection failed"));
