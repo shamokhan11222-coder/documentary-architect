@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { callAiJson, callAiText } from "./ai-gateway.server";
+import { callAiJson, callAiJsonGateway, callAiText } from "./ai-gateway.server";
 import { EXPERTS } from "./experts";
 import { normalizeGeminiModel } from "./gemini-model";
 import type {
