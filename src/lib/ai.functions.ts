@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { callAiJson, callAiText } from "./ai-gateway.server";
+import { callAiJson, callAiJsonGateway, callAiText } from "./ai-gateway.server";
 import { EXPERTS } from "./experts";
 import { normalizeGeminiModel } from "./gemini-model";
 import type {
@@ -555,6 +555,61 @@ const THUMB_SHAPE = `{
   "negativePrompt": "string"
 }`;
 
+/** Pull the strongest concrete noun from a title/angle to use as the central
+ *  visual object of a thumbnail. Deterministic — no AI required. */
+function strongestVisualObject(topic: string, angle?: string): string {
+  const source = `${topic} ${angle ?? ""}`;
+  const stop = new Set([
+    "the","a","an","of","and","or","to","in","on","for","with","how","why","what",
+    "that","this","is","are","was","were","it","its","from","into","about","secret",
+    "hidden","story","origins","origin","everyday","life","documentary",
+  ]);
+  const words = source
+    .replace(/[^a-zA-Z\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3 && !stop.has(w.toLowerCase()));
+  return (words[0] ?? topic.split(/\s+/)[0] ?? "object").toLowerCase();
+}
+
+/** Short 2-5 word thumbnail headline derived from the topic. */
+function shortHeadline(topic: string, variant: number): string {
+  const words = topic.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/).filter(Boolean);
+  const core = words.slice(0, 3).join(" ") || "The Hidden Truth";
+  const prefixes = ["The Truth About", "Why", "Inside"];
+  return `${prefixes[variant % prefixes.length]} ${core}`.trim();
+}
+
+/** Deterministic local thumbnail concepts used when the Lovable AI Gateway is
+ *  unavailable. Builds `count` valid ThumbnailIdea objects (default 3) from the
+ *  project title, central conflict/angle and strongest visual object so the
+ *  Pollinations → Puter pixel pipeline can still run. */
+function fallbackThumbnailConcepts(topic: string, angle?: string, count = 3): ThumbnailIdea[] {
+  const object = strongestVisualObject(topic, angle);
+  const conflict = (angle && angle.trim()) || `the surprising hidden origin of ${topic}`;
+  const emotions = ["shock", "curiosity", "awe"];
+  const compositions = [
+    "large stickman on the left, big visual object on the right",
+    "single stickman centered, object above the head",
+    "object filling the frame, small surprised stickman beside it",
+  ];
+  return Array.from({ length: count }, (_, i) => {
+    const headline = shortHeadline(topic, i);
+    return {
+      thumbnailTitle: headline,
+      mainVisualConcept: `A simple MS Paint stickman reacting to ${object} — ${conflict}`,
+      mainSubject: `a bald stickman and a big simple ${object}`,
+      background: "plain flat single-color background",
+      emotion: emotions[i % emotions.length],
+      textOnThumbnail: headline.split(/\s+/).slice(0, 5).join(" "),
+      composition: compositions[i % compositions.length],
+      ctrScore: 7,
+      whyItWorks: "One clear idea, big readable text, strong curiosity gap.",
+      imagePrompt: "",
+      negativePrompt: "no clutter, no realistic style, no 3d, no photo",
+    } satisfies ThumbnailIdea;
+  });
+}
+
 export const generateThumbnails = createServerFn({ method: "POST" })
   .inputValidator((data: { topic: string; script?: string; angle?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
@@ -569,8 +624,18 @@ Generate 10 distinct high-CTR thumbnail ideas.
 
 Return a JSON object:
 { "ideas": [ ${THUMB_SHAPE} ] }`;
-    const result = await callAiJson<{ ideas: ThumbnailIdea[] }>(THUMB_RULES, user);
-    return (result.ideas ?? []) as ThumbnailIdea[];
+    // Thumbnail CONCEPTS always route through the Lovable AI Gateway — never the
+    // user's BYOK Gemini key or generativelanguage.googleapis.com. If the gateway
+    // fails we build deterministic local concepts so the pixel pipeline can run.
+    try {
+      const result = await callAiJsonGateway<{ ideas: ThumbnailIdea[] }>(THUMB_RULES, user);
+      const ideas = (result.ideas ?? []) as ThumbnailIdea[];
+      if (!ideas.length) throw new Error("No concepts returned");
+      return { ideas, conceptProvider: "Lovable AI Gateway" };
+    } catch (e) {
+      console.error("[thumbnail] concept gateway failed, using local fallback:", e instanceof Error ? e.message : e);
+      return { ideas: fallbackThumbnailConcepts(data.topic, data.angle), conceptProvider: "Local Fallback" };
+    }
   });
 
 export const regenerateThumbnail = createServerFn({ method: "POST" })
@@ -587,7 +652,13 @@ Return a JSON object with this exact shape: ${THUMB_SHAPE}
 
 CURRENT IDEA:
 ${JSON.stringify(data.idea)}`;
-    return await callAiJson<ThumbnailIdea>(THUMB_RULES, user);
+    // Concept text always uses the Lovable Gateway (no BYOK Gemini).
+    try {
+      return await callAiJsonGateway<ThumbnailIdea>(THUMB_RULES, user);
+    } catch (e) {
+      console.error("[thumbnail] regen gateway failed, using local fallback:", e instanceof Error ? e.message : e);
+      return fallbackThumbnailConcepts(data.topic, undefined, 1)[0];
+    }
   });
 
 // ---------------- SEO Engine ----------------

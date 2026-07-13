@@ -17,6 +17,7 @@ import {
 import { useImage, putImage, loadImage, fileToDataUrl } from "@/lib/images";
 import { generateThumbnailImage, imageErrorMessage, isRateLimitError, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
+import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
@@ -79,6 +80,14 @@ function ThumbnailPage() {
   const [providerLimit, setProviderLimit] = useState(false);
   const [conceptPending, setConceptPending] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
+  const [conceptProvider, setConceptProvider] = useState<string | null>(null);
+  const telemetry = useTelemetry();
+  const pixelProvider =
+    telemetry.lastProvider === "pollinations"
+      ? "Pollinations"
+      : telemetry.lastProvider === "puter"
+        ? "Puter"
+        : null;
   const uploadIndexRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -169,14 +178,16 @@ function ThumbnailPage() {
       setProviderLimit(false);
       setConceptPending(false);
       setProviderError(null);
-      const ideas = (await gen({
+      const conceptResult = (await gen({
         data: {
           topic: selected.topic,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
         },
-      })) as ThumbnailIdea[];
+      })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
+      const ideas = conceptResult.ideas;
+      setConceptProvider(conceptResult.conceptProvider);
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
       const status = await renderImages(ideas, 0, Math.min(credit.initialThumbnails, ideas.length), true);
       // Hard gate: only claim "ready" if an actual image URL is now stored.
@@ -242,15 +253,16 @@ function ThumbnailPage() {
     if (!selected) return;
     return withBusy("later", async () => {
       setProviderLimit(false);
-      const ideas = (await gen({
+      const laterResult = (await gen({
         data: {
           topic: selected.topic,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
         },
-      })) as ThumbnailIdea[];
-      saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
+      })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
+      setConceptProvider(laterResult.conceptProvider);
+      saveThumbnails({ topicId: selected.id, ideas: laterResult.ideas, generatedAt: Date.now() });
       setConceptPending(true);
       toast.success("Concept saved. Generate the image whenever you're ready.");
     });
@@ -378,6 +390,8 @@ function ThumbnailPage() {
         <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
           <div>Thumbnail Status: {thumbnailStatus}</div>
           <div>Has Image URL: {hasImageUrl ? "true" : "false"}</div>
+          <div>Concept Provider: {conceptProvider ?? "—"}</div>
+          <div>Pixel Provider: {pixelProvider ?? "—"}</div>
           <div>Provider Error: {providerError ?? (providerLimit ? "rate_limited" : "none")}</div>
         </div>
       )}
