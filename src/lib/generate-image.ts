@@ -7,10 +7,7 @@ import { buildScenePrompt, buildThumbnailPrompt } from "./style-lock";
 import { getCreditConfig } from "./credit-mode";
 import {
   imageProviderPayload,
-  thumbnailProviderPayload,
-  imageFallbackChain,
   IMAGE_PROVIDER_NOT_CONNECTED,
-  getActiveImageProvider,
 } from "./provider";
 import { enqueueAi } from "./ai-queue";
 import { recordTelemetry } from "./provider-telemetry";
@@ -20,176 +17,17 @@ import {
   generatePipelineImage,
   sceneSeed,
   CONSISTENCY_SUFFIX,
+  type ImageProviderName,
 } from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
-import {
-  getGeminiImageKeys,
-  pickAvailableKey,
-  markKeyUsed,
-  markKeyCooldown,
-  markKeyDisabled,
-  isLimitError,
-  isDailyLimit,
-  isInvalidKeyOrModel,
-} from "./gemini-image-keys";
-import { isZeroQuotaError, GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE } from "./gemini-image-keys";
-import { updateGeminiImageKey } from "./gemini-image-keys";
 import { GEMINI_IMAGE_MODEL_DEFAULT } from "./provider";
 import { GEMINI_FORCED_IMAGE_MODEL, normalizeGeminiModel } from "./gemini-model";
 import type { VisualScene, ThumbnailIdea } from "./types";
 
-/** Thrown when every Gemini image key is cooling down or disabled. The queue
- *  pauses and auto-resumes when a key becomes available. */
-export const ALL_KEYS_COOLING_CODE = "ALL_COOLING";
-export const ALL_KEYS_COOLING_MESSAGE =
-  "All Gemini image keys are cooling down. Resume automatically when one becomes available.";
-
-/** Result of a rotated image request — carries the key name used for live status. */
-export interface RotatedImage {
-  image: string;
-  keyName: string;
-  model: string;
-}
-
-/** Generate ONE image using the Gemini image key pool. Picks the first available
- *  key, and on RESOURCE_EXHAUSTED / quota / rate-limit cools it down and tries the
- *  next key; on invalid key / missing model disables it and tries the next.
- *  Throws ImageGenError(ALL_COOLING) when no key is available. */
-async function callWithRotation(prompt: string, references: string[]): Promise<RotatedImage> {
-  const poolSize = getGeminiImageKeys().length;
-  // Try keys until one succeeds or all are cooling/disabled.
-  for (;;) {
-    const key = pickAvailableKey();
-    if (!key) {
-      // If the user saved Gemini in the normal API vault instead of the
-      // dedicated rotation pool, still use it for the image queue. Do not create
-      // any fake cooldown state for 402/403/429 from this non-rotation path.
-      if (poolSize === 0) {
-        const active = getActiveImageProvider();
-        if (active?.name === "gemini" && active.apiKey.trim()) {
-          const payload: ImageProviderPayload = {
-            name: "gemini",
-            apiKey: active.apiKey.trim(),
-            imageModel: active.imageModel || GEMINI_FORCED_IMAGE_MODEL,
-            fallback: false,
-          };
-          const image = await callImageApi(prompt, references, payload);
-          lastImageRequestAt = Date.now();
-          return { image, keyName: "Gemini API key", model: payload.imageModel };
-        }
-      }
-      throw new ImageGenError(ALL_KEYS_COOLING_MESSAGE, ALL_KEYS_COOLING_CODE, null);
-    }
-    const payload: ImageProviderPayload = {
-      name: "gemini",
-      apiKey: key.key.trim(),
-      imageModel: key.imageModel || GEMINI_FORCED_IMAGE_MODEL,
-      fallback: false,
-    };
-    try {
-      console.info("[image][rotation] using key", { key: key.name });
-      const image = await callImageApi(prompt, references, payload);
-      markKeyUsed(key.id);
-      lastImageRequestAt = Date.now();
-      return { image, keyName: key.name, model: payload.imageModel };
-    } catch (e) {
-      const status = e instanceof ImageGenError ? e.status : null;
-      const code = e instanceof ImageGenError ? e.code : null;
-      const msg =
-        (e instanceof ImageGenError && e.debug?.providerMessage) ||
-        (e instanceof Error ? e.message : String(e));
-      // Hard zero quota (free tier limit: 0) → billing required. Retrying will
-      // never succeed: disable this key permanently and stop retrying now.
-      const quotaProbe = `${msg} ${(e instanceof ImageGenError && e.debug?.rawBody) || ""}`;
-      if (isZeroQuotaError(quotaProbe)) {
-        console.warn("[image][rotation] disabling key — free tier unavailable (limit: 0)", { key: key.name });
-        markKeyDisabled(key.id, GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE);
-        throw new ImageGenError(GEMINI_FREE_TIER_UNAVAILABLE_MESSAGE, "FREE_TIER_UNAVAILABLE", null);
-      }
-      // Invalid key / model not found → disable this key and move on.
-      if (isInvalidKeyOrModel(msg, code, status) && !isLimitError(msg, code, status)) {
-        console.warn("[image][rotation] disabling key", { key: key.name, reason: msg });
-        markKeyDisabled(key.id, msg);
-        continue;
-      }
-      // Quota / rate-limit / resource exhausted → cool this key down and move on.
-      if (isLimitError(msg, code, status)) {
-        markKeyCooldown(key.id, isDailyLimit(msg) ? "daily" : "limit");
-        console.warn("[image][rotation] cooling key", { key: key.name, daily: isDailyLimit(msg) });
-        continue;
-      }
-      // Any other error (timeout, network, server) is not key-specific — surface it.
-      throw e;
-    }
-  }
-}
-
-/** True when the user has configured the Gemini image key pool (rotation on). */
-export function hasGeminiImageKeyPool(): boolean {
-  return getGeminiImageKeys().length > 0;
-}
-
-/** Result of resolving image-capable models from Google's live models list. */
-export interface ResolvedImageModel {
-  ok: boolean;
-  model?: string;
-  message?: string;
-}
-
-/** Before generating storyboard images, query Google's live models list for
- *  each usable Gemini image key and persist the FIRST image-capable model it
- *  returns. No model names are hardcoded — only models Google returns are used.
- *  Returns the first resolved model (the one the queue will start with). */
-export async function ensureGeminiImageModels(): Promise<ResolvedImageModel> {
-  const keys = getGeminiImageKeys().filter((k) => k.status !== "disabled" && k.key.trim());
-  if (!keys.length) {
-    return { ok: false, message: "No usable Gemini image key. Add one in API Settings." };
-  }
-  let firstModel: string | undefined;
-  let lastError: string | undefined;
-  for (const k of keys) {
-    try {
-      const list = await listGeminiModels(k.key.trim());
-      const model = normalizeGeminiModel(list.imageModels.find((m) => m.id === (k.imageModel || GEMINI_FORCED_IMAGE_MODEL))?.id) || normalizeGeminiModel(list.imageModels[0]?.id) || GEMINI_FORCED_IMAGE_MODEL;
-      if (!model) {
-        lastError = "No image-capable model returned by Google for this key.";
-        continue;
-      }
-      if (k.imageModel !== model) updateGeminiImageKey(k.id, { imageModel: model });
-      if (!firstModel) firstModel = model;
-    } catch (e) {
-      lastError = imageErrorMessage(e, "Could not list Gemini models.");
-    }
-  }
-  if (!firstModel) {
-    return { ok: false, message: lastError ?? "No image-capable Gemini model returned by Google." };
-  }
-  return { ok: true, model: firstModel };
-}
-
-/** Generate a scene image through the key pool, returning the used key name. */
-export async function generateSceneImageRotating(scene: VisualScene): Promise<RotatedImage> {
-  const { hasCharacter } = await collectDnaReferences();
-  const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
-  return enqueueAi(
-    async () => {
-      const r = await generatePipelineImage(prompt, {
-        scene: scene.sceneNumber,
-        seed: sceneSeed(scene.sceneNumber),
-        width: 1280,
-        height: 720,
-      });
-      lastImageRequestAt = Date.now();
-      return {
-        image: r.image,
-        keyName: r.provider === "puter" ? "Puter AI" : "Pollinations",
-        model: r.model,
-      };
-    },
-    "Image",
-    { retryRateLimits: false },
-  );
-}
+// Legacy Gemini image-key rotation has been fully removed. All storyboard and
+// thumbnail pixels now flow through the single zero-budget pipeline
+// (generatePipelineImage: Puter primary → Pollinations fallback). Gemini /
+// OpenAI / Recraft remain visible in API Settings only as future providers.
 
 function combinedArtDirection(): string {
   return [getVisualInstructions(), getInstructionText(), selectedVisualStyle()]
