@@ -329,21 +329,5 @@ const SvgHost = ({ ref, rig, pose, expression, scale }: {
   ref: React.RefObject<SVGSVGElement | null>;
   rig: Rig; pose: Pose; expression: Expression; scale: number;
 }) => (
-  <svg
-    ref={ref}
-    viewBox="0 0 200 260"
-    className="h-full w-auto"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <RigInline rig={rig} pose={pose} expression={expression} scale={scale} />
-  </svg>
+  <RigSvg svgRef={ref} rig={rig} pose={pose} expression={expression} scale={scale} className="h-full w-full" />
 );
-
-function RigInline(props: { rig: Rig; pose: Pose; expression: Expression; scale: number }) {
-  // Delegate to the same renderer but as inline SVG children — we wrap in
-  // another <svg> above, and RigSvg would nest an svg-in-svg. Instead we
-  // pull its guts by rendering a full RigSvg and letting the browser handle
-  // the outer viewBox via the inner one (both share 0 0 200 260, so it's
-  // fine visually and export serializes the outer element).
-  return <RigSvg {...props} className="h-full w-full" />;
-}
