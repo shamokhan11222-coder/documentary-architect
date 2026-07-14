@@ -1,91 +1,63 @@
-## Phase 5A — Rigged Stickman Character System
+## Phase 5B — Scene Composer Lab (isolated)
 
-Build an isolated "Character Rig Lab" that turns an uploaded stickman reference into a reusable, poseable vector rig. Nothing outside this feature is touched (Research, Story, Storyboard, Voice, SEO, Rating, Thumbnail, Auth, project data all untouched).
-
-### Scope boundary
-- New route only: `/character-rig-lab`
-- New lib modules only under `src/lib/rig/`
-- Existing scene/image pipeline is NOT wired to the rig yet (that's Phase 5B)
-
-### Architecture
-
-```
-src/lib/rig/
-  bg-remove.ts        client-side white-bg removal (canvas flood + tolerance)
-  traits.ts           extract head/eye/mouth/line-thickness traits from reference
-  rig-model.ts        Rig type: bones, joints, lengths, trait tokens
-  poses.ts            15 named poses as joint-angle presets
-  render-svg.tsx      pure SVG renderer — draws bones/head/face from Rig + Pose
-  export.ts           SVG → PNG (transparent), SVG string, pose JSON
-  storage.ts          IndexedDB persistence of approved rig (key: rig:active)
-
-src/routes/character-rig-lab.tsx
-  - Upload + background removal step (tolerance slider, erase/restore brush, Confirm)
-  - Trait extraction preview (auto, editable)
-  - 6-panel pose grid (standing, walking, pointing, sitting, sleeping, running)
-  - Controls: Pose / Expression / Facing / Arm angle / Leg angle / Head tilt / Scale / Reset
-  - Export buttons per pose: PNG, SVG, Pose JSON
-```
-
-### How the reference becomes a rig (not a sprite)
-
-1. **Background removal** — canvas pixel pass: pixels within tolerance of corner-sampled white → alpha 0. Manual erase/restore brushes patch mistakes. Result stored as transparent PNG in IndexedDB (`rig:reference`).
-2. **Trait extraction** — measure isolated silhouette to derive tokens only:
-   - `lineThickness` (median stroke width via distance transform approximation)
-   - `headRadius` / `headShape` (circle vs oval from bounding box of top blob)
-   - `eyeStyle` (dots | circles | crosses — detected from dark spots in head region; user-editable)
-   - `mouthStyle` (line | curve | open — user-selectable, seeded from detection)
-   - `handStyle` / `footStyle` (none | dot | stub — user-selectable)
-   - `outlineRoughness` (0–1, seeded from edge variance)
-   These tokens feed the SVG renderer. The bitmap itself is NEVER drawn into a pose.
-3. **Rig model** — fixed skeleton (head, torso, 2× upper/lower arm, 2× upper/lower leg) with joint angles. Head size and limb lengths are constants derived once from the reference; poses only change angles.
-4. **SVG renderer** — draws circles + lines using trait tokens. Applies `filter: url(#rough)` (SVG turbulence displacement) scaled by `outlineRoughness` so lines look hand-drawn without being anime/cartoon.
-
-### Poses (angle presets in `poses.ts`)
-
-15 poses as `{ head, neck, lShoulder, lElbow, rShoulder, rElbow, lHip, lKnee, rHip, rKnee, torsoRotation, rootY }`. Sleeping sets `torsoRotation: 90` and lowers `rootY`. Sitting bends hips 90° + knees 90°. Walking/running alternate limb angles.
-
-### Expressions
-Separate `Expression` type mutates only `eyeDirection`, `eyebrow`, `mouthCurve`, `headTilt`. No proportion changes.
-
-### Test canvas (Character Rig Lab)
-Six panels rendered from the SAME `Rig` with different `Pose` presets, plain white bg. Controls panel drives a 7th "live" preview. Export buttons on each panel.
-
-### Export
-- **PNG**: serialize SVG → `<img>` → offscreen canvas → `toBlob('image/png')` (transparent).
-- **SVG**: serialized SVG string download.
-- **Pose JSON**: `{ pose, headRotation, leftShoulder, ... }`.
-
-### Persistence
-IndexedDB keys:
-- `rig:reference` — approved transparent PNG (for reference display only)
-- `rig:active` — `{ traits, limbLengths, headRadius }` JSON
-- `rig:poses:custom` — user-tweaked poses
-Refresh restores everything.
-
-### Acceptance checks I will verify with Playwright
-1. Upload → BG removed → checkerboard preview shows no white rectangle.
-2. Confirm Character → 6-panel grid renders.
-3. Screenshot all 6 panels; visually confirm same character, different limb positions.
-4. PNG export downloads a transparent file.
-5. Reload page → rig restored from IndexedDB.
+Builds a `/scene-composer-lab` route that composes 5 test scenes from a strict `SceneSpec` JSON using the Phase 5A rig. No production pipeline is touched.
 
 ### Files created
-- `src/lib/rig/bg-remove.ts`
-- `src/lib/rig/traits.ts`
-- `src/lib/rig/rig-model.ts`
-- `src/lib/rig/poses.ts`
-- `src/lib/rig/render-svg.tsx`
-- `src/lib/rig/export.ts`
-- `src/lib/rig/storage.ts`
-- `src/routes/character-rig-lab.tsx`
+```
+src/lib/scene/
+  scene-model.ts       SceneSpec, ObjectSpec, CharacterSpec, LayoutWarning types
+  joints.ts            getJointPositions(rig, pose) → world coords for hands/feet/head
+  object-library.tsx   SVG components: tree, sun, moon, cloud, streetlight, campfire,
+                       tent, chair, table, machine, parking-meter, arrow, red-circle,
+                       checkmark, cross, house, road/path — plus getBBox() per type
+  layout.ts            Constraint resolver: ground-snap, sky-region clamp, joint-anchor
+                       binding, canvas-margin clamp, overlap detection, warnings
+  render-scene.tsx     SceneRenderer — resolves layout, draws bg → objects → chars,
+                       supports bbox overlay + layer-order overlay
+  test-scenes.ts       The 5 exact SceneSpec objects
+  export.ts            Scene SVG → PNG (opaque or transparent), JSON download
 
-### Files NOT modified
-Research, Story, Storyboard, Voice, SEO, Rating, Thumbnail, Auth, project data, existing image pipeline, credit-saver, style-lock. Confirmed by scope.
+src/routes/scene-composer-lab.tsx
+```
 
-### Out of scope for 5A (explicit)
-- Wiring the rig into storyboard/thumbnail generation
-- Compositing rig over AI backgrounds
-- Multi-character scenes
-- Animation timelines
-These belong to Phase 5B.
+### Scene coordinate system
+- Viewbox `960 × 540` (16:9).
+- Default `groundY = 420`, sky region `y < groundY - 40`.
+- Character `x` = feet center x; feet always placed on `groundY` when `grounded`.
+- Object anchors:
+  - `ground` → bottom of bbox = groundY
+  - `sky` → top of bbox in sky region
+  - `character-{left|right}-hand` → bbox center attached to that joint of the referenced rig
+  - `character-pointing-target` → 60px ahead of the extended arm end, ground-snapped
+  - `seated-under-character` → chair/rock placed so its seat aligns with character pelvis
+  - `behind-character` → same x, z-order below the character
+  - `foreground` / `background` → z-order buckets only
+
+### Constraint resolver (`layout.ts`)
+1. Assign z-layer: `background` (0) → `background-props` (10) → `characters` (20) → `foreground` (30) → `labels` (40).
+2. For each object: resolve anchor to a target `(x, y)`, then clamp `x` to `[40, 920]`.
+3. For character-attached objects, compute joint world position via `joints.ts` after the character's own placement is known.
+4. Ground-snap grounded items.
+5. Sky-region items get `y` clamped to `[40, groundY - 60]`.
+6. Detect bbox overlap between focal subject and large props; if a background prop overlaps the focal subject bbox by > 30%, push it horizontally to the nearest edge; if still overlapping → emit `LayoutWarning`.
+7. Camera scale: `wide` = char h ~28% canvas, `medium` = ~50%, `close` = ~72%. Applied uniformly by scaling the rig svg (never distorting).
+
+### 5 test scenes (`test-scenes.ts`)
+Exactly per spec: walking-at-night, campsite, pointing-at-machine, classroom-infographic, one-in-seven-diagram.
+
+### Object rendering
+Each object type is a function returning `{ svg: ReactNode, bbox: {w,h} }` at its natural size. Same rough black outline, `stroke-linecap="round"`, thickness matched to rig `lineThickness`. Reuses the rig's roughness filter feel.
+
+### Lab UI
+- 5 panels stacked, each showing:
+  - final 16:9 preview
+  - toggles: [Bounding boxes] [Layer order] [Show JSON] [Show warnings]
+  - export buttons: [SVG] [PNG opaque] [PNG transparent] [JSON]
+- Reads the approved rig from Phase 5A (`loadRig()`). If no rig approved yet, shows a friendly banner linking to `/character-rig-lab`.
+
+### Verification with Playwright
+- Load `/scene-composer-lab`, screenshot each panel, view all five in QA.
+- Confirm ground-snapped items and joint-attached items.
+
+### NOT touched
+Research, Story, Storyboard, Voice, Thumbnail, SEO, Rating, Auth, project data, image queue, style-lock, credit-saver, existing image pipeline. The lab is a self-contained page.

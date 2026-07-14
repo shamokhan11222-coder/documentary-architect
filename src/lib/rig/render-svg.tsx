@@ -42,6 +42,20 @@ export function RigSvg({ rig, pose, expression, scale = 1, className, filterId, 
   );
 }
 
+/** Renders the rig figure inline (no wrapping <svg>). Use inside another SVG. */
+export function RigGroup({
+  rig, pose, expression, facing,
+}: { rig: Rig; pose: Pose; expression?: Expression; facing?: 1 | -1 }) {
+  const exp = expression ?? DEFAULT_EXPRESSION;
+  const { w } = RIG_VIEWBOX;
+  const f = facing ?? pose.facing;
+  return (
+    <g transform={`translate(${w / 2}, 0) scale(${f}, 1) translate(${-w / 2}, 0)`}>
+      {drawFigure(rig, pose, exp)}
+    </g>
+  );
+}
+
 function drawFigure(rig: Rig, pose: Pose, exp: Expression) {
   const { lengths, traits } = rig;
   const stroke = traits.strokeColor;
