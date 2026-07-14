@@ -14,7 +14,7 @@ import { pollinationsGenerateImage, PollinationsError, setPollinationsStatus } f
 import { recordTelemetry } from "./provider-telemetry";
 import { recordErrorDetails } from "./error-details";
 
-export type ImageProviderName = "puter" | "pollinations";
+export type ImageProviderName = "puter" | "pollinations" | "lovable-gateway";
 
 /** Providers that must NEVER render storyboard/thumbnail pixels. Attempting any
  *  of these stops before the network call. */
