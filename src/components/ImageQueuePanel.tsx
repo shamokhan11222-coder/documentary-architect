@@ -20,6 +20,16 @@ import { usePollinationsStatus } from "@/lib/pollinations-image";
 import { generateTestImage, type ImageSanityResult } from "@/lib/generate-image";
 import { useLovableGatewayStatus, useLovableGatewayModel } from "@/lib/lovable-gateway-image";
 import { buildDebugReport } from "@/lib/image-pipeline";
+import {
+  CREDIT_SAVER_TIERS,
+  CREDIT_POOL_NOTE,
+  confirmationSummary,
+  setCreditSaverEnabled,
+  setCreditSaverTier,
+  useCreditSaverEnabled,
+  useCreditSaverTier,
+  type CreditSaverTier,
+} from "@/lib/credit-saver";
 
 function useNow(active: boolean) {
   const [, force] = useState(0);
@@ -50,10 +60,16 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
   const [testedOk, setTestedOk] = useState(false);
   const gatewayStatus = useLovableGatewayStatus();
   const gatewayModel = useLovableGatewayModel();
+  const saverEnabled = useCreditSaverEnabled();
+  const saverTier = useCreditSaverTier();
 
   const running = q.state === "running" || q.state === "cooling";
 
   async function runTest(only: "puter" | "pollinations" | "lovable-gateway") {
+    if (only === "lovable-gateway") {
+      const summary = confirmationSummary(1, "test");
+      if (typeof window !== "undefined" && !window.confirm(`Generate 1 test image?\n\n${summary}`)) return;
+    }
     setTesting(only);
     setTestInfo(null);
     try {
@@ -88,6 +104,16 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
     <div className="mt-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm font-medium">Image Queue · Lovable AI Gateway ({gatewayModel})</div>
+
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={saverEnabled}
+            onChange={(e) => setCreditSaverEnabled(e.target.checked)}
+          />
+          Credit Saver Mode
+        </label>
+
         <div className="flex flex-wrap gap-1">
           <Button size="sm" variant="outline" onClick={onStart} disabled={running || !testedOk}>
             <Play className="mr-1 h-4 w-4" /> Start Queue
@@ -111,6 +137,30 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
             <SkipForward className="mr-1 h-4 w-4" /> Continue From Last
           </Button>
         </div>
+      </div>
+
+      {/* Model tier presets */}
+      <div className="mt-3">
+        <div className="text-xs font-medium text-muted-foreground">Model preset</div>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {(Object.keys(CREDIT_SAVER_TIERS) as CreditSaverTier[]).map((id) => {
+            const t = CREDIT_SAVER_TIERS[id];
+            const active = saverTier === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setCreditSaverTier(id)}
+                className={`rounded-md border px-3 py-1.5 text-left text-xs transition ${
+                  active ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
+                }`}
+              >
+                <div className="font-medium">{t.label}</div>
+                <div className="text-[11px] text-muted-foreground">~{t.estimatedCredits} cr · {t.model.split("/").pop()}</div>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">{CREDIT_POOL_NOTE}</p>
       </div>
 
       {/* Provider status + sanity test */}

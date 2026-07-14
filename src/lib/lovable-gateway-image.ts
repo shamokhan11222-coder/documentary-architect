@@ -2,6 +2,12 @@
 // Never talks directly to the gateway; always goes through /api/generate-image
 // so LOVABLE_API_KEY stays server-side.
 import { readLocal, writeLocal, useLocal } from "./local";
+import {
+  activeGatewayModel,
+  targetDimensions,
+  referenceCap,
+  NO_GATEWAY_CREDITS_MESSAGE,
+} from "./credit-saver";
 
 export type LovableGatewayStatus = "idle" | "ready" | "generating" | "rate-limited" | "no-credits" | "unavailable" | "failed";
 
@@ -17,13 +23,14 @@ export const LOVABLE_GATEWAY_MODELS = {
 export type LovableGatewayTier = keyof typeof LOVABLE_GATEWAY_MODELS;
 
 export function getLovableGatewayModel(): string {
-  return readLocal<string>(MODEL_KEY, LOVABLE_GATEWAY_MODELS.balanced);
+  // Legacy manual override — Credit Saver's active tier wins by default.
+  return readLocal<string>(MODEL_KEY, activeGatewayModel());
 }
 export function setLovableGatewayModel(m: string) {
   writeLocal(MODEL_KEY, m);
 }
 export function useLovableGatewayModel(): string {
-  return useLocal<string>(MODEL_KEY, LOVABLE_GATEWAY_MODELS.balanced);
+  return useLocal<string>(MODEL_KEY, activeGatewayModel());
 }
 
 export function getLovableGatewayStatus(): LovableGatewayStatus {
@@ -68,17 +75,25 @@ export async function lovableGatewayGenerateImage(
   opts: LovableGatewayOptions = {},
 ): Promise<LovableGatewayResult> {
   setLovableGatewayStatus("generating");
-  const model = opts.model ?? getLovableGatewayModel();
+  // Credit Saver's tier is authoritative unless the caller pins a model.
+  const model = opts.model ?? activeGatewayModel();
+  const purpose = opts.purpose ?? "storyboard";
+  const dims = targetDimensions(purpose);
+  const width = opts.width ?? dims.width;
+  const height = opts.height ?? dims.height;
+  const cappedRefs = Array.isArray(opts.references)
+    ? opts.references.slice(0, referenceCap())
+    : undefined;
   const res = await fetch("/api/generate-image", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt,
       model,
-      width: opts.width ?? 1280,
-      height: opts.height ?? 720,
-      purpose: opts.purpose ?? "storyboard",
-      references: opts.references,
+      width,
+      height,
+      purpose,
+      references: cappedRefs,
     }),
   });
 
@@ -89,7 +104,11 @@ export async function lovableGatewayGenerateImage(
     if (res.status === 429) setLovableGatewayStatus("rate-limited");
     else if (res.status === 402 || code === "PAYMENT_REQUIRED") setLovableGatewayStatus("no-credits");
     else setLovableGatewayStatus("failed");
-    throw new LovableGatewayError(payload.error ?? `gateway ${res.status}`, code, res.status, payload.model ?? model);
+    // Show the friendly credits-empty message instead of the raw provider text.
+    const msg = res.status === 402 || code === "PAYMENT_REQUIRED"
+      ? NO_GATEWAY_CREDITS_MESSAGE
+      : payload.error ?? `gateway ${res.status}`;
+    throw new LovableGatewayError(msg, code, res.status, payload.model ?? model);
   }
   const json = (await res.json()) as LovableGatewayResult;
   setLovableGatewayStatus("ready");

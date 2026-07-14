@@ -17,6 +17,7 @@ import {
 } from "./image-pipeline";
 import { recordErrorDetails, recordImageErrorDetails } from "./error-details";
 import type { VisualScene, ThumbnailIdea } from "./types";
+import { targetDimensions } from "./credit-saver";
 
 // Legacy Gemini image-key rotation has been fully removed. All storyboard and
 // thumbnail pixels now flow through the single zero-budget pipeline
@@ -254,8 +255,9 @@ export async function geminiImageDiagnostics(apiKey: string, imageModel?: string
 export async function generateSceneImage(scene: VisualScene): Promise<string> {
   const { hasCharacter } = await collectDnaReferences();
   const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+  const dims = targetDimensions("storyboard");
   const r = await enqueueAi(
-    () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720, purpose: "scene" }),
+    () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: dims.width, height: dims.height, purpose: "scene" }),
     "Image",
     { retryRateLimits: false },
   );
@@ -300,8 +302,9 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
   try {
     const { hasCharacter } = await collectDnaReferences();
     const prompt = `${buildScenePrompt(scene, combinedArtDirection(), hasCharacter)} ${CONSISTENCY_SUFFIX}`;
+    const dims = targetDimensions("storyboard");
     const r = await enqueueAi(
-      () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: 1280, height: 720, purpose: "scene" }),
+      () => runPipelineWithStyleGuard(prompt, { scene: scene.sceneNumber, seed: sceneSeed(scene.sceneNumber), width: dims.width, height: dims.height, purpose: "scene" }),
       "Image",
       { retryRateLimits: false },
     );
