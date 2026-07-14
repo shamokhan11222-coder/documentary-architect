@@ -14,7 +14,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
-import { isRecoverableProviderError, recoverableProviderMessage } from "../lib/humanize-error";
+import { isRecoverableProviderError } from "../lib/humanize-error";
 import { applyTheme } from "../lib/theme";
 import { applyPerfProfile } from "../lib/perf";
 import {
