@@ -3,8 +3,7 @@ import { createRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
-import { toast } from "sonner";
-import { isRecoverableProviderError, recoverableProviderMessage } from "./lib/humanize-error";
+import { isRecoverableProviderError } from "./lib/humanize-error";
 
 // Per-route error boundary: a single broken page renders this fallback inside
 // the shared layout instead of crashing the whole app.
@@ -13,19 +12,6 @@ function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void 
   const [retrying, setRetrying] = useState(true);
 
   const recoverable = isRecoverableProviderError(error);
-
-  useEffect(() => {
-    if (!recoverable) return;
-    try {
-      toast.error(recoverableProviderMessage(error));
-    } catch {
-      /* ignore */
-    }
-    const id = window.setTimeout(() => {
-      void router.invalidate({ sync: true }).finally(reset);
-    }, 50);
-    return () => window.clearTimeout(id);
-  }, [recoverable, error, reset, router]);
 
   useEffect(() => {
     if (recoverable) return;
@@ -55,7 +41,30 @@ function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void 
     return () => window.clearTimeout(id);
   }, [error, reset, router, recoverable]);
 
-  if (recoverable) return <RoutePendingSkeleton />;
+  if (recoverable) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
+        <h2 className="text-lg font-semibold text-foreground">Generation unavailable</h2>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          AI credits or provider access are currently unavailable. Your saved project data is safe.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <a
+            href="/"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Go home
+          </a>
+          <a
+            href="/api-keys"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Open API Settings
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (retrying) return <RoutePendingSkeleton />;
 
