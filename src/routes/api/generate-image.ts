@@ -111,9 +111,10 @@ export const Route = createFileRoute("/api/generate-image")({
           : DEFAULT_MODEL;
 
         // Build user content — prompt + optional reference images.
+        // Hard cap at 2 references (matches Credit Saver Mode client cap).
         const userContent: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
         if (Array.isArray(body.references)) {
-          for (const ref of body.references.slice(0, 4)) {
+          for (const ref of body.references.slice(0, 2)) {
             if (typeof ref === "string" && (ref.startsWith("data:image") || ref.startsWith("https://") || ref.startsWith("http://"))) {
               userContent.push({ type: "image_url", image_url: { url: ref } });
             }
