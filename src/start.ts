@@ -26,21 +26,23 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 // without threading params through each function. Runs on the client.
 const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
   async ({ next }) => {
-    const p = null as ReturnType<typeof getActiveTextProvider> | null;
+    const p = getActiveTextProvider();
+    const externalProviderDisabled = true;
+    const activeProvider = externalProviderDisabled ? null : p;
     const headers: Record<string, string> = {};
     // Route text tasks to the selected Text Provider (Gemini or OpenAI) when a
     // matching key is connected. A "built-in" selection (or no key) is honored
     // by leaving the headers off so the server uses the built-in AI.
-    const usingExternal = !!p;
-    if (p) {
-      headers["x-ai-provider"] = p.name;
-      headers["x-ai-key"] = p.apiKey;
-      const finalTextModel = p.name === "gemini" ? normalizeGeminiModel(p.textModel) || GEMINI_TEXT_MODEL_DEFAULT_FULL : p.textModel;
+    const usingExternal = !!activeProvider;
+    if (activeProvider) {
+      headers["x-ai-provider"] = activeProvider.name;
+      headers["x-ai-key"] = activeProvider.apiKey;
+      const finalTextModel = activeProvider.name === "gemini" ? normalizeGeminiModel(activeProvider.textModel) || GEMINI_TEXT_MODEL_DEFAULT_FULL : activeProvider.textModel;
       headers["x-ai-text-model"] = finalTextModel;
       // Fallback removed: never trigger built-in AI before/after the provider.
       headers["x-ai-fallback"] = "0";
-      if (p.name === "gemini") console.log(`Final Gemini model sent: ${finalTextModel}`);
-      console.log("[AI] selected provider=%s model=%s (request started)", p.name, finalTextModel);
+      if (activeProvider.name === "gemini") console.log(`Final Gemini model sent: ${finalTextModel}`);
+      console.log("[AI] selected provider=%s model=%s (request started)", activeProvider.name, finalTextModel);
     } else {
       console.log("[AI] selected provider=builtin (no external text key connected)");
     }
@@ -50,10 +52,10 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
       const res =
         typeof window === "undefined"
           ? await next({ headers })
-          : await enqueueAi(() => next({ headers }), usingExternal ? `${p!.name} request` : "AI request");
+          : await enqueueAi(() => next({ headers }), usingExternal ? `${activeProvider!.name} request` : "AI request");
       console.log("[AI] response received (status=success)");
       recordTelemetry({
-        lastProvider: p ? p.name : "builtin",
+        lastProvider: activeProvider ? activeProvider.name : "builtin",
         lastStatus: "success",
         lastError: null,
       });
@@ -61,7 +63,7 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
     } catch (e) {
       console.error("[AI] error details:", e instanceof Error ? e.message : e);
       recordTelemetry({
-        lastProvider: p ? p.name : "builtin",
+        lastProvider: activeProvider ? activeProvider.name : "builtin",
         lastStatus: "error",
         lastError: e instanceof Error ? e.message : String(e),
       });
