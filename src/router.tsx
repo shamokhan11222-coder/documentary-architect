@@ -3,6 +3,8 @@ import { createRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { toast } from "sonner";
+import { isRecoverableProviderError, recoverableProviderMessage } from "./lib/humanize-error";
 
 // Per-route error boundary: a single broken page renders this fallback inside
 // the shared layout instead of crashing the whole app.
@@ -10,7 +12,23 @@ function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void 
   const router = useRouter();
   const [retrying, setRetrying] = useState(true);
 
+  const recoverable = isRecoverableProviderError(error);
+
   useEffect(() => {
+    if (!recoverable) return;
+    try {
+      toast.error(recoverableProviderMessage(error));
+    } catch {
+      /* ignore */
+    }
+    const id = window.setTimeout(() => {
+      void router.invalidate({ sync: true }).finally(reset);
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [recoverable, error, reset, router]);
+
+  useEffect(() => {
+    if (recoverable) return;
     const route = typeof window !== "undefined" ? window.location.pathname : "ssr";
     console.error("[route-error]", {
       route,
@@ -35,7 +53,9 @@ function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void 
       void router.invalidate({ sync: true }).finally(reset);
     }, 80);
     return () => window.clearTimeout(id);
-  }, [error, reset, router]);
+  }, [error, reset, router, recoverable]);
+
+  if (recoverable) return <RoutePendingSkeleton />;
 
   if (retrying) return <RoutePendingSkeleton />;
 
