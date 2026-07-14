@@ -38,3 +38,31 @@ export function isCreditsError(err: unknown): boolean {
   const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
   return /credits?\s*(exhausted|finished)|CREDITS_EXHAUSTED|\b402\b|out of credits/i.test(raw);
 }
+
+/**
+ * Recoverable provider errors — must never crash to the fatal "This page
+ * didn't load" screen. Includes credits, rate limits, and provider
+ * permission denials.
+ */
+export function isRecoverableProviderError(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (!raw) return false;
+  if (isCreditsError(err)) return true;
+  return /RESOURCE_EXHAUSTED|PERMISSION_DENIED|\b429\b|\b403\b|rate[- ]?limit|denied access/i.test(
+    raw,
+  );
+}
+
+export function recoverableProviderMessage(err: unknown): string {
+  if (isCreditsError(err)) {
+    return "AI usage credits are currently exhausted. Your saved project data is safe. Add AI usage funds or connect another text provider to generate new content.";
+  }
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (/\b429\b|RESOURCE_EXHAUSTED|rate[- ]?limit/i.test(raw)) {
+    return "The AI provider is rate-limiting requests. Please wait a moment and try again.";
+  }
+  if (/\b403\b|PERMISSION_DENIED|denied access/i.test(raw)) {
+    return "The AI provider denied this request. Open API Settings to check your key or switch providers.";
+  }
+  return humanizeError(err);
+}
