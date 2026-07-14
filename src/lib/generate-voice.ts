@@ -66,7 +66,7 @@ export async function generateVoiceBlock(
 
   const data = await enqueueAi(async () => {
     const provider = ttsProviderPayload();
-    console.info("[voice] request started", { provider: provider?.name, model: provider?.ttsModel });
+    console.info("[voice] request started", { provider: "lovable-gateway", model: "openai/gpt-4o-mini-tts" });
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), VOICE_TIMEOUT_MS);
     let res: Response;

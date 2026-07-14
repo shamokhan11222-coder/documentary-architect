@@ -87,9 +87,12 @@ export interface ProviderSettings {
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
-  text: "gemini",
+  // EMERGENCY RECOVERY: text and voice MUST route through the Lovable AI
+  // Gateway only. BYOK Gemini for text/voice is permanently disabled here so
+  // Research / Story / SEO / Rating / Voice cannot hit generativelanguage.googleapis.com.
+  text: "builtin",
   image: "puter",
-  voice: "gemini",
+  voice: "builtin",
   thumbnail: "puter",
   // Never silently fall back to the built-in AI. When Gemini is connected we
   // route to Gemini only and surface its real errors. Fallback is opt-in.
@@ -98,10 +101,11 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
   const next = { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
-  // Gemini-only mode: OpenAI is disabled as an ACTIVE provider everywhere. It
-  // stays selectable in API Settings for future use, but never routes here.
-  if (next.text === "openai") next.text = "gemini";
-  if (next.voice === "openai") next.voice = "gemini";
+  // EMERGENCY RECOVERY: force text + voice to the Lovable AI Gateway. Any
+  // stale saved "gemini" / "openai" choice is coerced to "builtin" on read,
+  // which wipes stale localStorage routing without touching project data.
+  next.text = "builtin";
+  next.voice = "builtin";
   // Zero-budget image pipeline: only Puter (primary) and Pollinations
   // (fallback) are active image providers. Gemini / OpenAI / Recraft and the
   // built-in AI remain selectable in API Settings ONLY as disabled future
@@ -193,14 +197,18 @@ function resolveTextProvider(settings: ProviderSettings, list: ApiKeyEntry[]): A
 
 /** Non-reactive read of the active text provider (Gemini or OpenAI). */
 export function getActiveTextProvider(): ActiveTextProvider | null {
-  return resolveTextProvider(getProviderSettings(), resetSavedGeminiModelLabels(readLocal<ApiKeyEntry[]>(KEY, [])));
+  // EMERGENCY RECOVERY: never expose a BYOK text provider. Returning null
+  // stops the client middleware from sending x-ai-provider headers, so the
+  // server always uses the Lovable AI Gateway with LOVABLE_API_KEY.
+  return null;
 }
 
 /** Reactive hook for the active text provider. */
 export function useActiveTextProvider(): ActiveTextProvider | null {
-  const settings = useProviderSettings();
-  const list = resetSavedGeminiModelLabels(useLocal<ApiKeyEntry[]>(KEY, []));
-  return resolveTextProvider(settings, list);
+  // Kept reactive for React consumers, but always null — see getActiveTextProvider.
+  useProviderSettings();
+  useLocal<ApiKeyEntry[]>(KEY, []);
+  return null;
 }
 
 function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry | null {
@@ -458,8 +466,7 @@ export function imageProviderReady(): { ok: boolean; message?: string } {
 }
 
 export function ttsProviderPayload() {
-  const p = getActiveProvider();
-  const s = getProviderSettings();
-  if (!p || s.voice !== "gemini") return undefined;
-  return { name: p.name, apiKey: p.apiKey, ttsModel: p.ttsModel, fallback: s.fallback };
+  // EMERGENCY RECOVERY: voice routes exclusively through the Lovable AI
+  // Gateway TTS endpoint. Never expose a BYOK Gemini TTS payload.
+  return undefined;
 }

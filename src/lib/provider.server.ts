@@ -13,28 +13,12 @@ export interface ServerProvider {
 }
 
 export function readProviderFromHeaders(): ServerProvider | null {
-  try {
-    const name = getRequestHeader("x-ai-provider");
-    const apiKey = getRequestHeader("x-ai-key");
-    if (name === "gemini" && apiKey) {
-      return {
-        name: "gemini",
-        apiKey,
-        textModel: normalizeGeminiModel(getRequestHeader("x-ai-text-model")) || GEMINI_TEXT_MODEL_DEFAULT_FULL,
-        fallback: getRequestHeader("x-ai-fallback") === "1",
-      };
-    }
-    if (name === "openai" && apiKey) {
-      return {
-        name: "openai",
-        apiKey,
-        textModel: getRequestHeader("x-ai-text-model") || "gpt-4o-mini",
-        fallback: getRequestHeader("x-ai-fallback") === "1",
-      };
-    }
-  } catch {
-    /* headers unavailable (e.g. non-request context) */
-  }
+  // EMERGENCY RECOVERY: text generation is locked to the Lovable AI Gateway.
+  // Even if stale x-ai-provider / x-ai-key headers arrive, ignore them so no
+  // Research / Story / SEO / Rating call can hit generativelanguage.googleapis.com.
+  void GEMINI_TEXT_MODEL_DEFAULT_FULL;
+  void normalizeGeminiModel;
+  void getRequestHeader;
   return null;
 }
 
@@ -46,6 +30,10 @@ export async function geminiGenerateText(
   user: string,
   json: boolean,
 ): Promise<string> {
+  // Hard runtime guard: text must never leave via Google directly.
+  void apiKey; void model; void system; void user; void json;
+  throw new Error("BUG: Direct Gemini text routing is disabled.");
+  // eslint-disable-next-line no-unreachable
   const finalModel = normalizeGeminiModel(model) || GEMINI_TEXT_MODEL_DEFAULT_FULL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/${finalModel}:generateContent`;
   const startedAt = Date.now();

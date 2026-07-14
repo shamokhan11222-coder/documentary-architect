@@ -27,6 +27,7 @@ import { Route as ScriptAnalyzerRouteImport } from './routes/script-analyzer'
 import { Route as SceneComposerLabRouteImport } from './routes/scene-composer-lab'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as RecoveryTestRouteImport } from './routes/recovery-test'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
 import { Route as PricingRouteImport } from './routes/pricing'
@@ -142,6 +143,11 @@ const RoadmapRoute = RoadmapRouteImport.update({
 const ResearchRoute = ResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecoveryTestRoute = RecoveryTestRouteImport.update({
+  id: '/recovery-test',
+  path: '/recovery-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RatingRoute = RatingRouteImport.update({
@@ -299,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
+  '/recovery-test': typeof RecoveryTestRoute
   '/research': typeof ResearchRoute
   '/roadmap': typeof RoadmapRoute
   '/scene-composer-lab': typeof SceneComposerLabRoute
@@ -345,6 +352,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
+  '/recovery-test': typeof RecoveryTestRoute
   '/research': typeof ResearchRoute
   '/roadmap': typeof RoadmapRoute
   '/scene-composer-lab': typeof SceneComposerLabRoute
@@ -392,6 +400,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
+  '/recovery-test': typeof RecoveryTestRoute
   '/research': typeof ResearchRoute
   '/roadmap': typeof RoadmapRoute
   '/scene-composer-lab': typeof SceneComposerLabRoute
@@ -440,6 +449,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/queue'
     | '/rating'
+    | '/recovery-test'
     | '/research'
     | '/roadmap'
     | '/scene-composer-lab'
@@ -486,6 +496,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/queue'
     | '/rating'
+    | '/recovery-test'
     | '/research'
     | '/roadmap'
     | '/scene-composer-lab'
@@ -532,6 +543,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/queue'
     | '/rating'
+    | '/recovery-test'
     | '/research'
     | '/roadmap'
     | '/scene-composer-lab'
@@ -579,6 +591,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
+  RecoveryTestRoute: typeof RecoveryTestRoute
   ResearchRoute: typeof ResearchRoute
   RoadmapRoute: typeof RoadmapRoute
   SceneComposerLabRoute: typeof SceneComposerLabRoute
@@ -728,6 +741,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof ResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recovery-test': {
+      id: '/recovery-test'
+      path: '/recovery-test'
+      fullPath: '/recovery-test'
+      preLoaderRoute: typeof RecoveryTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rating': {
@@ -939,6 +959,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
+  RecoveryTestRoute: RecoveryTestRoute,
   ResearchRoute: ResearchRoute,
   RoadmapRoute: RoadmapRoute,
   SceneComposerLabRoute: SceneComposerLabRoute,
@@ -964,13 +985,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
