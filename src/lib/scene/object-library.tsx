@@ -26,7 +26,7 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
     render: ({ cx, cy, scale }) => group(cx, cy, 90, 160, scale, (
       <>
         <line x1={45} y1={160} x2={45} y2={100} {...line} />
-        <path d="M 10 100 Q 45 20 80 100 Z" fill="#fff" {...line} />
+        <path d="M 10 100 Q 45 20 80 100 Z" {...line} fill="#fff" />
       </>
     )),
   },
@@ -34,7 +34,7 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
     w: 80, h: 80,
     render: ({ cx, cy, scale }) => group(cx, cy, 80, 80, scale, (
       <>
-        <circle cx={40} cy={40} r={22} fill="#FFD84D" {...line} />
+        <circle cx={40} cy={40} r={22} {...line} fill="#FFD84D" />
         {[0,45,90,135,180,225,270,315].map((a) => {
           const rad = (a*Math.PI)/180;
           return <line key={a} x1={40+Math.cos(rad)*30} y1={40+Math.sin(rad)*30}
@@ -46,13 +46,13 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
   moon: {
     w: 60, h: 60,
     render: ({ cx, cy, scale }) => group(cx, cy, 60, 60, scale, (
-      <path d="M 45 10 A 25 25 0 1 0 45 55 A 18 18 0 1 1 45 10 Z" fill="#F5F1D9" {...line} />
+      <path d="M 45 10 A 25 25 0 1 0 45 55 A 18 18 0 1 1 45 10 Z" {...line} fill="#F5F1D9" />
     )),
   },
   cloud: {
     w: 120, h: 50,
     render: ({ cx, cy, scale }) => group(cx, cy, 120, 50, scale, (
-      <path d="M 20 40 Q 10 20 30 22 Q 35 8 55 15 Q 70 4 85 18 Q 108 18 105 38 Q 110 45 95 45 L 30 45 Q 15 46 20 40 Z" fill="#fff" {...line} />
+      <path d="M 20 40 Q 10 20 30 22 Q 35 8 55 15 Q 70 4 85 18 Q 108 18 105 38 Q 110 45 95 45 L 30 45 Q 15 46 20 40 Z" {...line} fill="#fff" />
     )),
   },
   streetlight: {
@@ -61,7 +61,7 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
       <>
         <line x1={20} y1={180} x2={20} y2={30} {...line} />
         <path d="M 20 30 Q 20 15 35 15" {...line} />
-        <rect x={30} y={12} width={12} height={12} fill="#FFE680" {...line} />
+        <rect x={30} y={12} width={12} height={12} {...line} fill="#FFE680" />
       </>
     )),
   },
@@ -72,7 +72,7 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
         <line x1={10} y1={65} x2={45} y2={50} {...line} />
         <line x1={80} y1={65} x2={45} y2={50} {...line} />
         <line x1={20} y1={62} x2={70} y2={62} {...line} />
-        <path d="M 30 55 Q 40 20 45 40 Q 50 15 60 55 Z" fill="#FF8A3C" {...line} />
+        <path d="M 30 55 Q 40 20 45 40 Q 50 15 60 55 Z" {...line} fill="#FF8A3C" />
         <path d="M 35 55 Q 42 35 45 45 Q 48 30 55 55 Z" fill="#FFD84D" stroke="#FF8A3C" strokeWidth={SW*0.6} />
       </>
     )),
@@ -81,9 +81,9 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
     w: 160, h: 110,
     render: ({ cx, cy, scale }) => group(cx, cy, 160, 110, scale, (
       <>
-        <path d="M 10 105 L 80 10 L 150 105 Z" fill="#fff" {...line} />
+        <path d="M 10 105 L 80 10 L 150 105 Z" {...line} fill="#fff" />
         <path d="M 80 10 L 80 105" {...line} />
-        <path d="M 60 105 L 80 60 L 100 105 Z" fill="#F2F2F2" {...line} />
+        <path d="M 60 105 L 80 60 L 100 105 Z" {...line} fill="#F2F2F2" />
       </>
     )),
   },
@@ -112,12 +112,12 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
     w: 130, h: 150,
     render: ({ cx, cy, scale }) => group(cx, cy, 130, 150, scale, (
       <>
-        <rect x={5} y={5} width={120} height={140} fill="#BDBDBD" {...line} />
-        <rect x={20} y={20} width={90} height={40} fill="#E0E0E0" {...line} />
-        <circle cx={40} cy={90} r={8} fill="#fff" {...line} />
-        <circle cx={70} cy={90} r={8} fill="#fff" {...line} />
-        <circle cx={100} cy={90} r={8} fill="#fff" {...line} />
-        <rect x={20} y={115} width={90} height={20} fill="#fff" {...line} />
+        <rect x={5} y={5} width={120} height={140} {...line} fill="#BDBDBD" />
+        <rect x={20} y={20} width={90} height={40} {...line} fill="#E0E0E0" />
+        <circle cx={40} cy={90} r={8} {...line} fill="#fff" />
+        <circle cx={70} cy={90} r={8} {...line} fill="#fff" />
+        <circle cx={100} cy={90} r={8} {...line} fill="#fff" />
+        <rect x={20} y={115} width={90} height={20} {...line} fill="#fff" />
       </>
     )),
   },
@@ -126,8 +126,8 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
     render: ({ cx, cy, scale }) => group(cx, cy, 50, 160, scale, (
       <>
         <line x1={25} y1={160} x2={25} y2={60} {...line} />
-        <rect x={10} y={20} width={30} height={45} fill="#fff" {...line} />
-        <circle cx={25} cy={40} r={8} fill="#fff" {...line} />
+        <rect x={10} y={20} width={30} height={45} {...line} fill="#fff" />
+        <circle cx={25} cy={40} r={8} {...line} fill="#fff" />
       </>
     )),
   },
@@ -168,11 +168,11 @@ export const OBJECTS: Record<ObjectType, ObjectMeta> = {
     w: 160, h: 140,
     render: ({ cx, cy, scale }) => group(cx, cy, 160, 140, scale, (
       <>
-        <rect x={20} y={60} width={120} height={75} fill="#fff" {...line} />
-        <path d="M 10 60 L 80 10 L 150 60 Z" fill="#fff" {...line} />
-        <rect x={65} y={90} width={30} height={45} fill="#fff" {...line} />
-        <rect x={30} y={75} width={20} height={20} fill="#fff" {...line} />
-        <rect x={110} y={75} width={20} height={20} fill="#fff" {...line} />
+        <rect x={20} y={60} width={120} height={75} {...line} fill="#fff" />
+        <path d="M 10 60 L 80 10 L 150 60 Z" {...line} fill="#fff" />
+        <rect x={65} y={90} width={30} height={45} {...line} fill="#fff" />
+        <rect x={30} y={75} width={20} height={20} {...line} fill="#fff" />
+        <rect x={110} y={75} width={20} height={20} {...line} fill="#fff" />
       </>
     )),
   },
