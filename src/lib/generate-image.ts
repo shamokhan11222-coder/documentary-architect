@@ -391,17 +391,20 @@ export const IMAGE_SANITY_PROMPT =
  *  test buttons. Surfaces the exact provider, model, request time and real
  *  error, and returns a real image the caller can display and store. */
 export async function generateTestImage(
-  only?: "puter" | "pollinations",
+  only?: "puter" | "pollinations" | "lovable-gateway",
 ): Promise<ImageSanityResult> {
   const start = Date.now();
   try {
-    const r = await generatePipelineImage(IMAGE_SANITY_PROMPT, { seed: 7, only });
+    const opts: PipelineOptions = { seed: 7 };
+    if (only === "puter" || only === "pollinations") opts.only = only;
+    // "lovable-gateway" or undefined → primary path (gateway).
+    const r = await generatePipelineImage(IMAGE_SANITY_PROMPT, opts);
     return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - start, image: r.image };
   } catch (e) {
     return {
       ok: false,
-      provider: only ?? "puter",
-      model: only === "pollinations" ? "flux" : "puter-txt2img",
+      provider: only ?? "lovable-gateway",
+      model: only === "pollinations" ? "flux" : only === "puter" ? "puter-txt2img" : "lovable-gateway",
       ms: Date.now() - start,
       error: imageErrorMessage(e),
       rateLimited: isRateLimitError(e),
