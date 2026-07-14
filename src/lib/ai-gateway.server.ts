@@ -4,12 +4,37 @@ import { makeProviderError } from "./provider-error";
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
 
-/** Raised when the AI gateway reports credits are exhausted (HTTP 402). */
+/**
+ * Raised when the AI gateway reports credits are exhausted (HTTP 402).
+ * Kept as a plain Error subclass for backward-compat, but callers inside this
+ * module now throw a structured ProviderError instead so the client can render
+ * an inline "AI credits are exhausted." message with a Retry button instead of
+ * crashing to the global error boundary.
+ */
 export class CreditsExhaustedError extends Error {
   constructor() {
     super("CREDITS_EXHAUSTED");
     this.name = "CreditsExhaustedError";
   }
+}
+
+function creditsExhaustedProviderError(
+  status: number,
+  rawBody: string,
+  requestId: string | null,
+  retryAfter: string | null,
+): Error {
+  return makeProviderError({
+    provider: "lovable-gateway",
+    model: MODEL,
+    endpoint: GATEWAY_URL,
+    httpStatus: status,
+    requestId,
+    responseTimeMs: null,
+    retryAfter,
+    message: "AI credits are exhausted.",
+    rawBody: rawBody.slice(0, 20000),
+  });
 }
 
 /**
@@ -74,7 +99,13 @@ export async function callAiJsonGateway<T = unknown>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 402) throw new CreditsExhaustedError();
+    if (res.status === 402)
+      throw creditsExhaustedProviderError(
+        res.status,
+        text,
+        res.headers.get("x-request-id"),
+        res.headers.get("retry-after"),
+      );
     let msg = `AI gateway request failed (${res.status})`;
     try {
       const j = JSON.parse(text);
