@@ -8,10 +8,11 @@ interface Props {
   scale?: number;
   className?: string;
   filterId?: string; // must be unique per document if roughness used
+  svgRef?: React.Ref<SVGSVGElement>;
 }
 
 /** Renders the rig purely from vector primitives — never a bitmap. */
-export function RigSvg({ rig, pose, expression, scale = 1, className, filterId }: Props) {
+export function RigSvg({ rig, pose, expression, scale = 1, className, filterId, svgRef }: Props) {
   const exp = expression ?? DEFAULT_EXPRESSION;
   const { w, h } = RIG_VIEWBOX;
   const fid = filterId ?? `rig-rough-${Math.random().toString(36).slice(2, 9)}`;
@@ -19,6 +20,7 @@ export function RigSvg({ rig, pose, expression, scale = 1, className, filterId }
 
   return (
     <svg
+      ref={svgRef}
       viewBox={`0 0 ${w} ${h}`}
       className={className}
       xmlns="http://www.w3.org/2000/svg"
