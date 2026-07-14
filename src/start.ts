@@ -26,7 +26,7 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 // without threading params through each function. Runs on the client.
 const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
   async ({ next }) => {
-    const p = getActiveTextProvider();
+    const p = null as ReturnType<typeof getActiveTextProvider> | null;
     const headers: Record<string, string> = {};
     // Route text tasks to the selected Text Provider (Gemini or OpenAI) when a
     // matching key is connected. A "built-in" selection (or no key) is honored
