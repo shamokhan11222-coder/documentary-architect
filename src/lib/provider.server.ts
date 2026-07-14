@@ -4,6 +4,7 @@
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { makeProviderError } from "./provider-error";
 import { GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./gemini-model";
+import { pickGeminiTextModel, invalidateGeminiModelCache } from "./gemini-models.server";
 
 export interface ServerProvider {
   name: "gemini" | "openai";
@@ -36,19 +37,37 @@ export async function geminiGenerateText(
   user: string,
   json: boolean,
 ): Promise<string> {
-  const finalModel = normalizeGeminiModel(model) || GEMINI_TEXT_MODEL_DEFAULT_FULL;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/${finalModel}:generateContent`;
-  const startedAt = Date.now();
-  console.log(`Final Gemini model sent: ${finalModel}`);
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: json ? { responseMimeType: "application/json" } : {},
-    }),
-  });
+  // Always resolve against the live Google ListModels catalog. The user's
+  // saved model may not exist anymore (e.g. gemini-2.5-flash rotated out).
+  const pick = await pickGeminiTextModel(apiKey);
+  const preferred = normalizeGeminiModel(model);
+  const finalModel =
+    (preferred && pick.candidates.includes(preferred)) ? preferred : pick.model || GEMINI_TEXT_MODEL_DEFAULT_FULL;
+  const attempt = async (m: string) => {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/${m}:generateContent`;
+    const startedAt = Date.now();
+    console.log(`[gemini] POST ${endpoint}`);
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: user }] }],
+        generationConfig: json ? { responseMimeType: "application/json" } : {},
+      }),
+    });
+    return { res, endpoint, startedAt };
+  };
+
+  let { res, endpoint, startedAt } = await attempt(finalModel);
+  // On 404 (model gone) or 400 (model invalid), refresh list and retry once.
+  if ((res.status === 404 || res.status === 400) && pick.listOk) {
+    invalidateGeminiModelCache(apiKey);
+    const fresh = await pickGeminiTextModel(apiKey, { force: true });
+    if (fresh.model && fresh.model !== finalModel) {
+      ({ res, endpoint, startedAt } = await attempt(fresh.model));
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
