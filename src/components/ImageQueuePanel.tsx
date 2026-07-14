@@ -1,5 +1,6 @@
 // Live image-generation queue panel: provider status, test images, controls.
-// Zero-budget pipeline: Puter AI (primary) → Pollinations (fallback).
+// Active pipeline: Lovable AI Gateway (primary — billed via workspace credits).
+// Pollinations / Puter remain as disabled legacy providers behind test buttons.
 import { useEffect, useState } from "react";
 import { Play, Pause, RotateCcw, SkipForward, Square, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ import {
 import { usePuterStatus } from "@/lib/puter-image";
 import { usePollinationsStatus } from "@/lib/pollinations-image";
 import { generateTestImage, type ImageSanityResult } from "@/lib/generate-image";
+import { useLovableGatewayStatus, useLovableGatewayModel } from "@/lib/lovable-gateway-image";
 import { buildDebugReport } from "@/lib/image-pipeline";
 
 function useNow(active: boolean) {
@@ -42,14 +44,16 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
   const pollinations = usePollinationsStatus();
   useNow(q.state === "cooling" || q.state === "running");
 
-  const [testing, setTesting] = useState<null | "puter" | "pollinations">(null);
+  const [testing, setTesting] = useState<null | "puter" | "pollinations" | "lovable-gateway">(null);
   const [testImg, setTestImg] = useState<string | null>(null);
   const [testInfo, setTestInfo] = useState<string | null>(null);
   const [testedOk, setTestedOk] = useState(false);
+  const gatewayStatus = useLovableGatewayStatus();
+  const gatewayModel = useLovableGatewayModel();
 
   const running = q.state === "running" || q.state === "cooling";
 
-  async function runTest(only: "puter" | "pollinations") {
+  async function runTest(only: "puter" | "pollinations" | "lovable-gateway") {
     setTesting(only);
     setTestInfo(null);
     try {
@@ -58,7 +62,7 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
         setTestImg(r.image);
         setTestInfo(`${r.provider} · ${r.model} · ${r.ms}ms`);
         setTestedOk(true);
-        toast.success(`${only === "puter" ? "Puter" : "Pollinations"} test image generated.`);
+        toast.success(`${only} test image generated.`);
       } else {
         setTestInfo(r.error ?? "Test failed.");
         toast.error(r.error ?? "Test failed.");
@@ -83,7 +87,7 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
   return (
     <div className="mt-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-medium">Image Queue · Puter AI → Pollinations</div>
+        <div className="text-sm font-medium">Image Queue · Lovable AI Gateway ({gatewayModel})</div>
         <div className="flex flex-wrap gap-1">
           <Button size="sm" variant="outline" onClick={onStart} disabled={running || !testedOk}>
             <Play className="mr-1 h-4 w-4" /> Start Queue
@@ -110,9 +114,10 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
       </div>
 
       {/* Provider status + sanity test */}
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Stat label="Puter AI (primary)" value={puter} />
-        <Stat label="Pollinations (fallback)" value={pollinations} />
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Stat label="Lovable Gateway (primary)" value={gatewayStatus} />
+        <Stat label="Puter AI (legacy)" value={puter} />
+        <Stat label="Pollinations (legacy)" value={pollinations} />
       </div>
 
       {!testedOk && (
@@ -122,13 +127,17 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={() => runTest("lovable-gateway")} disabled={testing !== null}>
+          {testing === "lovable-gateway" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-1 h-4 w-4" />}
+          Generate 1 Gateway Test Image
+        </Button>
         <Button size="sm" variant="outline" onClick={() => runTest("puter")} disabled={testing !== null}>
           {testing === "puter" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-1 h-4 w-4" />}
-          Generate 1 Puter Test Image
+          Legacy: Puter Test
         </Button>
         <Button size="sm" variant="outline" onClick={() => runTest("pollinations")} disabled={testing !== null}>
           {testing === "pollinations" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-1 h-4 w-4" />}
-          Generate 1 Pollinations Test Image
+          Legacy: Pollinations Test
         </Button>
         <Button size="sm" variant="ghost" onClick={copyDebug}>
           Copy Debug Report

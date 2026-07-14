@@ -1,79 +1,182 @@
+// Lovable AI Gateway image generation route.
+// Server-side only. LOVABLE_API_KEY is read inside the handler and never
+// leaves the server. Pixels flow: client → this route → Lovable Gateway
+// (/v1/images/generations) → data URL response.
 import { createFileRoute } from "@tanstack/react-router";
 
-// Compatibility endpoint only. The active app image pipeline is browser-side:
-// generateSceneImage/buildThumbnailPrompt -> generatePipelineImage -> Puter AI
-// primary -> Pollinations fallback -> IndexedDB. Gemini/OpenAI/Recraft image
-// routes are disabled here so stale clients cannot make paid or forbidden calls.
+type Purpose = "storyboard" | "thumbnail" | "test";
 
-const GEMINI_IMAGE_DISABLED_MESSAGE = "BUG: Gemini image provider is disabled in Zero-Budget Mode.";
-const POLLINATIONS = "https://image.pollinations.ai/prompt";
-
-type Provider = {
-  name?: "gemini" | "openai" | "fal" | "replicate" | "recraft" | "huggingface" | "pollinations" | "builtin" | "puter";
-  imageModel?: string;
-};
-type Body = {
+interface RequestBody {
   prompt?: string;
-  provider?: Provider;
-  test?: boolean;
-  action?: string;
-};
+  width?: number;
+  height?: number;
+  purpose?: Purpose;
+  model?: string;
+  /** Optional image URLs / data URLs to send as reference conditioning. */
+  references?: string[];
+}
 
-function jsonError(error: string, status = 400, code?: string) {
-  console.error("[image] disabled route", { status, code: code ?? null, error });
-  return new Response(JSON.stringify({ error, code: code ?? null, status }), {
+// Recognised image-capable Gateway models. First entry is the default.
+const KNOWN_MODELS = [
+  "google/gemini-3.1-flash-image",
+  "google/gemini-3.1-flash-lite-image",
+  "google/gemini-2.5-flash-image",
+  "google/gemini-3-pro-image",
+  "openai/gpt-image-1-mini",
+  "openai/gpt-image-2",
+] as const;
+
+const DEFAULT_MODEL = KNOWN_MODELS[0];
+
+function jsonError(error: string, status: number, extra: Record<string, unknown> = {}) {
+  return new Response(JSON.stringify({ error, status, ...extra }), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-function disabledProvider(name: string | undefined): Response {
-  if (name === "gemini") return jsonError(GEMINI_IMAGE_DISABLED_MESSAGE, 400, "GEMINI_IMAGE_DISABLED");
-  return jsonError("Image provider is disabled in Zero-Budget Mode. Use Puter AI or Pollinations.", 400, "IMAGE_PROVIDER_DISABLED");
+/** Best-effort data-URL extractor for either streaming or non-streaming
+ *  Lovable Gateway image responses. */
+function extractImageDataUrl(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const seen = new Set<unknown>();
+  const stack: unknown[] = [payload];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== "object" || seen.has(node)) continue;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const v of node) stack.push(v);
+      continue;
+    }
+    const obj = node as Record<string, unknown>;
+    // OpenAI images/generations: { data: [{ b64_json }] }
+    if (typeof obj.b64_json === "string") return `data:image/png;base64,${obj.b64_json}`;
+    // Chat-completions image parts: { image_url: { url: "data:..." } } or { url: "data:..." }
+    if (obj.image_url && typeof obj.image_url === "object") {
+      const u = (obj.image_url as Record<string, unknown>).url;
+      if (typeof u === "string" && u.startsWith("data:image")) return u;
+    }
+    if (typeof obj.url === "string" && obj.url.startsWith("data:image")) return obj.url;
+    if (typeof obj.image === "string" && obj.image.startsWith("data:image")) return obj.image;
+    for (const v of Object.values(obj)) if (v && typeof v === "object") stack.push(v);
+  }
+  return null;
 }
 
-function firstErrorMessage(text: string): string {
-  try {
-    const json = JSON.parse(text);
-    return json?.error?.message || json?.message || text;
-  } catch {
-    return text;
+/** Aggregate an SSE stream body and concatenate every JSON delta into one
+ *  object so extractImageDataUrl can find the final image. */
+async function aggregateSse(stream: ReadableStream<Uint8Array>): Promise<unknown[]> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  const events: unknown[] = [];
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      for (const line of frame.split("\n")) {
+        const l = line.trim();
+        if (!l.startsWith("data:")) continue;
+        const data = l.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        try { events.push(JSON.parse(data)); } catch { /* ignore malformed */ }
+      }
+    }
   }
-}
-
-async function generateWithPollinations(body: Body): Promise<Response> {
-  const prompt = body.prompt?.trim();
-  if (!prompt) return jsonError("Missing prompt", 400, "BAD_REQUEST");
-  const model = body.provider?.imageModel || "flux";
-  const url = `${POLLINATIONS}/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=1280&height=720&nologo=true`;
-  const upstream = await fetch(url);
-  if (!upstream.ok) {
-    const text = await upstream.text().catch(() => "");
-    return jsonError(`pollinations ${upstream.status}: ${firstErrorMessage(text)}`, upstream.status, upstream.status === 429 ? "RATE_LIMIT" : "PROVIDER_ERROR");
-  }
-  const buf = await upstream.arrayBuffer();
-  const mime = upstream.headers.get("content-type") || "image/jpeg";
-  const b64 = Buffer.from(buf).toString("base64");
-  return Response.json({ image: `data:${mime};base64,${b64}`, provider: "pollinations", model });
+  return events;
 }
 
 export const Route = createFileRoute("/api/generate-image")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = (await request.json()) as Body;
-        if (body.action?.toLowerCase().includes("gemini")) return disabledProvider("gemini");
-        const name = body.provider?.name;
-        if (!name) return jsonError("Zero-Budget image mode uses Puter AI primary and Pollinations fallback.", 400, "NO_PROVIDER");
-        if (name === "gemini" || name === "openai" || name === "recraft" || name === "fal" || name === "replicate" || name === "huggingface" || name === "builtin") {
-          return disabledProvider(name);
+        const started = Date.now();
+        const key = process.env.LOVABLE_API_KEY;
+        if (!key) return jsonError("LOVABLE_API_KEY is not configured on the server.", 500, { code: "NO_KEY" });
+
+        let body: RequestBody;
+        try { body = (await request.json()) as RequestBody; }
+        catch { return jsonError("Invalid JSON body.", 400, { code: "BAD_JSON" }); }
+
+        const prompt = (body.prompt ?? "").trim();
+        if (!prompt) return jsonError("Missing prompt.", 400, { code: "BAD_REQUEST" });
+
+        const model = body.model && KNOWN_MODELS.includes(body.model as typeof KNOWN_MODELS[number])
+          ? body.model
+          : DEFAULT_MODEL;
+
+        // Build user content — prompt + optional reference images.
+        const userContent: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
+        if (Array.isArray(body.references)) {
+          for (const ref of body.references.slice(0, 4)) {
+            if (typeof ref === "string" && (ref.startsWith("data:image") || ref.startsWith("https://") || ref.startsWith("http://"))) {
+              userContent.push({ type: "image_url", image_url: { url: ref } });
+            }
+          }
         }
-        if (name === "puter") return Response.json({ ok: true, provider: "puter", note: "Puter runs in the browser SDK; no server request is used." });
-        if (name === "pollinations") {
-          if (body.test) return Response.json({ ok: true, provider: "pollinations" });
-          return generateWithPollinations(body);
+
+        const gatewayBody = {
+          model,
+          messages: [{ role: "user", content: userContent }],
+          modalities: ["image", "text"],
+          stream: true,
+        };
+
+        let upstream: Response;
+        try {
+          upstream = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${key}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(gatewayBody),
+          });
+        } catch (e) {
+          return jsonError(`Gateway request failed: ${e instanceof Error ? e.message : String(e)}`, 502, { code: "NETWORK", model });
         }
-        return disabledProvider(name);
+
+        if (!upstream.ok) {
+          const text = await upstream.text().catch(() => "");
+          const code = upstream.status === 402 ? "PAYMENT_REQUIRED" : upstream.status === 429 ? "RATE_LIMIT" : "PROVIDER_ERROR";
+          return jsonError(`gateway ${upstream.status}: ${text || upstream.statusText}`, upstream.status, { code, model });
+        }
+
+        // Try streaming aggregation first; if the response isn't SSE fall back to JSON.
+        const contentType = upstream.headers.get("content-type") || "";
+        let dataUrl: string | null = null;
+        let rawSummary = "";
+        if (contentType.includes("text/event-stream") && upstream.body) {
+          const events = await aggregateSse(upstream.body);
+          for (let i = events.length - 1; i >= 0 && !dataUrl; i--) dataUrl = extractImageDataUrl(events[i]);
+          rawSummary = `sse events: ${events.length}`;
+        } else {
+          const text = await upstream.text();
+          try {
+            const parsed = JSON.parse(text);
+            dataUrl = extractImageDataUrl(parsed);
+            rawSummary = "json";
+          } catch {
+            rawSummary = text.slice(0, 200);
+          }
+        }
+
+        if (!dataUrl) {
+          return jsonError(`Gateway returned no image (${rawSummary}).`, 502, { code: "NO_IMAGE", model });
+        }
+
+        return Response.json({
+          image: dataUrl,
+          provider: "lovable-gateway",
+          model,
+          purpose: body.purpose ?? "storyboard",
+          ms: Date.now() - started,
+        });
       },
     },
   },

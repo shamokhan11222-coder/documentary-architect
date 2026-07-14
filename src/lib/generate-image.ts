@@ -3,7 +3,7 @@
 import { collectDnaReferences } from "./visual-dna";
 import { getInstructionText } from "./instructions";
 import { getVisualInstructions } from "./visual-instructions";
-import { buildScenePrompt, STYLE_CORRECTION_PREFIX, buildThumbnailIllustrationPrompt } from "./style-lock";
+import { buildScenePrompt, buildThumbnailIllustrationPrompt } from "./style-lock";
 import { conceptFromIdea, composeThumbnail, validateComposedThumbnail } from "./thumbnail-compositor";
 import { enqueueAi } from "./ai-queue";
 import { getFreeMode, FREE_MODE_DELAY_MS } from "./free-mode";
@@ -30,27 +30,11 @@ function combinedArtDirection(): string {
     .join(" ");
 }
 
-/** Run the pipeline once; if the polished-fallback provider (Puter) produced the
- *  image, retry EXACTLY once through the primary with a hard MS-Paint style
- *  correction (Section F). Only one automatic retry is ever allowed. */
+/** Pipeline call. With Lovable Gateway as the sole primary provider there is
+ *  no automatic Puter/Pollinations fallback and no silent style-correction
+ *  retry — one click = one billed image request. */
 async function runPipelineWithStyleGuard(prompt: string, opts: PipelineOptions): Promise<PipelineResult> {
-  const first = await generatePipelineImage(prompt, opts);
-  // Puter is the fallback and the source of over-polished/anime-looking output.
-  // A single automatic correction retry re-renders through Pollinations primary.
-  if (first.provider === "puter") {
-    try {
-      const corrected = await generatePipelineImage(`${STYLE_CORRECTION_PREFIX} ${prompt}`, {
-        ...opts,
-        only: "pollinations",
-        seed: (opts.seed ?? 0) + 1,
-      });
-      return corrected;
-    } catch {
-      // Correction retry failed — keep the original result rather than failing.
-      return first;
-    }
-  }
-  return first;
+  return generatePipelineImage(prompt, opts);
 }
 
 /** The Visual Style chosen at project creation, read from the active project so
@@ -330,7 +314,7 @@ export async function generateSceneImageResult(scene: VisualScene): Promise<Imag
   } catch (e) {
     return {
       success: false,
-      provider: "puter",
+      provider: "lovable-gateway",
       errorCode: e instanceof ImageGenError ? e.code ?? undefined : undefined,
       errorMessage: imageErrorMessage(e),
       durationMs: Date.now() - start,
@@ -351,24 +335,9 @@ export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<strin
   );
   lastImageRequestAt = Date.now();
   const final = await composeThumbnail(concept, r.image);
-  // Rejection rule: a composed thumbnail must always carry the headline layer.
-  // The text is programmatic so it cannot go missing, but if the canvas export
-  // is somehow invalid we allow exactly one illustration retry.
-  if (!validateComposedThumbnail(final)) {
-    const retry = await enqueueAi(
-      () =>
-        runPipelineWithStyleGuard(prompt, {
-          width: 1280,
-          height: 720,
-          purpose: "thumbnail",
-          only: "pollinations",
-          seed: 1,
-        }),
-      "Thumbnail",
-      { retryRateLimits: false },
-    );
-    return composeThumbnail(concept, retry.image);
-  }
+  // No silent retries — the composed canvas already guarantees the headline
+  // layer. If the export is invalid the caller surfaces the exact error.
+  if (!validateComposedThumbnail(final)) throw new Error("Composed thumbnail was invalid.");
   return final;
 }
 
@@ -394,7 +363,7 @@ export async function generateThumbnailImageResult(idea: ThumbnailIdea): Promise
   } catch (e) {
     return {
       success: false,
-      provider: "puter",
+      provider: "lovable-gateway",
       errorCode: e instanceof ImageGenError ? e.code ?? undefined : undefined,
       errorMessage: imageErrorMessage(e),
       durationMs: Date.now() - start,
@@ -422,17 +391,20 @@ export const IMAGE_SANITY_PROMPT =
  *  test buttons. Surfaces the exact provider, model, request time and real
  *  error, and returns a real image the caller can display and store. */
 export async function generateTestImage(
-  only?: "puter" | "pollinations",
+  only?: "puter" | "pollinations" | "lovable-gateway",
 ): Promise<ImageSanityResult> {
   const start = Date.now();
   try {
-    const r = await generatePipelineImage(IMAGE_SANITY_PROMPT, { seed: 7, only });
+    const opts: PipelineOptions = { seed: 7 };
+    if (only === "puter" || only === "pollinations") opts.only = only;
+    // "lovable-gateway" or undefined → primary path (gateway).
+    const r = await generatePipelineImage(IMAGE_SANITY_PROMPT, opts);
     return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - start, image: r.image };
   } catch (e) {
     return {
       ok: false,
-      provider: only ?? "puter",
-      model: only === "pollinations" ? "flux" : "puter-txt2img",
+      provider: only ?? "lovable-gateway",
+      model: only === "pollinations" ? "flux" : only === "puter" ? "puter-txt2img" : "lovable-gateway",
       ms: Date.now() - start,
       error: imageErrorMessage(e),
       rateLimited: isRateLimitError(e),
