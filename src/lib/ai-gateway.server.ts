@@ -198,7 +198,7 @@ export async function callAiJson<T = unknown>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 402) throw new CreditsExhaustedError();
+    if (res.status === 402) throw creditsExhaustedProviderError(res.status, text, res.headers.get("x-request-id"), res.headers.get("retry-after"));
     let msg = `AI gateway request failed (${res.status})`;
     try {
       const j = JSON.parse(text);
@@ -270,7 +270,7 @@ export async function callAiText(system: string, user: string): Promise<string> 
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    if (res.status === 402) throw new CreditsExhaustedError();
+    if (res.status === 402) throw creditsExhaustedProviderError(res.status, text, res.headers.get("x-request-id"), res.headers.get("retry-after"));
     let msg = `AI gateway request failed (${res.status})`;
     try {
       const j = JSON.parse(text);
