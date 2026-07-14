@@ -44,6 +44,7 @@ import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as ComponentsRouteImport } from './routes/components'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as ChecklistRouteImport } from './routes/checklist'
+import { Route as CharacterRigLabRouteImport } from './routes/character-rig-lab'
 import { Route as AudioRouteImport } from './routes/audio'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as ApiKeysRouteImport } from './routes/api-keys'
@@ -227,6 +228,11 @@ const ChecklistRoute = ChecklistRouteImport.update({
   path: '/checklist',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CharacterRigLabRoute = CharacterRigLabRouteImport.update({
+  id: '/character-rig-lab',
+  path: '/character-rig-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AudioRoute = AudioRouteImport.update({
   id: '/audio',
   path: '/audio',
@@ -268,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
+  '/character-rig-lab': typeof CharacterRigLabRoute
   '/checklist': typeof ChecklistRoute
   '/community': typeof CommunityRoute
   '/components': typeof ComponentsRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
+  '/character-rig-lab': typeof CharacterRigLabRoute
   '/checklist': typeof ChecklistRoute
   '/community': typeof CommunityRoute
   '/components': typeof ComponentsRoute
@@ -357,6 +365,7 @@ export interface FileRoutesById {
   '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
+  '/character-rig-lab': typeof CharacterRigLabRoute
   '/checklist': typeof ChecklistRoute
   '/community': typeof CommunityRoute
   '/components': typeof ComponentsRoute
@@ -403,6 +412,7 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/assets'
     | '/audio'
+    | '/character-rig-lab'
     | '/checklist'
     | '/community'
     | '/components'
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/assets'
     | '/audio'
+    | '/character-rig-lab'
     | '/checklist'
     | '/community'
     | '/components'
@@ -491,6 +502,7 @@ export interface FileRouteTypes {
     | '/api-keys'
     | '/assets'
     | '/audio'
+    | '/character-rig-lab'
     | '/checklist'
     | '/community'
     | '/components'
@@ -536,6 +548,7 @@ export interface RootRouteChildren {
   ApiKeysRoute: typeof ApiKeysRoute
   AssetsRoute: typeof AssetsRoute
   AudioRoute: typeof AudioRoute
+  CharacterRigLabRoute: typeof CharacterRigLabRoute
   ChecklistRoute: typeof ChecklistRoute
   CommunityRoute: typeof CommunityRoute
   ComponentsRoute: typeof ComponentsRoute
@@ -823,6 +836,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChecklistRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/character-rig-lab': {
+      id: '/character-rig-lab'
+      path: '/character-rig-lab'
+      fullPath: '/character-rig-lab'
+      preLoaderRoute: typeof CharacterRigLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/audio': {
       id: '/audio'
       path: '/audio'
@@ -880,6 +900,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiKeysRoute: ApiKeysRoute,
   AssetsRoute: AssetsRoute,
   AudioRoute: AudioRoute,
+  CharacterRigLabRoute: CharacterRigLabRoute,
   ChecklistRoute: ChecklistRoute,
   CommunityRoute: CommunityRoute,
   ComponentsRoute: ComponentsRoute,
@@ -922,13 +943,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
