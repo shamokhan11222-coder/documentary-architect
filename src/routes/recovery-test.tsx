@@ -17,9 +17,22 @@ interface Row {
   detail: string;
 }
 
+interface Report {
+  apiKeyValid: boolean;
+  selectedModel: string;
+  endpoint: string;
+  listStatus: number;
+  listedCount: number;
+  candidates: string[];
+  rawError?: string;
+  probe: Row;
+  results: Row[];
+}
+
 function RecoveryTestPage() {
   const runFn = useServerFn(runRecoveryTest);
   const [rows, setRows] = useState<Row[]>([]);
+  const [report, setReport] = useState<Report | null>(null);
   const [busy, setBusy] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const textProvider = useActiveTextProvider();
@@ -29,9 +42,12 @@ function RecoveryTestPage() {
   async function run() {
     setBusy(true);
     setRows([]);
+    setReport(null);
     setLastError(null);
     try {
-      const textRows = (await runFn()) as Row[];
+      const rep = (await runFn()) as unknown as Report;
+      setReport(rep);
+      const textRows: Row[] = rep.results;
       // Voice preview test — client-only, hits /api/tts (Lovable Gateway TTS)
       let voice: Row = {
         module: "Voice",
@@ -68,7 +84,27 @@ function RecoveryTestPage() {
         <div><b>Active Text Provider:</b> {textProvider ? `${textProvider.name} — ${textProvider.textModel}` : "None (Lovable Gateway builtin)"}</div>
         <div><b>Active Image Provider:</b> {image ? `${image.name} — ${image.label}` : "None"}</div>
         <div><b>Active Voice Provider:</b> {settings.voice === "builtin" ? "Lovable Gateway TTS (needs Gateway credits)" : settings.voice}</div>
-        <div><b>Text Endpoint:</b> <code>{textProvider?.name === "gemini" ? `generativelanguage.googleapis.com/v1beta/${textProvider.textModel}:generateContent` : "ai.gateway.lovable.dev"}</code></div>
+        <div><b>Text Endpoint:</b> <code>{report?.endpoint || (textProvider?.name === "gemini" ? `generativelanguage.googleapis.com/v1beta/${textProvider.textModel}:generateContent` : "ai.gateway.lovable.dev")}</code></div>
+        {report && (
+          <>
+            <div><b>API key valid:</b> {report.apiKeyValid ? "yes" : "no"}</div>
+            <div><b>ListModels HTTP:</b> {report.listStatus} ({report.listedCount} models)</div>
+            <div><b>Selected text model:</b> <code>{report.selectedModel || "(none)"}</code></div>
+            <div><b>Probe:</b> {report.probe.ok ? "✅ Text provider working" : `❌ ${report.probe.detail}`}</div>
+            {report.candidates.length > 0 && (
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ cursor: "pointer" }}>Candidates ({report.candidates.length})</summary>
+                <pre style={{ fontSize: 11, opacity: 0.8, whiteSpace: "pre-wrap" }}>{report.candidates.join("\n")}</pre>
+              </details>
+            )}
+            {report.rawError && (
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ cursor: "pointer", color: "#f87171" }}>Raw Google error</summary>
+                <pre style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>{report.rawError}</pre>
+              </details>
+            )}
+          </>
+        )}
         <div><b>Last Error:</b> <span style={{ color: lastError ? "#f87171" : "#9ca3af" }}>{lastError ?? "none"}</span></div>
       </div>
       <button
