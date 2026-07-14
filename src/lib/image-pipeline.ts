@@ -13,6 +13,7 @@ import { puterGenerateImage, PuterError, setPuterStatus } from "./puter-image";
 import { pollinationsGenerateImage, PollinationsError, setPollinationsStatus } from "./pollinations-image";
 import { recordTelemetry } from "./provider-telemetry";
 import { recordErrorDetails } from "./error-details";
+import { lovableGatewayGenerateImage, LovableGatewayError, setLovableGatewayStatus } from "./lovable-gateway-image";
 
 export type ImageProviderName = "puter" | "pollinations" | "lovable-gateway";
 
@@ -216,17 +217,17 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
   const flowId = ++flowCounter;
   console.info("[image-flow] started", {
     flowId,
-    activeProvider: "pollinations",
+    activeProvider: "lovable-gateway",
     functionInvoked: "generatePipelineImage",
-    finalProviderRoute: "Pollinations primary → Puter AI fallback",
-    requestUrl: POLLINATIONS_REQUEST_URL,
+    finalProviderRoute: "Lovable AI Gateway (no automatic fallback)",
+    requestUrl: "/api/generate-image",
   });
   const start = Date.now();
   const width = opts.width ?? 1024;
   const height = opts.height ?? 1024;
   const seed = opts.seed ?? sceneSeed(opts.scene ?? 0);
 
-  // Explicit single-provider test path.
+  // Explicit legacy single-provider test path (Developer Mode only).
   if (opts.only === "pollinations") {
     const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
     return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
@@ -237,22 +238,52 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
     return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
   }
 
-  // 1) Pollinations first (primary).
+  // Primary (and ONLY automatic) provider: Lovable AI Gateway.
+  // No silent fallback to Pollinations/Puter — the caller sees the exact
+  // gateway error so quality/cost can be evaluated honestly.
+  const startedAt = Date.now();
   try {
-    const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
-    return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
-  } catch (firstErr) {
-    // 2) Automatic Puter fallback.
-    try {
-      const image = await tryPuter(prompt, opts.scene, flowId);
-      setPuterStatus("connected");
-      return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
-    } catch (fallbackErr) {
-      recordErrorDetails(fallbackErr, { provider: "puter" });
-      const firstMsg = firstErr instanceof Error ? firstErr.message : String(firstErr);
-      const secondMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-      throw new Error(`Both providers failed. Pollinations: ${firstMsg} | Puter: ${secondMsg}`);
-    }
+    const r = await lovableGatewayGenerateImage(prompt, {
+      width,
+      height,
+      purpose: purpose === "thumbnail" ? "thumbnail" : "storyboard",
+      references: (opts as { references?: string[] }).references,
+    });
+    pushDebug({
+      flowId,
+      provider: "lovable-gateway",
+      model: r.model,
+      scene: opts.scene,
+      functionInvoked: "generatePipelineImage → lovableGatewayGenerateImage",
+      finalProviderRoute: "Lovable AI Gateway (primary, no fallback)",
+      requestUrl: "/api/generate-image",
+      requestDomain: "ai.gateway.lovable.dev",
+      startedAt,
+      responseMs: Date.now() - startedAt,
+      ok: true,
+    });
+    recordTelemetry({ lastProvider: "lovable-gateway", lastStatus: "success", lastError: null });
+    setLovableGatewayStatus("ready");
+    return { image: r.image, provider: "lovable-gateway", model: r.model, seed, ms: Date.now() - start };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    pushDebug({
+      flowId,
+      provider: "lovable-gateway",
+      model: e instanceof LovableGatewayError ? e.model : "unknown",
+      scene: opts.scene,
+      functionInvoked: "generatePipelineImage → lovableGatewayGenerateImage",
+      finalProviderRoute: "Lovable AI Gateway (primary, no fallback)",
+      requestUrl: "/api/generate-image",
+      requestDomain: "ai.gateway.lovable.dev",
+      startedAt,
+      responseMs: Date.now() - startedAt,
+      ok: false,
+      error: msg,
+    });
+    recordTelemetry({ lastProvider: "lovable-gateway", lastStatus: "error", lastError: msg });
+    recordErrorDetails(e, { provider: "lovable-gateway" });
+    throw e;
   }
 }
 
