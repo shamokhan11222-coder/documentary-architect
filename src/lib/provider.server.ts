@@ -13,13 +13,19 @@ export interface ServerProvider {
 }
 
 export function readProviderFromHeaders(): ServerProvider | null {
-  // EMERGENCY RECOVERY: text generation is locked to the Lovable AI Gateway.
-  // Even if stale x-ai-provider / x-ai-key headers arrive, ignore them so no
-  // Research / Story / SEO / Rating call can hit generativelanguage.googleapis.com.
-  void GEMINI_TEXT_MODEL_DEFAULT_FULL;
-  void normalizeGeminiModel;
-  void getRequestHeader;
-  return null;
+  // SPLIT PROVIDER RECOVERY: Gateway funds are zero, text routes directly to
+  // the user's BYOK Google Gemini key sent via x-ai-provider / x-ai-key
+  // headers by the client middleware in src/start.ts.
+  const name = getRequestHeader("x-ai-provider");
+  const apiKey = getRequestHeader("x-ai-key");
+  if (!name || !apiKey) return null;
+  if (name !== "gemini" && name !== "openai") return null;
+  const rawModel = getRequestHeader("x-ai-text-model") ?? "";
+  const textModel =
+    name === "gemini"
+      ? normalizeGeminiModel(rawModel) || GEMINI_TEXT_MODEL_DEFAULT_FULL
+      : rawModel || "gpt-4o-mini";
+  return { name, apiKey, textModel, fallback: false };
 }
 
 /** Direct call to Google's Generative Language API. Returns raw text output. */
@@ -30,10 +36,6 @@ export async function geminiGenerateText(
   user: string,
   json: boolean,
 ): Promise<string> {
-  // Hard runtime guard: text must never leave via Google directly.
-  void apiKey; void model; void system; void user; void json;
-  throw new Error("BUG: Direct Gemini text routing is disabled.");
-  // eslint-disable-next-line no-unreachable
   const finalModel = normalizeGeminiModel(model) || GEMINI_TEXT_MODEL_DEFAULT_FULL;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/${finalModel}:generateContent`;
   const startedAt = Date.now();

@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callAiJson, callAiText } from "./ai-gateway.server";
+import { readProviderFromHeaders } from "./provider.server";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const GEMINI = "https://generativelanguage.googleapis.com/v1beta/{model}:generateContent";
 
 interface StepResult {
   module: string;
@@ -23,8 +25,9 @@ async function timed<T>(fn: () => Promise<T>): Promise<{ ok: boolean; detail: st
 }
 
 export const runRecoveryTest = createServerFn({ method: "POST" }).handler(async (): Promise<StepResult[]> => {
-  const endpoint = GATEWAY;
-  const provider = "lovable-gateway";
+  const p = readProviderFromHeaders();
+  const endpoint = p?.name === "gemini" ? GEMINI.replace("{model}", p.textModel) : GATEWAY;
+  const provider = p ? `${p.name} (${p.textModel})` : "lovable-gateway";
   const results: StepResult[] = [];
 
   // Research test — small JSON
@@ -48,6 +51,16 @@ export const runRecoveryTest = createServerFn({ method: "POST" }).handler(async 
       ),
     );
     results.push({ module: "SEO", endpoint, provider, status: r.ok ? "ok" : "error", ok: r.ok, detail: r.detail });
+  }
+  // Rating test — JSON scorecard
+  {
+    const r = await timed(() =>
+      callAiJson<{ score: number; verdict: string }>(
+        "You are a documentary reviewer.",
+        "Return JSON {score:1-10, verdict:string} rating this line: 'The forgotten origin of the paperclip'.",
+      ),
+    );
+    results.push({ module: "Rating", endpoint, provider, status: r.ok ? "ok" : "error", ok: r.ok, detail: r.detail });
   }
   return results;
 });

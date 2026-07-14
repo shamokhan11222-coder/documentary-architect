@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { runRecoveryTest } from "@/lib/recovery-test.functions";
+import { useActiveTextProvider, useActiveImageProvider, useProviderSettings } from "@/lib/provider";
 
 export const Route = createFileRoute("/recovery-test")({
   component: RecoveryTestPage,
@@ -20,12 +21,17 @@ function RecoveryTestPage() {
   const runFn = useServerFn(runRecoveryTest);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const textProvider = useActiveTextProvider();
+  const image = useActiveImageProvider();
+  const settings = useProviderSettings();
 
   async function run() {
     setBusy(true);
     setRows([]);
+    setLastError(null);
     try {
-      const text = (await runFn()) as Row[];
+      const textRows = (await runFn()) as Row[];
       // Voice preview test — client-only, hits /api/tts (Lovable Gateway TTS)
       let voice: Row = {
         module: "Voice",
@@ -45,7 +51,11 @@ function RecoveryTestPage() {
       } catch (e) {
         voice.detail = e instanceof Error ? e.message : String(e);
       }
-      setRows([...text, voice]);
+      setRows([...textRows, voice]);
+      const firstErr = [...textRows, voice].find((r) => !r.ok);
+      if (firstErr) setLastError(`${firstErr.module}: ${firstErr.detail}`);
+    } catch (e) {
+      setLastError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -54,9 +64,13 @@ function RecoveryTestPage() {
   return (
     <div style={{ padding: 24, fontFamily: "system-ui", color: "#e5e7eb", background: "#0b0f19", minHeight: "100vh" }}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>Text/Voice Recovery Test</h1>
-      <p style={{ opacity: 0.7, marginBottom: 16 }}>
-        Expected endpoint for every row: <code>ai.gateway.lovable.dev</code>
-      </p>
+      <div style={{ marginBottom: 16, padding: 12, background: "#111827", borderRadius: 8, fontSize: 13, lineHeight: 1.7 }}>
+        <div><b>Active Text Provider:</b> {textProvider ? `${textProvider.name} — ${textProvider.textModel}` : "None (Lovable Gateway builtin)"}</div>
+        <div><b>Active Image Provider:</b> {image ? `${image.name} — ${image.label}` : "None"}</div>
+        <div><b>Active Voice Provider:</b> {settings.voice === "builtin" ? "Lovable Gateway TTS (needs Gateway credits)" : settings.voice}</div>
+        <div><b>Text Endpoint:</b> <code>{textProvider?.name === "gemini" ? `generativelanguage.googleapis.com/v1beta/${textProvider.textModel}:generateContent` : "ai.gateway.lovable.dev"}</code></div>
+        <div><b>Last Error:</b> <span style={{ color: lastError ? "#f87171" : "#9ca3af" }}>{lastError ?? "none"}</span></div>
+      </div>
       <button
         onClick={run}
         disabled={busy}
