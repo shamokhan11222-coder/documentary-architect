@@ -87,10 +87,10 @@ export interface ProviderSettings {
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
-  // EMERGENCY RECOVERY: text and voice MUST route through the Lovable AI
-  // Gateway only. BYOK Gemini for text/voice is permanently disabled here so
-  // Research / Story / SEO / Rating / Voice cannot hit generativelanguage.googleapis.com.
-  text: "builtin",
+  // SPLIT PROVIDER RECOVERY: Lovable AI Gateway balance is exhausted. Text
+  // modules route directly to the user's BYOK Google Gemini key. Image stays
+  // on the zero-budget Puter/Pollinations pipeline (independent of text).
+  text: "gemini",
   image: "puter",
   voice: "builtin",
   thumbnail: "puter",
@@ -101,11 +101,11 @@ export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
 
 function normalizeSettings(s: Partial<ProviderSettings> | null): ProviderSettings {
   const next = { ...DEFAULT_PROVIDER_SETTINGS, ...(s ?? {}) };
-  // EMERGENCY RECOVERY: force text + voice to the Lovable AI Gateway. Any
-  // stale saved "gemini" / "openai" choice is coerced to "builtin" on read,
-  // which wipes stale localStorage routing without touching project data.
-  next.text = "builtin";
-  next.voice = "builtin";
+  // SPLIT PROVIDER RECOVERY: text is locked to BYOK Gemini (Gateway balance
+  // is zero). Any stale "builtin" / "openai" saved choice is coerced to
+  // "gemini" on read so no text call hits ai.gateway.lovable.dev.
+  next.text = "gemini";
+  // Voice keeps its saved value; the resolver decides whether it works.
   // Zero-budget image pipeline: only Puter (primary) and Pollinations
   // (fallback) are active image providers. Gemini / OpenAI / Recraft and the
   // built-in AI remain selectable in API Settings ONLY as disabled future
@@ -197,18 +197,14 @@ function resolveTextProvider(settings: ProviderSettings, list: ApiKeyEntry[]): A
 
 /** Non-reactive read of the active text provider (Gemini or OpenAI). */
 export function getActiveTextProvider(): ActiveTextProvider | null {
-  // EMERGENCY RECOVERY: never expose a BYOK text provider. Returning null
-  // stops the client middleware from sending x-ai-provider headers, so the
-  // server always uses the Lovable AI Gateway with LOVABLE_API_KEY.
-  return null;
+  return resolveTextProvider(getProviderSettings(), readLocal<ApiKeyEntry[]>(KEY, []));
 }
 
 /** Reactive hook for the active text provider. */
 export function useActiveTextProvider(): ActiveTextProvider | null {
-  // Kept reactive for React consumers, but always null — see getActiveTextProvider.
-  useProviderSettings();
-  useLocal<ApiKeyEntry[]>(KEY, []);
-  return null;
+  const settings = useProviderSettings();
+  const list = useLocal<ApiKeyEntry[]>(KEY, []);
+  return resolveTextProvider(settings, list);
 }
 
 function findImageKey(choice: ProviderChoice, list: ApiKeyEntry[]): ApiKeyEntry | null {
