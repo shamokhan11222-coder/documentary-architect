@@ -24,6 +24,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SeoRouteImport } from './routes/seo'
 import { Route as ScriptAnalyzerRouteImport } from './routes/script-analyzer'
+import { Route as SceneComposerLabRouteImport } from './routes/scene-composer-lab'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RatingRouteImport } from './routes/rating'
@@ -126,6 +127,11 @@ const SeoRoute = SeoRouteImport.update({
 const ScriptAnalyzerRoute = ScriptAnalyzerRouteImport.update({
   id: '/script-analyzer',
   path: '/script-analyzer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SceneComposerLabRoute = SceneComposerLabRouteImport.update({
+  id: '/scene-composer-lab',
+  path: '/scene-composer-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoadmapRoute = RoadmapRouteImport.update({
@@ -295,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/roadmap': typeof RoadmapRoute
+  '/scene-composer-lab': typeof SceneComposerLabRoute
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/roadmap': typeof RoadmapRoute
+  '/scene-composer-lab': typeof SceneComposerLabRoute
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -386,6 +394,7 @@ export interface FileRoutesById {
   '/rating': typeof RatingRoute
   '/research': typeof ResearchRoute
   '/roadmap': typeof RoadmapRoute
+  '/scene-composer-lab': typeof SceneComposerLabRoute
   '/script-analyzer': typeof ScriptAnalyzerRoute
   '/seo': typeof SeoRoute
   '/settings': typeof SettingsRoute
@@ -433,6 +442,7 @@ export interface FileRouteTypes {
     | '/rating'
     | '/research'
     | '/roadmap'
+    | '/scene-composer-lab'
     | '/script-analyzer'
     | '/seo'
     | '/settings'
@@ -478,6 +488,7 @@ export interface FileRouteTypes {
     | '/rating'
     | '/research'
     | '/roadmap'
+    | '/scene-composer-lab'
     | '/script-analyzer'
     | '/seo'
     | '/settings'
@@ -523,6 +534,7 @@ export interface FileRouteTypes {
     | '/rating'
     | '/research'
     | '/roadmap'
+    | '/scene-composer-lab'
     | '/script-analyzer'
     | '/seo'
     | '/settings'
@@ -569,6 +581,7 @@ export interface RootRouteChildren {
   RatingRoute: typeof RatingRoute
   ResearchRoute: typeof ResearchRoute
   RoadmapRoute: typeof RoadmapRoute
+  SceneComposerLabRoute: typeof SceneComposerLabRoute
   ScriptAnalyzerRoute: typeof ScriptAnalyzerRoute
   SeoRoute: typeof SeoRoute
   SettingsRoute: typeof SettingsRoute
@@ -694,6 +707,13 @@ declare module '@tanstack/react-router' {
       path: '/script-analyzer'
       fullPath: '/script-analyzer'
       preLoaderRoute: typeof ScriptAnalyzerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scene-composer-lab': {
+      id: '/scene-composer-lab'
+      path: '/scene-composer-lab'
+      fullPath: '/scene-composer-lab'
+      preLoaderRoute: typeof SceneComposerLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/roadmap': {
@@ -921,6 +941,7 @@ const rootRouteChildren: RootRouteChildren = {
   RatingRoute: RatingRoute,
   ResearchRoute: ResearchRoute,
   RoadmapRoute: RoadmapRoute,
+  SceneComposerLabRoute: SceneComposerLabRoute,
   ScriptAnalyzerRoute: ScriptAnalyzerRoute,
   SeoRoute: SeoRoute,
   SettingsRoute: SettingsRoute,
