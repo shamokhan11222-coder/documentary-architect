@@ -335,24 +335,9 @@ export async function generateThumbnailImage(idea: ThumbnailIdea): Promise<strin
   );
   lastImageRequestAt = Date.now();
   const final = await composeThumbnail(concept, r.image);
-  // Rejection rule: a composed thumbnail must always carry the headline layer.
-  // The text is programmatic so it cannot go missing, but if the canvas export
-  // is somehow invalid we allow exactly one illustration retry.
-  if (!validateComposedThumbnail(final)) {
-    const retry = await enqueueAi(
-      () =>
-        runPipelineWithStyleGuard(prompt, {
-          width: 1280,
-          height: 720,
-          purpose: "thumbnail",
-          only: "pollinations",
-          seed: 1,
-        }),
-      "Thumbnail",
-      { retryRateLimits: false },
-    );
-    return composeThumbnail(concept, retry.image);
-  }
+  // No silent retries — the composed canvas already guarantees the headline
+  // layer. If the export is invalid the caller surfaces the exact error.
+  if (!validateComposedThumbnail(final)) throw new Error("Composed thumbnail was invalid.");
   return final;
 }
 
