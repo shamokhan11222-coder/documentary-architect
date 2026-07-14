@@ -11,23 +11,23 @@ import type { VisualScene, ThumbnailIdea, ThumbnailConcept } from "./types";
 /** Mandatory prefix prepended to EVERY image prompt. Forces one very simple
  *  MS Paint-style full-frame image with stick-figure humans only. */
 export const SINGLE_FRAME_PREFIX =
-  "Create one very simple 2D MS Paint-style educational explainer image. Use primitive hand-drawn shapes, uneven thick black outlines, flat solid colors, and a deliberately amateur sixth-grade drawing appearance. Human characters must be basic stick figures only: round white head, two small black eyes, simple mouth, one-line torso, thin line arms and legs. No hair unless the scene specifically requires it. No realistic body, no detailed clothes, no anime face, no chibi proportions, no cinematic background.";
+  "Cyanide and Happiness webcomic style, explosm.net comic style, simple hand-drawn stickman comic. One single flat 2D illustration drawn with a black digital pen on a plain washed paper background. Every character is a simple stickman: a large round white head with a thick uneven black outline, two big solid black oval eyes, a small simple mouth, a single vertical line for the torso, thin straight line arms and legs. Flat solid dull colors, thick uneven hand-drawn black outlines, no shading, no gradients, no rendering, no 3D, no anime, no manga, no Pixar, no Disney, no realistic human, no alien, no mascot, no bean-shaped body.";
 
 /** Mandatory negative instruction appended to EVERY image prompt. */
 export const NEGATIVE_PROMPT =
-  "NO anime, NO manga, NO chibi, NO cartoon mascot, NO detailed human character, NO realistic person, NO 3D, NO Pixar, NO Ghibli, NO cinematic illustration, NO detailed architecture, NO soft shading, NO gradients, NO realistic lighting, NO comic panels, NO collage, NO split screen, NO random text, NO watermark.";
+  "Negative prompt: anime, manga, chibi, cartoon mascot, bean body, oval alien head, big round mascot, detailed human, realistic person, muscular body, hair rendering, 3D, Pixar, Disney, Ghibli, cinematic, photorealistic, DSLR, soft shading, gradients, ambient occlusion, realistic lighting, comic panels, split screen, collage, watermark, signature, random letters, gibberish text, extra fingers, deformed hands.";
 
 /** Default Stickmax MS-Paint visual style. */
 export const GLOBAL_STYLE_LOCK =
-  "Crude MS Paint stick-figure diagram, primitive hand-drawn shapes, uneven thick rough black outlines, flat solid colors, no shading, no gradients, maximum 1-3 important objects, plain white background unless the scene clearly occurs outdoors, outdoor backgrounds still use primitive flat shapes only, no decorative details, no unnecessary buildings, no crowd unless required, readable like a simple classroom drawing.";
+  "Cyanide and Happiness webcomic drawing, simple hand-drawn stickman comic, flat dull colors, thick uneven black digital pen outlines, no shading, no gradients, no rendering, plain washed paper or plain white background, maximum 1-3 important objects, primitive hand-drawn scenery only, no decorative details, no crowds, reads like a printable single-panel webcomic.";
 
 /** Stable recurring-character description reused in every scene. */
 export const CHARACTER_STYLE_LOCK =
-  "The recurring main character is a literal black line stick figure: round white head with a thick black outline, two small black eyes, a simple mouth, a single-line torso, thin line arms and legs, consistent proportions and scale in every image. Reuse this exact stick-figure identity — never replace it with a detailed, realistic, anime, or cartoon-mascot person.";
+  "The recurring main character is a Cyanide-and-Happiness style stickman: a big round white head with a thick uneven black outline, two big solid black oval eyes, a small simple mouth, a single vertical black line for the torso, thin straight black line arms and legs, no neck, no hair, no clothing detail. Identical proportions and identical face in every image. Never draw a realistic, anime, chibi, Pixar or mascot character — always this exact stickman.";
 
 /** Prepended on the single automatic retry when a result looks too polished. */
 export const STYLE_CORRECTION_PREFIX =
-  "STYLE CORRECTION: The previous result was too polished and character-based. Draw this like a crude MS Paint stick-figure diagram made by a school student. Replace all people with literal line stick figures and remove all decorative background detail.";
+  "STYLE CORRECTION — REDRAW. The previous result was polished, anime, mascot or alien-looking and is REJECTED. Redraw in Cyanide and Happiness webcomic style only: simple hand-drawn stickman with a round white head, big black oval eyes, small mouth, single line torso, line arms and legs. Flat dull colors, thick uneven black pen outlines, no shading, no rendering, no anime, no mascot, no bean body.";
 
 /** Words that indicate a multi-scene / multi-panel prompt and must never be sent. */
 const FORBIDDEN_WORDS = [
@@ -204,10 +204,10 @@ const BACKGROUND_PROMPT: Record<string, string> = {
 /** Literal stick figure description — repeated verbatim so the provider cannot
  *  drift into alien/mascot/anime/chibi characters. */
 export const LITERAL_STICK_FIGURE =
-  "Each person is a LITERAL stick figure only: a small plain white circular head with a thick black outline, two tiny black dot eyes, one short line for the mouth, one single thin straight black vertical line for the torso, two thin straight black lines for arms, two thin straight black lines for legs. No hair, no neck, no oval alien head, no big round mascot body, no bean body, no detailed hands, no clothing mass, no anime face, no chibi proportions, no shading.";
+  "Each person is a Cyanide-and-Happiness style stickman ONLY: a large round white head with a thick uneven black outline, two big solid black oval eyes, one short simple mouth, a single vertical black line for the torso, two thin straight black line arms, two thin straight black line legs. No neck, no hair, no ears, no oval alien head, no bean body, no round mascot body, no clothing mass, no detailed hands, no anime face, no chibi proportions, no shading, no rendering.";
 
 export const THUMBNAIL_NEGATIVE =
-  "NO text, NO letters, NO words, NO numbers, NO captions, NO watermark, NO arrows, NO circles, NO checkmarks (these are added later), NO alien, NO mascot, NO bean-shaped character, NO round-bodied cartoon, NO Pixar, NO anime, NO chibi, NO detailed human, NO realistic person, NO 3D, NO gradients, NO soft shading, NO detailed background, NO busy scene.";
+  "Negative prompt: text, letters, words, numbers, captions, watermark, signature, arrows, circles, checkmarks, alien, mascot, bean-shaped character, round mascot body, oval alien head, Pixar, Disney, anime, manga, chibi, detailed human, realistic person, muscular body, 3D, gradients, soft shading, ambient occlusion, detailed background, busy scene, crowd.";
 
 /** Build the illustration-only prompt for a normalized thumbnail concept. */
 export function buildThumbnailIllustrationPrompt(concept: ThumbnailConcept, instructions = ""): string {
@@ -224,15 +224,15 @@ export function buildThumbnailIllustrationPrompt(concept: ThumbnailConcept, inst
   }
 
   const parts = [
-    SINGLE_FRAME_PREFIX,
-    "Draw ONE crude MS Paint educational explainer illustration for a YouTube thumbnail.",
-    `MAIN VISUAL: ${visual}. Make it large, simple and clearly the focal point.`,
+    // Front-load the named style + character — diffusion models weigh the first tokens most.
+    "Cyanide and Happiness webcomic style thumbnail, explosm.net comic style, simple hand-drawn stickman comic, single-panel webcomic illustration.",
     people,
+    `MAIN VISUAL: ${visual}. Draw it large, simple, clearly the focal point, with thick uneven black pen outlines and flat dull colors.`,
     `BACKGROUND: ${bg}.`,
-    "COMPOSITION: one single strong visual idea, single full-frame, generous empty margins so text can be added later, no borders.",
-    "STYLE: crude MS Paint drawing, thick uneven rough black outlines, flat solid colors, no shading, no gradients, looks hand-drawn by a school student.",
+    "COMPOSITION: one single strong visual idea, single full-frame, generous empty margins at the top and sides so a headline can be added later, no borders, no panels.",
+    "STYLE: Cyanide and Happiness webcomic look — flat dull colors, thick uneven hand-drawn black digital pen outlines, no shading, no gradients, no rendering, no 3D.",
     artDir ? `Extra art direction: ${artDir}.` : "",
-    "FORMAT: 16:9 landscape, one single full-frame illustration.",
+    "FORMAT: 16:9 landscape, one single full-frame single-panel comic illustration.",
     THUMBNAIL_NEGATIVE,
   ];
   return parts.filter(Boolean).join(" ");
