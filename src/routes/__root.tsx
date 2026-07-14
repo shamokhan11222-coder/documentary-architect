@@ -14,6 +14,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "../components/ui/sonner";
+import { isRecoverableProviderError, recoverableProviderMessage } from "../lib/humanize-error";
 import { applyTheme } from "../lib/theme";
 import { applyPerfProfile } from "../lib/perf";
 import {
@@ -87,9 +88,62 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const recoverable = isRecoverableProviderError(error);
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
+  useEffect(() => {
+    if (!recoverable) return;
+    try {
+      toast.error(recoverableProviderMessage(error));
+    } catch {
+      /* ignore toast errors */
+    }
+    // Auto-clear the error boundary so existing page/content stays usable.
+    const id = window.setTimeout(() => {
+      router.invalidate();
+      reset();
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [recoverable, error, reset, router]);
+
+  if (recoverable && !dismissed) {
+    return (
+      <div className="fixed bottom-4 left-1/2 z-50 w-[92%] max-w-md -translate-x-1/2 rounded-xl border border-amber-500/40 bg-card p-4 shadow-lg">
+        <p className="text-sm font-medium text-foreground">Generation paused</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {recoverableProviderMessage(error)}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => {
+              setDismissed(true);
+              reset();
+            }}
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+          >
+            Dismiss
+          </button>
+          <a
+            href="/api-keys"
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
+          >
+            Open API Settings
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
