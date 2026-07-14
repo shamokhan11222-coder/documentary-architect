@@ -49,7 +49,6 @@ import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as ApiKeysRouteImport } from './routes/api-keys'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
-import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 
 const VoiceRoute = VoiceRouteImport.update({
@@ -252,11 +251,6 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
-  id: '/api/generate-image',
-  path: '/api/generate-image',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -304,7 +298,6 @@ export interface FileRoutesByFullPath {
   '/visual-instructions': typeof VisualInstructionsRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/generate-image': typeof ApiGenerateImageRoute
   '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesByTo {
@@ -348,7 +341,6 @@ export interface FileRoutesByTo {
   '/visual-instructions': typeof VisualInstructionsRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/generate-image': typeof ApiGenerateImageRoute
   '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesById {
@@ -393,7 +385,6 @@ export interface FileRoutesById {
   '/visual-instructions': typeof VisualInstructionsRoute
   '/voice': typeof VoiceRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/generate-image': typeof ApiGenerateImageRoute
   '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRouteTypes {
@@ -439,7 +430,6 @@ export interface FileRouteTypes {
     | '/visual-instructions'
     | '/voice'
     | '/api/chat'
-    | '/api/generate-image'
     | '/api/tts'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -483,7 +473,6 @@ export interface FileRouteTypes {
     | '/visual-instructions'
     | '/voice'
     | '/api/chat'
-    | '/api/generate-image'
     | '/api/tts'
   id:
     | '__root__'
@@ -527,7 +516,6 @@ export interface FileRouteTypes {
     | '/visual-instructions'
     | '/voice'
     | '/api/chat'
-    | '/api/generate-image'
     | '/api/tts'
   fileRoutesById: FileRoutesById
 }
@@ -572,7 +560,6 @@ export interface RootRouteChildren {
   VisualInstructionsRoute: typeof VisualInstructionsRoute
   VoiceRoute: typeof VoiceRoute
   ApiChatRoute: typeof ApiChatRoute
-  ApiGenerateImageRoute: typeof ApiGenerateImageRoute
   ApiTtsRoute: typeof ApiTtsRoute
 }
 
@@ -858,13 +845,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/generate-image': {
-      id: '/api/generate-image'
-      path: '/api/generate-image'
-      fullPath: '/api/generate-image'
-      preLoaderRoute: typeof ApiGenerateImageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -916,19 +896,8 @@ const rootRouteChildren: RootRouteChildren = {
   VisualInstructionsRoute: VisualInstructionsRoute,
   VoiceRoute: VoiceRoute,
   ApiChatRoute: ApiChatRoute,
-  ApiGenerateImageRoute: ApiGenerateImageRoute,
   ApiTtsRoute: ApiTtsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
