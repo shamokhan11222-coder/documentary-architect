@@ -1,4 +1,4 @@
-import { RigSvg } from "../rig/render-svg";
+import { RigGroup } from "../rig/render-svg";
 import { getPose } from "../rig/poses";
 import type { Rig } from "../rig/rig-model";
 import type { SceneSpec } from "./scene-model";
@@ -58,7 +58,7 @@ function SceneSvgResolved({
         const pose = getPose(c.spec.pose);
         return (
           <g key={`c-${i}`} transform={`translate(${c.worldX}, ${c.groundY}) scale(${c.scale}) translate(-100, ${-c.footYLocal})`}>
-            <RigSvg
+            <RigGroup
               rig={rig}
               pose={pose}
               expression={{
@@ -67,8 +67,6 @@ function SceneSvgResolved({
                 eyeDirection: c.spec.eyeDirection ?? "center",
                 eyebrow: c.spec.eyebrow ?? "neutral",
               }}
-              scale={1}
-              className=""
             />
           </g>
         );
