@@ -34,6 +34,10 @@ export interface SyncScene {
   missingImage?: boolean;
   manual?: boolean;
   status: "ready" | "missing" | "locked" | "unmapped";
+  /** Storyboard scene kind (e.g. "infographic") used to approve 5s complex scenes. */
+  sceneKind?: string;
+  /** For children created by auto-repair splits: the original parent scene id. */
+  derivedFromSceneId?: string;
 }
 
 export interface SyncTimeline {
@@ -261,6 +265,7 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
         narrationText: scene.voiceoverLine ?? "",
         missingImage: !hasImage(scene.sceneNumber),
         status: hasImage(scene.sceneNumber) ? "ready" : "missing",
+        sceneKind: scene.sceneType,
       };
       t = end;
     }
@@ -352,9 +357,14 @@ export function validateTimeline(t: SyncTimeline): ValidationResult {
       else if (s.start - prev.end > 0.1) warnings.push(`Gap of ${(s.start - prev.end).toFixed(2)}s before scene ${s.sceneNumber}.`);
     }
     if (!s.locked) {
-      if (s.duration > 4.01 && s.duration <= 5.01) warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s (complex).`);
-      else if (s.duration > 5.01) errors.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s exceeds 5s cap.`);
-      if (s.duration < 1.8 && s.duration > 0) warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s below 1.8s minimum.`);
+      const isComplex = COMPLEX_SCENE_APPROVED_STATUSES.has(s.sceneKind ?? "");
+      if (s.duration > 4.01 && s.duration <= 5.01) {
+        if (isComplex) warnings.push(`Scene ${s.sceneNumber}: complex visual — ${s.duration.toFixed(2)}s approved.`);
+        else warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can split this.`);
+      } else if (s.duration > 5.01) {
+        warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can split this.`);
+      }
+      if (s.duration < 1.8 && s.duration > 0) warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can merge this.`);
     }
     coveredSecs += s.duration;
   }
@@ -365,6 +375,275 @@ export function validateTimeline(t: SyncTimeline): ValidationResult {
   }
   const coverage = t.totalDuration > 0 ? Math.min(1, coveredSecs / t.totalDuration) : 0;
   return { ok: errors.length === 0, errors, warnings, coverage };
+}
+
+// ---------------- Classification & Auto-Repair ----------------
+
+const COMPLEX_SCENE_APPROVED_STATUSES = new Set<string>([
+  "infographic", "diagram", "comparison", "map", "timeline", "data visualization",
+]);
+
+export interface Classified {
+  blocking: string[];       // must-fix errors (overlap, negative dur, mismatch)
+  autoFixable: {
+    longScenes: SyncScene[];
+    shortScenes: SyncScene[];
+    gaps: { beforeScene: number; seconds: number }[];
+  };
+  warnings: string[];       // missing images, complex 4-5s, etc.
+}
+
+export function classifyTimeline(t: SyncTimeline): Classified {
+  const blocking: string[] = [];
+  const warnings: string[] = [];
+  const longScenes: SyncScene[] = [];
+  const shortScenes: SyncScene[] = [];
+  const gaps: { beforeScene: number; seconds: number }[] = [];
+
+  for (let i = 0; i < t.scenes.length; i++) {
+    const s = t.scenes[i];
+    if (s.end < s.start) blocking.push(`Scene ${s.sceneNumber}: negative duration.`);
+    if (Number.isNaN(s.start) || Number.isNaN(s.end)) blocking.push(`Scene ${s.sceneNumber}: missing start/end.`);
+    if (i > 0) {
+      const prev = t.scenes[i - 1];
+      if (s.start + 0.001 < prev.end) blocking.push(`Scene ${s.sceneNumber}: overlaps previous scene.`);
+      else {
+        const gap = s.start - prev.end;
+        if (gap > 0.1) gaps.push({ beforeScene: s.sceneNumber, seconds: gap });
+      }
+    }
+    if (!s.locked) {
+      const complex = COMPLEX_SCENE_APPROVED_STATUSES.has((s.sceneKind ?? "").toLowerCase());
+      if (s.duration > (complex ? 5.05 : 4.01)) longScenes.push(s);
+      else if (s.duration > 4.01 && complex) warnings.push(`Scene ${s.sceneNumber}: complex visual — ${s.duration.toFixed(2)}s approved.`);
+      if (s.duration > 0 && s.duration < 1.8) shortScenes.push(s);
+    }
+    if (s.duration <= 0.001 && !s.missingImage) blocking.push(`Scene ${s.sceneNumber}: unmapped (0s).`);
+  }
+
+  if (t.scenes.length && t.totalDuration > 0) {
+    const last = t.scenes[t.scenes.length - 1];
+    const drift = Math.abs(last.end - t.totalDuration);
+    if (drift > 0.25) blocking.push(`Final scene ends ${drift.toFixed(2)}s away from narration end.`);
+  }
+
+  const missing = t.scenes.filter((s) => s.missingImage).length;
+  if (missing) warnings.push(`${missing} scene${missing === 1 ? "" : "s"} still need images (timing OK).`);
+
+  return { blocking, autoFixable: { longScenes, shortScenes, gaps }, warnings };
+}
+
+/** Sentence-boundary split for narration text (English punctuation-based). */
+function splitIntoSentences(text: string): string[] {
+  if (!text.trim()) return [];
+  const parts = text.match(/[^.!?…]+[.!?…]+["')\]]*|[^.!?…]+$/g);
+  const out = (parts ?? [text]).map((s) => s.trim()).filter(Boolean);
+  return out.length ? out : [text.trim()];
+}
+function splitByPhrase(text: string): string[] {
+  // Fall back to comma/semicolon/conjunction boundaries.
+  const parts = text.split(/[,;:]\s+| — | – |\s+(?:and|but|because|then|so|while|when|which|although)\s+/i);
+  return parts.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+export interface RepairSummary {
+  longFixed: number;
+  shortFixed: number;
+  gapsClosed: number;
+  splitsCreated: number;
+  merged: number;
+  before: { long: number; short: number; gaps: number; missing: number };
+  after: { long: number; short: number; gaps: number; missing: number };
+}
+
+function snapshot(t: SyncTimeline) {
+  const c = classifyTimeline(t);
+  return {
+    long: c.autoFixable.longScenes.length,
+    short: c.autoFixable.shortScenes.length,
+    gaps: c.autoFixable.gaps.length,
+    missing: t.scenes.filter((s) => s.missingImage).length,
+  };
+}
+
+/**
+ * Deterministic auto-repair pipeline:
+ * 1. Split long unlocked scenes at sentence/phrase boundaries into timing-only
+ *    child scenes that share the parent image (child.derivedFromSceneId).
+ * 2. Merge / redistribute unlocked short scenes with a compatible neighbour.
+ * 3. Close any remaining gaps by extending the previous unlocked scene.
+ */
+export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summary: RepairSummary; splitsCreated: number } {
+  const before = snapshot(t);
+  let scenes: SyncScene[] = t.scenes.map((s) => ({ ...s }));
+
+  // ---- 1. SPLIT LONG SCENES ----
+  let splitsCreated = 0;
+  const nextNumStart = () => scenes.reduce((m, s) => Math.max(m, s.sceneNumber), 0) + 1;
+  const grown: SyncScene[] = [];
+  for (const s of scenes) {
+    const complex = COMPLEX_SCENE_APPROVED_STATUSES.has((s.sceneKind ?? "").toLowerCase());
+    const cap = complex ? 5 : 4;
+    if (s.locked || s.duration <= cap + 0.05) { grown.push(s); continue; }
+
+    // Choose the number of child pieces so avg piece ≈ 2.75s (2.0–3.5 target).
+    const target = 2.75;
+    let pieces = Math.max(2, Math.round(s.duration / target));
+    // Try sentence split; if not enough sentences, fall back to phrase split; then even split.
+    let parts = splitIntoSentences(s.narrationText);
+    if (parts.length < pieces) {
+      const phrase = splitByPhrase(s.narrationText);
+      if (phrase.length > parts.length) parts = phrase;
+    }
+    if (parts.length < 2) {
+      // No usable boundary — even split with placeholder text.
+      parts = Array.from({ length: pieces }, (_, i) => `${s.narrationText} (part ${i + 1})`.trim());
+    } else if (parts.length > pieces) {
+      // Combine adjacent parts to match target piece count.
+      const merged: string[] = [];
+      const groupSize = Math.ceil(parts.length / pieces);
+      for (let i = 0; i < parts.length; i += groupSize) merged.push(parts.slice(i, i + groupSize).join(" "));
+      parts = merged;
+    }
+    pieces = parts.length;
+
+    // Distribute duration by word count of each piece.
+    const weights = parts.map((p) => Math.max(1, p.split(/\s+/).filter(Boolean).length));
+    const total = weights.reduce((a, b) => a + b, 0);
+    let t0 = s.start;
+    let base = nextNumStart();
+    parts.forEach((text, i) => {
+      const share = (weights[i] / total) * s.duration;
+      let dur = Math.max(1.8, Math.min(complex ? 5 : 4, share));
+      // Last piece absorbs remainder to hit s.end exactly.
+      const isLast = i === parts.length - 1;
+      const start = t0;
+      const end = isLast ? s.end : Math.min(s.end, start + dur);
+      dur = end - start;
+      const child: SyncScene = i === 0
+        ? { ...s, end, duration: dur, narrationText: text, manual: true, sceneKind: s.sceneKind, derivedFromSceneId: s.sceneId }
+        : {
+          ...s,
+          sceneId: `scene-${base}`,
+          sceneNumber: base,
+          start, end, duration: dur,
+          narrationText: text,
+          manual: true,
+          // Share parent image; do NOT mark missing so pipeline treats it as covered.
+          imageId: s.imageId,
+          missingImage: s.missingImage,
+          status: s.status === "missing" ? "missing" : "ready",
+          derivedFromSceneId: s.sceneId,
+        };
+      grown.push(child);
+      if (i > 0) base += 1;
+      t0 = end;
+    });
+    splitsCreated += pieces - 1;
+  }
+  scenes = grown;
+
+  // ---- 2. MERGE / REDISTRIBUTE SHORT SCENES ----
+  let merged = 0;
+  const out: SyncScene[] = [];
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    if (s.locked || s.duration >= 1.8 || s.duration <= 0.001) { out.push(s); continue; }
+
+    const prev = out[out.length - 1];
+    const next = scenes[i + 1];
+    // Prefer merging with an adjacent scene derived from the same parent, else nearest unlocked.
+    const canMergePrev = prev && !prev.locked && (prev.derivedFromSceneId === s.derivedFromSceneId || prev.sceneNumber === s.sceneNumber - 1);
+    const canMergeNext = next && !next.locked && (next.derivedFromSceneId === s.derivedFromSceneId);
+
+    if (canMergePrev) {
+      prev.end = s.end;
+      prev.duration = prev.end - prev.start;
+      prev.narrationText = [prev.narrationText, s.narrationText].filter(Boolean).join(" ");
+      prev.manual = true;
+      merged += 1;
+      continue;
+    }
+    if (canMergeNext) {
+      // Merge current INTO next: pull next.start back to s.start.
+      next.start = s.start;
+      next.duration = next.end - next.start;
+      next.narrationText = [s.narrationText, next.narrationText].filter(Boolean).join(" ");
+      next.manual = true;
+      merged += 1;
+      continue;
+    }
+    // Redistribute: try borrowing time from previous unlocked without dropping it below 1.8s.
+    if (prev && !prev.locked && prev.duration > 1.8 + (1.8 - s.duration) + 0.05) {
+      const needed = 1.8 - s.duration;
+      prev.end -= needed;
+      prev.duration = prev.end - prev.start;
+      s.start = prev.end;
+      s.duration = s.end - s.start;
+      s.manual = true;
+      out.push(s);
+      continue;
+    }
+    // No good option — keep as-is (warning still present).
+    out.push(s);
+  }
+  scenes = out;
+
+  // ---- 3. CLOSE GAPS ----
+  let gapsClosed = 0;
+  for (let i = 1; i < scenes.length; i++) {
+    const prev = scenes[i - 1];
+    const s = scenes[i];
+    const gap = s.start - prev.end;
+    if (gap > 0.05) {
+      if (!prev.locked) {
+        prev.end = s.start;
+        prev.duration = prev.end - prev.start;
+        prev.manual = true;
+        gapsClosed += 1;
+      } else if (!s.locked) {
+        s.start = prev.end;
+        s.duration = s.end - s.start;
+        s.manual = true;
+        gapsClosed += 1;
+      }
+    } else if (gap < -0.001) {
+      // Overlap safety: pull s forward.
+      if (!s.locked) { s.start = prev.end; s.duration = Math.max(0, s.end - s.start); s.manual = true; }
+    }
+  }
+
+  // Renumber sequential scene numbers to keep the timeline tidy (preserve locked numbers).
+  // Skip renumber to preserve external references — just ensure uniqueness.
+
+  // Refresh status field.
+  for (const s of scenes) {
+    if (s.locked) s.status = "locked";
+    else if (s.duration <= 0.001) s.status = "unmapped";
+    else if (s.missingImage) s.status = "missing";
+    else s.status = "ready";
+  }
+
+  const timeline: SyncTimeline = { ...t, scenes, generatedAt: Date.now() };
+  const after = snapshot(timeline);
+  const summary: RepairSummary = {
+    longFixed: Math.max(0, before.long - after.long),
+    shortFixed: Math.max(0, before.short - after.short),
+    gapsClosed: Math.max(0, before.gaps - after.gaps),
+    splitsCreated,
+    merged,
+    before, after,
+  };
+  return { timeline, summary, splitsCreated };
+}
+
+/** Missing images are non-blocking. Sync is READY when timing is coherent. */
+export function isReadyForProduction(t: SyncTimeline): boolean {
+  const c = classifyTimeline(t);
+  return c.blocking.length === 0
+    && c.autoFixable.longScenes.length === 0
+    && c.autoFixable.shortScenes.length === 0
+    && c.autoFixable.gaps.length === 0;
 }
 
 // ---------------- Manual ops ----------------

@@ -46,6 +46,8 @@ import { putImage } from "@/lib/images";
 import { generateVoiceBlock } from "@/lib/generate-voice";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import { buildInjection, getScriptPattern } from "@/lib/generation-context";
+import { buildSyncTimeline, repairTimeline, saveSyncTimeline, readSyncTimeline } from "@/lib/voice-sync";
+import { loadImage } from "@/lib/images";
 import {
   DEFAULT_VOICE_SETTINGS,
   scriptToParagraphs,
@@ -90,7 +92,18 @@ function ManagerPage() {
   void status;
   const pipeline = usePipeline(selectedId);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"guided" | "auto">(() => {
+    if (typeof localStorage === "undefined") return "guided";
+    return (localStorage.getItem("docos.productionMode") as "guided" | "auto") ?? "guided";
+  });
+  const [showVoiceReview, setShowVoiceReview] = useState(false);
+  const pendingStart = useRef<null | (() => void)>(null);
   const cancelled = useRef(false);
+
+  function updateMode(m: "guided" | "auto") {
+    setMode(m);
+    try { localStorage.setItem("docos.productionMode", m); } catch { /* ignore */ }
+  }
 
   // Automatic retry with exponential backoff for transient AI outages.
   const RETRY_BACKOFFS_MS = [10000, 30000, 60000];
@@ -248,9 +261,16 @@ function ManagerPage() {
         const existing = readLS<VoiceProject>("docos.voice", id);
         const settings = existing?.settings ?? DEFAULT_VOICE_SETTINGS;
         const paras = scriptToParagraphs(story.script);
-        const blocks: VoiceBlock[] = paras.map((text, i) => ({ index: i, text, estSeconds: estimateSeconds(text) }));
+        // Reuse already-generated unchanged blocks; only regenerate missing.
+        const prevBlocks = existing?.blocks ?? [];
+        const blocks: VoiceBlock[] = paras.map((text, i) => {
+          const prev = prevBlocks[i];
+          if (prev && prev.text === text && prev.realSeconds && prev.realSeconds > 0) return prev;
+          return { index: i, text, estSeconds: estimateSeconds(text) };
+        });
         for (let i = 0; i < blocks.length; i++) {
           if (cancelled.current) throw new Error("Stopped");
+          if (blocks[i].realSeconds && blocks[i].realSeconds! > 0) continue; // reuse cached
           setTask(id, stage, `Voice Director → narrating ${i + 1}/${blocks.length}…`);
           try {
             blocks[i].realSeconds = await generateVoiceBlock(id, i, blocks[i].text, settings);
@@ -265,6 +285,28 @@ function ManagerPage() {
           JSON.stringify({ ...(JSON.parse(localStorage.getItem("docos.voice") || "{}")), [id]: voice }),
         );
         window.dispatchEvent(new Event("storage"));
+
+        // Auto build + repair Voice Sync timeline (local, no AI).
+        try {
+          const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
+          const scenes = visual?.scenes ?? [];
+          if (scenes.length && blocks.some((b) => (b.realSeconds ?? 0) > 0)) {
+            setTask(id, stage, "Voice Sync → aligning scenes to narration…");
+            const imageIds = new Set<number>();
+            for (const s of scenes) {
+              if (await loadImage(`scene:${id}:${s.sceneNumber}`)) imageIds.add(s.sceneNumber);
+            }
+            const { timeline } = buildSyncTimeline({
+              projectId: id, voice, scenes, hasImage: (n) => imageIds.has(n),
+              options: { mode: "auto" }, previous: readSyncTimeline(id),
+            });
+            const { timeline: repaired, summary } = repairTimeline(timeline);
+            saveSyncTimeline(repaired);
+            logActivity(id, `Voice Sync built · long ${summary.before.long}→${summary.after.long}, gaps ${summary.before.gaps}→${summary.after.gaps}`, "success");
+          }
+        } catch (e) {
+          logActivity(id, `Voice Sync skipped: ${e instanceof Error ? e.message : String(e)}`, "info");
+        }
       } else if (stage === "rating") {
         const story = readLS<Story>("docos.story", id);
         if (!story) throw new Error("Story required before rating");
@@ -327,6 +369,12 @@ function ManagerPage() {
           logActivity(t.id, "Pipeline paused — fix the failed step and retry", "error");
           return;
         }
+        // Guided mode pauses at major checkpoints for user review.
+        if (mode === "guided" && (s.key === "storyboard" || s.key === "voice") && !cancelled.current) {
+          logActivity(t.id, `Guided pause after ${s.label} — press Continue to proceed.`, "info");
+          toast.info(`Guided pause after ${s.label}. Review, then press Generate Project to continue.`);
+          return;
+        }
       }
       if (!cancelled.current) {
         logActivity(t.id, "Project complete", "success");
@@ -336,6 +384,35 @@ function ManagerPage() {
       setRunning(getPipeline(t.id).topicId, false);
       setBusy(false);
     }
+  }
+
+  // Wrap start-of-run to show voice review modal once per project.
+  function requestStart(regen: boolean) {
+    if (!selected) return;
+    const flag = `docos.voiceReviewed.${selected.id}`;
+    const reviewed = typeof localStorage !== "undefined" && localStorage.getItem(flag) === "1";
+    const hasVoice = stageDone(selected.id, "voice");
+    if (!reviewed && !hasVoice) {
+      pendingStart.current = () => runPipeline(regen);
+      setShowVoiceReview(true);
+      return;
+    }
+    void runPipeline(regen);
+  }
+
+  function confirmVoiceReview() {
+    if (selected) {
+      try { localStorage.setItem(`docos.voiceReviewed.${selected.id}`, "1"); } catch { /* ignore */ }
+    }
+    setShowVoiceReview(false);
+    const fn = pendingStart.current;
+    pendingStart.current = null;
+    if (fn) fn();
+  }
+
+  function cancelVoiceReview() {
+    setShowVoiceReview(false);
+    pendingStart.current = null;
   }
 
   async function retryStage(stage: StageKey) {
@@ -447,9 +524,19 @@ function ManagerPage() {
             )}
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Button onClick={() => runPipeline(false)} disabled={busy}>
+              <div className="mr-2 inline-flex overflow-hidden rounded-md border border-border text-xs">
+                <button
+                  onClick={() => updateMode("guided")}
+                  className={mode === "guided" ? "bg-primary px-3 py-1.5 text-primary-foreground" : "px-3 py-1.5 hover:bg-accent"}
+                >Guided</button>
+                <button
+                  onClick={() => updateMode("auto")}
+                  className={mode === "auto" ? "bg-primary px-3 py-1.5 text-primary-foreground" : "px-3 py-1.5 hover:bg-accent"}
+                >Auto</button>
+              </div>
+              <Button onClick={() => requestStart(false)} disabled={busy}>
                 {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
-                Generate Project
+                {mode === "auto" ? "Start Production" : "Generate Project"}
               </Button>
               {busy && (
                 <Button variant="outline" onClick={() => (cancelled.current = true)}>
@@ -469,7 +556,7 @@ function ManagerPage() {
                   </Button>
                 </>
               )}
-              <Button variant="ghost" disabled={busy} onClick={() => runPipeline(true)}>
+              <Button variant="ghost" disabled={busy} onClick={() => requestStart(true)}>
                 <RotateCw className="mr-1 h-4 w-4" /> Regenerate all
               </Button>
               {imagesSkipped && !busy && (
@@ -594,6 +681,14 @@ function ManagerPage() {
           </div>
         </>
       )}
+
+      {showVoiceReview && selected && (
+        <VoiceReviewModal
+          topicId={selected.id}
+          onConfirm={confirmVoiceReview}
+          onCancel={cancelVoiceReview}
+        />
+      )}
     </div>
   );
 }
@@ -649,6 +744,41 @@ function FinalQualityCheck({ topicId }: { topicId: string }) {
             {c.label}: {c.ok ? "Passed" : "Needs Improvement"}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function VoiceReviewModal({
+  topicId, onConfirm, onCancel,
+}: { topicId: string; onConfirm: () => void; onCancel: () => void }) {
+  const existing = readLS<VoiceProject>("docos.voice", topicId);
+  const settings = existing?.settings ?? DEFAULT_VOICE_SETTINGS;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+        <div className="text-base font-semibold">Confirm Voice Settings</div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Voice generates locally in your browser — no paid API calls. Confirm once and the
+          full narration will be produced automatically.
+        </p>
+        <dl className="mt-4 grid grid-cols-2 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">Voice preset</dt>
+          <dd className="font-medium">{settings.voicePresetId ?? settings.profile}</dd>
+          <dt className="text-muted-foreground">Speed</dt>
+          <dd className="font-medium">{settings.speed.toFixed(2)}</dd>
+          <dt className="text-muted-foreground">Energy</dt>
+          <dd className="font-medium">{Math.round((settings.energy ?? 0.5) * 100)}%</dd>
+          <dt className="text-muted-foreground">Sentence pause</dt>
+          <dd className="font-medium">{settings.sentencePauseMs ?? 250}ms</dd>
+        </dl>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+          <Button variant="outline" asChild>
+            <Link to="/voice">Edit Voice Settings</Link>
+          </Button>
+          <Button onClick={onConfirm}>Start Voice Generation</Button>
+        </div>
       </div>
     </div>
   );
