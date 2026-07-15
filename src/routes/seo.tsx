@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Check } from "lucide-react";
 
 import { generateSeo, regenerateTitles } from "@/lib/ai.functions";
 import {
@@ -27,29 +27,25 @@ export const Route = createFileRoute("/seo")({
 
 function seoToText(s: Seo): string {
   return [
-    "TITLE OPTIONS:",
-    ...s.titleOptions.map((t, i) => `${i + 1}. ${t}`),
+    "TITLE",
     "",
-    `BEST TITLE: ${s.bestTitle}`,
+    s.bestTitle,
     "",
-    "DESCRIPTION:",
+    "DESCRIPTION",
+    "",
     s.description,
     "",
-    `TAGS: ${s.tags.join(", ")}`,
-    `HASHTAGS: ${s.hashtags.join(" ")}`,
-    `KEYWORDS: ${s.keywords.join(", ")}`,
+    "KEYWORDS",
     "",
-    "PINNED COMMENT:",
-    s.pinnedComment,
+    s.keywords.join(", "),
     "",
-    "SHORT SUMMARY:",
-    s.shortSummary,
+    "TAGS",
     "",
-    "LONG SUMMARY:",
-    s.longSummary,
+    s.tags.join(", "),
     "",
-    "UPLOAD CHECKLIST:",
-    ...(s.uploadChecklist ?? []).map((c) => `- ${c}`),
+    "HASHTAGS",
+    "",
+    s.hashtags.join(" "),
   ].join("\n");
 }
 
