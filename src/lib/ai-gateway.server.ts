@@ -1,5 +1,6 @@
 import { readProviderFromHeaders, geminiGenerateText, openaiGenerateText } from "./provider.server";
 import { makeProviderError } from "./provider-error";
+import { groqEnabled, groqGenerate } from "./groq.server";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
@@ -78,6 +79,20 @@ export async function callAiJsonGateway<T = unknown>(
   user: string,
 ): Promise<T> {
   const fullSystem = `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`;
+  // Groq is the permanent text provider. Bypass the Lovable AI Gateway when
+  // GROQ_API_KEY is configured — even for callers that historically forced
+  // the built-in gateway (e.g. thumbnail concept text).
+  if (groqEnabled()) {
+    const content = await groqGenerate(fullSystem, user, true);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
+    }
+  }
   const key = process.env.LOVABLE_API_KEY;
   if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
@@ -145,6 +160,22 @@ export async function callAiJson<T = unknown>(
   user: string,
 ): Promise<T> {
   const fullSystem = `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`;
+
+  // Groq wins over everything else when configured — never touches Lovable AI
+  // credits nor the user's Gemini key.
+  if (groqEnabled()) {
+    console.log("[AI] provider=groq task=json request started");
+    const content = await groqGenerate(fullSystem, user, true);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      console.error("[AI] groq JSON parse failed");
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
+    }
+  }
 
   // When a Gemini provider is active, route there and NEVER touch the built-in
   // Lovable AI. Any Gemini error is surfaced as-is (no fallback) so users see
@@ -234,6 +265,10 @@ export async function callAiJson<T = unknown>(
 }
 
 export async function callAiText(system: string, user: string): Promise<string> {
+  if (groqEnabled()) {
+    console.log("[AI] provider=groq task=text request started");
+    return await groqGenerate(system, user, false);
+  }
   const provider = readProviderFromHeaders();
   if (provider) {
     console.log("[AI] provider=%s task=text model=%s request started", provider.name, provider.textModel);
