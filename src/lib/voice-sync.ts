@@ -265,6 +265,7 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
         narrationText: scene.voiceoverLine ?? "",
         missingImage: !hasImage(scene.sceneNumber),
         status: hasImage(scene.sceneNumber) ? "ready" : "missing",
+        sceneKind: scene.sceneType,
       };
       t = end;
     }
