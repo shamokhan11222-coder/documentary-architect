@@ -12,6 +12,14 @@ export interface VoicePreset {
 
 export const VOICE_PRESETS: VoicePreset[] = [
   {
+    id: "zenn-clone",
+    label: "Zenn Clone",
+    desc: "Confident young male documentary narrator (post-tuned)",
+    voice: "am_puck",
+    gender: "male",
+    defaultSpeed: 1.10,
+  },
+  {
     id: "young-smooth-male",
     label: "Young Smooth Male",
     desc: "Light, warm, modern documentary — default",

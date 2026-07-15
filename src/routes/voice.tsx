@@ -41,6 +41,11 @@ import {
   getPreset,
 } from "@/lib/local-tts/presets";
 import {
+  ZENN_TUNING,
+  ZENN_SPEED,
+  ZENN_PRESET_ID,
+} from "@/lib/local-tts/tuning";
+import {
   browserSupported,
   getEngineState,
   loadEngine,
@@ -77,6 +82,13 @@ function VoicePage() {
   const sentencePauseMs = settings.sentencePauseMs ?? 120;
   const paragraphPauseMs = settings.paragraphPauseMs ?? 500;
   const energy = settings.energy ?? 0.5;
+  const pitchPercent = settings.pitchPercent ?? (presetId === ZENN_PRESET_ID ? ZENN_TUNING.pitchPercent : 0);
+  const brightness = settings.brightness ?? (presetId === ZENN_PRESET_ID ? ZENN_TUNING.brightness : 0);
+  const warmth = settings.warmth ?? (presetId === ZENN_PRESET_ID ? ZENN_TUNING.warmth : 0);
+  const confidence = settings.confidence ?? (presetId === ZENN_PRESET_ID ? ZENN_TUNING.confidence : 0);
+  const emotion = settings.emotionStrength ?? (presetId === ZENN_PRESET_ID ? ZENN_TUNING.emotion : 0.5);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
 
   const [engine, setEngine] = useState<EngineState>(getEngineState());
   useEffect(() => subscribeEngine(setEngine), []);
@@ -125,6 +137,49 @@ function VoicePage() {
     } catch (e) {
       toast.error(humanizeError(e, "Voice engine failed to load"));
       return false;
+    }
+  }
+
+  function applyZennClone() {
+    update({
+      voicePresetId: ZENN_PRESET_ID,
+      speed: ZENN_SPEED,
+      pitchPercent: ZENN_TUNING.pitchPercent,
+      brightness: ZENN_TUNING.brightness,
+      warmth: ZENN_TUNING.warmth,
+      confidence: ZENN_TUNING.confidence,
+      energy: ZENN_TUNING.energy,
+      emotionStrength: ZENN_TUNING.emotion,
+      sentencePauseMs: 100,
+      savedTuningName: "Zenn Clone",
+    });
+    toast.success("Zenn Clone tuning saved");
+  }
+
+  async function previewTuning() {
+    if (!(await ensureEngine())) return;
+    setPreviewBusy(true);
+    setPreviewUrl(null);
+    try {
+      const { generateBlockAudio } = await import("@/lib/local-tts/engine");
+      const { concatSegments, encodeWav, blobToDataUrl } = await import("@/lib/local-tts/wav");
+      const { postProcess } = await import("@/lib/local-tts/dsp");
+      const { compensatedKokoroSpeed } = await import("@/lib/local-tts/tuning");
+      const tuning = {
+        pitchPercent, brightness, warmth, confidence,
+        energy, emotion,
+      };
+      const kokoroSpeed = compensatedKokoroSpeed(speed, tuning);
+      const text = "The hidden origins of everyday life are far stranger than anyone imagined. Once you see it, you cannot unsee it.";
+      const { segments } = await generateBlockAudio({ text, presetId, speed: kokoroSpeed });
+      const merged = concatSegments(segments, (sentencePauseMs ?? 120) / 1000);
+      const processed = await postProcess(merged, tuning);
+      const url = await blobToDataUrl(encodeWav(processed));
+      setPreviewUrl(url);
+    } catch (e) {
+      toast.error(humanizeError(e, "Preview failed"));
+    } finally {
+      setPreviewBusy(false);
     }
   }
 
@@ -403,6 +458,60 @@ function VoicePage() {
             </div>
 
             <Dictionary settings={settings} onChange={(dictionary) => update({ dictionary })} />
+          </div>
+
+          {/* Voice tuning (Zenn documentary profile) */}
+          <div className="mt-5 rounded-xl border border-border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-medium">Voice tuning</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Post-process pitch, brightness, dynamics — Kokoro stays as the engine.
+                  {settings.savedTuningName ? ` · Saved: ${settings.savedTuningName}` : ""}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="secondary" onClick={applyZennClone}>
+                  Apply Zenn Clone
+                </Button>
+                <Button size="sm" onClick={previewTuning} disabled={previewBusy}>
+                  {previewBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
+                  Preview
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <Ctrl label="Pitch (%)"
+                value={pitchPercent} min={-20} max={30} step={1}
+                format={(v) => `${v > 0 ? "+" : ""}${Math.round(v)}%`}
+                onChange={(v) => update({ pitchPercent: v })} />
+              <Ctrl label="Brightness"
+                value={brightness} min={-1} max={1} step={0.05}
+                format={(v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`}
+                onChange={(v) => update({ brightness: v })} />
+              <Ctrl label="Warmth"
+                value={warmth} min={-1} max={1} step={0.05}
+                format={(v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`}
+                onChange={(v) => update({ warmth: v })} />
+              <Ctrl label="Confidence"
+                value={confidence} min={0} max={1} step={0.05}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => update({ confidence: v })} />
+              <Ctrl label="Emotion"
+                value={emotion} min={0} max={1} step={0.05}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => update({ emotionStrength: v })} />
+              <Ctrl label="Energy"
+                value={energy} min={0} max={1} step={0.05}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => update({ energy: v })} />
+            </div>
+            {previewUrl && (
+              <div className="mt-3 flex items-center gap-3">
+                <audio controls autoPlay src={previewUrl} className="h-8" />
+                <span className="text-[11px] text-muted-foreground">Live preview of current tuning</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
