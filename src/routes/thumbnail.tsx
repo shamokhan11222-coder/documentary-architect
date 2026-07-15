@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Check, Sparkles, Code, Upload, Clock, ImageOff } from "lucide-react";
+import { Loader2, RefreshCw, Check, Sparkles, Code, Upload, Clock, ImageOff, Images, FileText, Zap } from "lucide-react";
 
 import { generateThumbnails, regenerateThumbnail, reviewThumbnails } from "@/lib/ai.functions";
 import {
@@ -13,12 +13,22 @@ import {
   useResearch,
   useThumbnails,
   saveThumbnails,
+  useVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, loadImage, fileToDataUrl } from "@/lib/images";
 import { generateThumbnailImage, imageErrorMessage, isRateLimitError, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
+import { useBreaker, resetBreaker } from "@/lib/image-circuit-breaker";
+import {
+  useThumbRetry,
+  recordThumbFailure,
+  clearThumbRetry,
+  resetThumbRetry,
+  MAX_ATTEMPTS,
+} from "@/lib/thumbnail-retry";
+import { conceptFromIdea, composeTextOnlyDraft } from "@/lib/thumbnail-compositor";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
 import { StageShell } from "@/components/StageShell";
