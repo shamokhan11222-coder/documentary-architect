@@ -109,6 +109,7 @@ function VisualPage() {
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const story = useStory(selectedId);
   const map = useVisualMap(selectedId);
+  const voice = useVoice(selectedId);
 
   // A story object can exist without a usable script. Only a non-empty string
   // script is valid — everything downstream (scene counting) depends on it.
@@ -145,6 +146,14 @@ function VisualPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
+  const [pacing, setPacing] = useState<PacingMode>("recommended");
+  const [customSeconds, setCustomSeconds] = useState<number>(3);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>("natural");
+  const [customWpm, setCustomWpm] = useState<number>(DEFAULT_WPM);
+  const [manualMinutes, setManualMinutes] = useState<string>("");
+  const [manualSceneCount, setManualSceneCount] = useState<string>("");
+  const [batchProgress, setBatchProgress] = useState<{ stage: string; done: number; total: number } | null>(null);
+  const [confirmRecalc, setConfirmRecalc] = useState<null | { newTarget: number }>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
   // Which scenes already have a generated image (smart cache — never redo these)
   // and which failed on the last run (for "Retry Failed Only").
