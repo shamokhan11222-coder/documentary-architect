@@ -656,7 +656,72 @@ function ThumbnailPage() {
           ))}
         </div>
       )}
+
+      {showScenePicker && selected && (
+        <ScenePicker
+          topicId={selected.id}
+          sceneNumbers={(visual?.scenes ?? []).map((s) => s.sceneNumber)}
+          onClose={() => setShowScenePicker(false)}
+          onPick={handleUseExistingScene}
+        />
+      )}
     </StageShell>
+  );
+}
+
+function ScenePicker({
+  topicId,
+  sceneNumbers,
+  onClose,
+  onPick,
+}: {
+  topicId: string;
+  sceneNumbers: number[];
+  onClose: () => void;
+  onPick: (n: number) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="max-h-[80vh] w-full max-w-3xl overflow-auto rounded-xl border border-border bg-background p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Use an existing scene image</h2>
+          <Button size="sm" variant="ghost" onClick={onClose}>Close</Button>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The local compositor adds the headline, highlight and layout — no provider request is made.
+        </p>
+        {sceneNumbers.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">No storyboard scenes exist for this project yet.</p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {sceneNumbers.map((n) => (
+              <ScenePickerCard key={n} topicId={topicId} sceneNumber={n} onPick={() => onPick(n)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScenePickerCard({ topicId, sceneNumber, onPick }: { topicId: string; sceneNumber: number; onPick: () => void }) {
+  const img = useImage(`scene:${topicId}:${sceneNumber}`);
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      disabled={!img}
+      className="group flex flex-col overflow-hidden rounded-lg border border-border text-left transition hover:border-primary disabled:opacity-50"
+    >
+      <div className="flex aspect-video items-center justify-center bg-muted/40">
+        {img ? (
+          <img src={img} alt={`Scene ${sceneNumber}`} className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-xs text-muted-foreground">No image</span>
+        )}
+      </div>
+      <div className="px-2 py-1.5 text-xs">Scene {sceneNumber}</div>
+    </button>
   );
 }
 
