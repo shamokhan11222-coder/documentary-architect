@@ -49,6 +49,8 @@ import {
 import { AIChat } from "../components/AIChat";
 import { CreditGate } from "../components/CreditGate";
 import { DebugPanel } from "../components/DebugPanel";
+import { AppErrorBoundary } from "../components/AppErrorBoundary";
+import { installGlobalErrorGuards } from "../lib/global-error-guard";
 import { getGateStatus } from "../lib/gate.functions";
 import { Logo } from "../components/Logo";
 import { PageTransition } from "../components/motion";
@@ -324,6 +326,7 @@ function RootComponent() {
   useEffect(() => {
     applyTheme();
     applyPerfProfile();
+    installGlobalErrorGuards();
   }, []);
 
   // Public layout: top navbar + full-width content.
@@ -333,7 +336,9 @@ function RootComponent() {
         <div className="flex min-h-screen flex-col bg-background text-foreground">
           <TopNavbar />
           <main className="min-w-0 flex-1">
-            <RouteMotion />
+            <AppErrorBoundary region="public-route">
+              <RouteMotion />
+            </AppErrorBoundary>
           </main>
         </div>
         <Toaster />
@@ -368,14 +373,22 @@ function RootComponent() {
           <DashboardTopbar onOpenMobileNav={() => setMobileNavOpen((v) => !v)} />
           <main className="min-w-0 flex-1 overflow-x-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <RouteMotion />
+            <AppErrorBoundary region="route">
+              <RouteMotion />
+            </AppErrorBoundary>
           </main>
         </div>
       </div>
-      <AIChat />
+      <AppErrorBoundary region="ai-chat" silent>
+        <AIChat />
+      </AppErrorBoundary>
       <Toaster />
-      <CreditGate />
-      <DebugPanel />
+      <AppErrorBoundary region="credit-gate" silent>
+        <CreditGate />
+      </AppErrorBoundary>
+      <AppErrorBoundary region="debug-panel" silent>
+        <DebugPanel />
+      </AppErrorBoundary>
     </QueryClientProvider>
   );
 }
