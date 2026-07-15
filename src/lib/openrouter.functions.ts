@@ -3,7 +3,12 @@
 // OPENROUTER_API_KEY lives only on the server (process.env) and is never
 // returned to the browser.
 import { createServerFn } from "@tanstack/react-start";
-import { OPENROUTER_ENDPOINT, OPENROUTER_DEFAULT_MODELS, openrouterCallOnce } from "./openrouter.server";
+import {
+  OPENROUTER_ENDPOINT,
+  openrouterCallOnce,
+  getFreeModelsCached,
+  OR_SENTINEL_FREE_ROUTER,
+} from "./openrouter.server";
 
 export interface OpenRouterModel {
   id: string;
@@ -56,8 +61,8 @@ export const testOpenRouterConnection = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => {
     const v = (input ?? {}) as { primary?: string; fallback?: string };
     return {
-      primary: (v.primary ?? "").trim() || OPENROUTER_DEFAULT_MODELS[0],
-      fallback: (v.fallback ?? "").trim() || OPENROUTER_DEFAULT_MODELS[1],
+      primary: (v.primary ?? "").trim() || "auto",
+      fallback: (v.fallback ?? "").trim() || OR_SENTINEL_FREE_ROUTER,
     };
   })
   .handler(
@@ -75,7 +80,28 @@ export const testOpenRouterConnection = createServerFn({ method: "POST" })
           endpoint: OPENROUTER_ENDPOINT,
           model: null,
         };
-      const chain = Array.from(new Set([data.primary, data.fallback, ...OPENROUTER_DEFAULT_MODELS]));
+      // Build a candidate list identical in spirit to the runtime router:
+      // free router first (if requested / auto), then live free catalog.
+      const free = await getFreeModelsCached(key);
+      const freeIds = free.map((m) => m.id);
+      const wantsAuto = data.primary === "auto" || data.primary === OR_SENTINEL_FREE_ROUTER || !data.primary;
+      const raw = [
+        ...(wantsAuto ? [OR_SENTINEL_FREE_ROUTER] : []),
+        ...(freeIds.includes(data.primary) ? [data.primary] : []),
+        ...(freeIds.includes(data.fallback) ? [data.fallback] : []),
+        ...freeIds,
+      ];
+      const chain = Array.from(new Set(raw));
+      if (chain.length === 0) {
+        return {
+          ok: false,
+          provider: "OpenRouter",
+          message: "No free OpenRouter model is currently available. Try again later.",
+          httpStatus: 503,
+          endpoint: OPENROUTER_ENDPOINT,
+          model: null,
+        };
+      }
       const system = "Reply only with: OpenRouter connected";
       const user = "Test";
       let last: Awaited<ReturnType<typeof openrouterCallOnce>> | null = null;
