@@ -421,8 +421,13 @@ function DebugStatus() {
       <div className="mb-2 font-sans text-sm font-medium">Developer Mode</div>
       <div className="grid gap-1">
         <div>Provider: OpenRouter</div>
-        <div>Primary Model: {or.primary}</div>
-        <div>Fallback Model: {or.fallback}</div>
+        <div>Requested Routing Mode: {or.primary}</div>
+        <div>Fallback Selection: {or.fallback}</div>
+        <div>
+          Runtime Order: openrouter/free → live free-model catalog (cached 15
+          min, blacklists unavailable models for 5 min)
+        </div>
+        <div>Paid Models: never called (prompt/completion price must be 0)</div>
         <div>Endpoint: https://openrouter.ai/api/v1/chat/completions</div>
         <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
         <div>Image Route: Puter AI primary → Pollinations fallback</div>
