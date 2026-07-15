@@ -212,11 +212,19 @@ export async function callAiJson<T = unknown>(
     try {
       return extractJson<T>(content);
     } catch {
-      console.error("[AI] openrouter JSON parse failed");
-      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
-      err.code = "JSON_PARSE_FAILED";
-      err.raw = content.slice(0, 20000);
-      throw err;
+      console.warn("[AI] openrouter JSON parse failed — retrying with strict repair prompt");
+      const repairSystem = `${fullSystem}\n\nThe previous attempt did not return valid JSON. Output ONLY a single valid JSON value. No markdown, no code fences, no prose.`;
+      const repairUser = `${user}\n\nReturn valid JSON only. Do not use markdown. Do not use code fences. Do not add explanations before or after the JSON.`;
+      const retry = await openrouterGenerate(repairSystem, repairUser, true);
+      try {
+        return extractJson<T>(retry);
+      } catch {
+        console.error("[AI] openrouter JSON parse failed after retry");
+        const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+        err.code = "JSON_PARSE_FAILED";
+        err.raw = retry.slice(0, 20000);
+        throw err;
+      }
     }
   }
   if (groqEnabled()) {
