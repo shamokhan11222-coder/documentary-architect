@@ -42,7 +42,6 @@ import { Route as GeminiDiagnosticsRouteImport } from './routes/gemini-diagnosti
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
-import { Route as DirectorRouteImport } from './routes/director'
 import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as ComponentsRouteImport } from './routes/components'
 import { Route as ChecklistRouteImport } from './routes/checklist'
@@ -221,11 +220,6 @@ const ExportRoute = ExportRouteImport.update({
   path: '/export',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DirectorRoute = DirectorRouteImport.update({
-  id: '/director',
-  path: '/director',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CreditsRoute = CreditsRouteImport.update({
   id: '/credits',
   path: '/credits',
@@ -297,7 +291,6 @@ export interface FileRoutesByFullPath {
   '/checklist': typeof ChecklistRoute
   '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
-  '/director': typeof DirectorRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -345,7 +338,6 @@ export interface FileRoutesByTo {
   '/checklist': typeof ChecklistRoute
   '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
-  '/director': typeof DirectorRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -394,7 +386,6 @@ export interface FileRoutesById {
   '/checklist': typeof ChecklistRoute
   '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
-  '/director': typeof DirectorRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -444,7 +435,6 @@ export interface FileRouteTypes {
     | '/checklist'
     | '/components'
     | '/credits'
-    | '/director'
     | '/export'
     | '/faq'
     | '/forgot-password'
@@ -492,7 +482,6 @@ export interface FileRouteTypes {
     | '/checklist'
     | '/components'
     | '/credits'
-    | '/director'
     | '/export'
     | '/faq'
     | '/forgot-password'
@@ -540,7 +529,6 @@ export interface FileRouteTypes {
     | '/checklist'
     | '/components'
     | '/credits'
-    | '/director'
     | '/export'
     | '/faq'
     | '/forgot-password'
@@ -589,7 +577,6 @@ export interface RootRouteChildren {
   ChecklistRoute: typeof ChecklistRoute
   ComponentsRoute: typeof ComponentsRoute
   CreditsRoute: typeof CreditsRoute
-  DirectorRoute: typeof DirectorRoute
   ExportRoute: typeof ExportRoute
   FaqRoute: typeof FaqRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -861,13 +848,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/director': {
-      id: '/director'
-      path: '/director'
-      fullPath: '/director'
-      preLoaderRoute: typeof DirectorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/credits': {
       id: '/credits'
       path: '/credits'
@@ -965,7 +945,6 @@ const rootRouteChildren: RootRouteChildren = {
   ChecklistRoute: ChecklistRoute,
   ComponentsRoute: ComponentsRoute,
   CreditsRoute: CreditsRoute,
-  DirectorRoute: DirectorRoute,
   ExportRoute: ExportRoute,
   FaqRoute: FaqRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
