@@ -44,6 +44,7 @@ import {
   KeyRound,
   Settings,
   Wrench,
+  Film,
   type LucideIcon,
 } from "lucide-react";
 import { AIChat } from "../components/AIChat";
