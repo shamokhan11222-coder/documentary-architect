@@ -1,6 +1,7 @@
 import { readProviderFromHeaders, geminiGenerateText, openaiGenerateText } from "./provider.server";
 import { makeProviderError } from "./provider-error";
 import { groqEnabled, groqGenerate } from "./groq.server";
+import { openrouterEnabled, openrouterGenerate } from "./openrouter.server";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
