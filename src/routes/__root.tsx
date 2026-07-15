@@ -627,6 +627,8 @@ const SECONDARY_NAV: NavLink[] = [
   { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
   { to: "/api-keys", label: "API Settings", icon: KeyRound },
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/analytics", label: "Project Analytics", icon: BarChart3 },
+  { to: "/system-health", label: "System Health", icon: Wrench },
 ];
 const NAV_SECTIONS: NavSection[] = [
   {
