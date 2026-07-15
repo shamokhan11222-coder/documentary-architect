@@ -270,22 +270,48 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
       if (p && p.text === text && p.realSeconds && p.realSeconds > 0) return p;
       return { index: i, text, estSeconds: estimateSeconds(text) };
     });
-    patchStage("voice", { status: "running", total: blocks.length, current: 0, progress: 0 });
+    const doneAlready = blocks.filter((b) => b.realSeconds && b.realSeconds > 0).length;
+    patchStage("voice", {
+      status: "running",
+      total: blocks.length,
+      current: doneAlready,
+      progress: doneAlready / Math.max(1, blocks.length),
+      lastProgressAt: Date.now(),
+      stalled: false,
+    });
     for (let i = 0; i < blocks.length; i++) {
       if (cancelled.current) throw new DOMException("aborted", "AbortError");
       if (blocks[i].realSeconds && blocks[i].realSeconds! > 0) {
-        patchStage("voice", { current: i + 1, progress: (i + 1) / blocks.length });
+        patchStage("voice", { current: i + 1, progress: (i + 1) / blocks.length, lastProgressAt: Date.now() });
         continue;
       }
       setTask(id, "voice", `Voice Director → narrating ${i + 1}/${blocks.length}…`);
+      // Stall detector: 5min without a chunk callback marks the block stalled
+      // but does NOT abort — independent stages keep running elsewhere.
+      let lastTick = Date.now();
+      const stallTimer = window.setInterval(() => {
+        if (Date.now() - lastTick > 5 * 60_000) {
+          patchStage("voice", { stalled: true, warnings: [`Block ${i + 1} stalled (>5min without progress). Retry or Skip.`] });
+        }
+      }, 30_000);
       try {
-        blocks[i].realSeconds = await generateVoiceBlock(id, i, blocks[i].text, settings);
+        blocks[i].realSeconds = await generateVoiceBlock(
+          id, i, blocks[i].text, settings,
+          () => { lastTick = Date.now(); patchStage("voice", { lastProgressAt: lastTick, stalled: false }); },
+        );
         blocks[i].generatedAt = Date.now();
       } catch (e) {
         // Voice failure fallback: keep going, single block can be repaired later.
         logActivity(id, `Voice block ${i + 1} deferred (${e instanceof Error ? e.message : "unknown"})`, "info");
+      } finally {
+        window.clearInterval(stallTimer);
       }
-      patchStage("voice", { current: i + 1, progress: (i + 1) / blocks.length });
+      patchStage("voice", { current: i + 1, progress: (i + 1) / blocks.length, lastProgressAt: Date.now(), stalled: false });
+      // Persist partial progress after every block so refresh resumes cleanly.
+      const partial: VoiceProject = { topicId: id, settings, blocks, generatedAt: Date.now() };
+      const allNow = JSON.parse(localStorage.getItem("docos.voice") || "{}");
+      allNow[id] = partial;
+      localStorage.setItem("docos.voice", JSON.stringify(allNow));
     }
     const voice: VoiceProject = { topicId: id, settings, blocks, generatedAt: Date.now() };
     const all = JSON.parse(localStorage.getItem("docos.voice") || "{}");
@@ -491,39 +517,121 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     logActivity(topicId, "AI Director started", "info");
 
     try {
-      for (const s of STAGES) {
-        if (cancelled.current) break;
-        const current = projectRef.current!.stages[s.id];
-        if (current.status === "done") continue; // never repeat completed work
-        commit({ ...projectRef.current!, currentStage: s.id });
-
-        // Guided mode: stop right before the next pending stage.
-        if (projectRef.current!.mode === "guided" && current.status === "pending") {
-          patchStage(s.id, { status: "waiting" });
-          break;
-        }
-        patchStage(s.id, { status: "running", startedAt: Date.now(), error: undefined, warnings: [] });
-        try {
-          await runners[s.id](topicId);
-          const final = projectRef.current!.stages[s.id];
-          if (final.status !== "done" && final.status !== "skipped") {
-            patchStage(s.id, { status: "done", progress: 1, finishedAt: Date.now() });
-          }
-        } catch (err) {
-          if ((err as Error).name === "AbortError") break;
-          const msg = err instanceof Error ? err.message : String(err);
-          patchStage(s.id, { status: "failed", error: msg, finishedAt: Date.now(), approved: false });
-          logActivity(topicId, `${s.label} failed: ${msg}`, "error");
-          toast.error(`${s.label} failed: ${msg}`);
-          break;
-        }
-      }
+      await runScheduler(topicId);
     } finally {
       setRunning(false);
       setPipelineRunning(topicId, false);
       commit({ ...projectRef.current!, currentStage: null });
     }
   }, [topicId, running, commit, patchStage]);
+
+  // ----------------------- Parallel dependency scheduler -----------------------
+  //
+  // Independent stages (SEO, Thumbnail Draft, Image Queue, Camera Motion,
+  // Music, SFX, Subtitle text) run concurrently while Voice generates.
+  // Voice-dependent stages (Voice Sync, Export) wait for voice completion.
+  // TTS runs by itself — no parallel TTS blocks — but non-TTS work is free.
+  const DEPS: Record<StageId, StageId[]> = {
+    topic: [],
+    research: ["topic"],
+    story: ["research"],
+    "scene-planner": ["story"],
+    voice: ["story"],
+    images: ["scene-planner"],
+    "camera-motion": ["scene-planner"],
+    "subtitle-timing": ["story"],
+    music: ["story"],
+    sfx: ["scene-planner"],
+    thumbnail: ["story"],
+    seo: ["story"],
+    "voice-sync": ["voice", "scene-planner"],
+    "export-queue": ["voice-sync", "images"],
+  };
+  const WAIT_LABEL: Partial<Record<StageId, string>> = {
+    "voice-sync": "Voice",
+    "export-queue": "Voice and Images",
+    images: "Scene Planner",
+    "camera-motion": "Scene Planner",
+    sfx: "Scene Planner",
+  };
+
+  const runScheduler = useCallback(async (id: string) => {
+    const done = (sid: StageId) => {
+      const st = projectRef.current!.stages[sid].status;
+      return st === "done" || st === "skipped";
+    };
+    const failed = (sid: StageId) => projectRef.current!.stages[sid].status === "failed";
+    const ready = (sid: StageId) => DEPS[sid].every(done);
+    const blocked = (sid: StageId) => DEPS[sid].some(failed);
+
+    // Mark initial waiting labels for stages that can't run yet.
+    for (const s of STAGES) {
+      const cur = projectRef.current!.stages[s.id];
+      if (cur.status === "pending" && !ready(s.id)) {
+        patchStage(s.id, { status: "waiting", waitingFor: WAIT_LABEL[s.id] ?? DEPS[s.id].join(", ") });
+      }
+    }
+
+    const inFlight = new Map<StageId, Promise<void>>();
+
+    const launch = (sid: StageId) => {
+      patchStage(sid, { status: "running", startedAt: Date.now(), error: undefined, warnings: [], waitingFor: undefined });
+      const promise = (async () => {
+        try {
+          await runners[sid](id);
+          const final = projectRef.current!.stages[sid];
+          if (final.status !== "done" && final.status !== "skipped") {
+            patchStage(sid, { status: "done", progress: 1, finishedAt: Date.now() });
+          }
+        } catch (err) {
+          if ((err as Error).name === "AbortError") return;
+          const msg = err instanceof Error ? err.message : String(err);
+          patchStage(sid, { status: "failed", error: msg, finishedAt: Date.now(), approved: false });
+          logActivity(id, `${sid} failed: ${msg}`, "error");
+          toast.error(`${sid} failed: ${msg}`);
+        }
+      })();
+      inFlight.set(sid, promise);
+    };
+
+    // TTS-heavy stages that must not run concurrently with each other.
+    const EXCLUSIVE = new Set<StageId>(["voice"]);
+    const tick = () => {
+      if (cancelled.current) return;
+      const exclusiveBusy = Array.from(inFlight.keys()).some((k) => EXCLUSIVE.has(k));
+      for (const s of STAGES) {
+        if (cancelled.current) return;
+        const st = projectRef.current!.stages[s.id];
+        if (st.status === "done" || st.status === "skipped" || st.status === "failed" || st.status === "running") continue;
+        if (inFlight.has(s.id)) continue;
+        if (blocked(s.id)) {
+          patchStage(s.id, { status: "skipped", warnings: ["Upstream stage failed — skipped."] });
+          continue;
+        }
+        if (!ready(s.id)) {
+          if (st.status !== "waiting") patchStage(s.id, { status: "waiting", waitingFor: WAIT_LABEL[s.id] ?? DEPS[s.id].join(", ") });
+          continue;
+        }
+        // Guided mode: pause before launching the next pending stage.
+        if (projectRef.current!.mode === "guided") {
+          patchStage(s.id, { status: "waiting", waitingFor: "Approval" });
+          continue;
+        }
+        if (EXCLUSIVE.has(s.id) && exclusiveBusy) continue;
+        launch(s.id);
+        if (EXCLUSIVE.has(s.id)) return; // let voice claim the exclusive slot
+      }
+    };
+
+    tick();
+    while (inFlight.size > 0 && !cancelled.current) {
+      const settled = await Promise.race(
+        Array.from(inFlight.entries()).map(([k, pr]) => pr.then(() => k)),
+      );
+      inFlight.delete(settled);
+      tick();
+    }
+  }, [patchStage]);
 
   const pause = useCallback(() => {
     cancelled.current = true;

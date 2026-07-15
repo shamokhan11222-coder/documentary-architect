@@ -223,10 +223,11 @@ function StageRow({
               {stage.status === "done" && "100%"}
               {stage.status === "running" && stage.total ? `${stage.current ?? 0}/${stage.total}` : null}
               {stage.status === "running" && !stage.total ? `${pct}%` : null}
-              {stage.status === "waiting" && "Waiting"}
-              {stage.status === "pending" && "Pending"}
+              {stage.status === "waiting" && (stage.waitingFor ? `Waiting for ${stage.waitingFor}` : "Waiting")}
+              {stage.status === "pending" && "Ready"}
               {stage.status === "failed" && "Failed"}
               {stage.status === "skipped" && "Skipped"}
+              {stage.stalled && stage.status === "running" && " · Stalled"}
             </span>
           </div>
         </div>

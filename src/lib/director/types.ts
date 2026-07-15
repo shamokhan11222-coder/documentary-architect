@@ -39,6 +39,12 @@ export interface StageState {
   approved?: boolean;
   /** Free-form auto-detected warnings for this stage. */
   warnings?: string[];
+  /** Human label for what this stage is waiting on, e.g. "Voice", "Images". */
+  waitingFor?: string;
+  /** True when a running stage has stopped making progress. */
+  stalled?: boolean;
+  /** Timestamp of the last progress update — used for stall detection. */
+  lastProgressAt?: number;
 }
 
 export interface DirectorProject {
