@@ -14,6 +14,7 @@ import { pollinationsGenerateImage, PollinationsError, setPollinationsStatus } f
 import { recordTelemetry } from "./provider-telemetry";
 import { recordErrorDetails } from "./error-details";
 import { lovableGatewayGenerateImage, LovableGatewayError, setLovableGatewayStatus } from "./lovable-gateway-image";
+import { getImageMode } from "./provider";
 
 export type ImageProviderName = "puter" | "pollinations" | "lovable-gateway";
 
@@ -215,75 +216,117 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
   // Hard guard: block Gemini / OpenAI / Recraft / built-in before any request.
   assertSupportedImageProvider((opts as { only?: string }).only, purpose);
   const flowId = ++flowCounter;
-  console.info("[image-flow] started", {
-    flowId,
-    activeProvider: "lovable-gateway",
-    functionInvoked: "generatePipelineImage",
-    finalProviderRoute: "Lovable AI Gateway (no automatic fallback)",
-    requestUrl: "/api/generate-image",
-  });
   const start = Date.now();
   const width = opts.width ?? 1024;
   const height = opts.height ?? 1024;
   const seed = opts.seed ?? sceneSeed(opts.scene ?? 0);
+  const mode = getImageMode();
+  console.info("[image-flow] started", {
+    flowId,
+    mode,
+    functionInvoked: "generatePipelineImage",
+    finalProviderRoute:
+      mode === "premium"
+        ? "Lovable AI Gateway (Premium Mode)"
+        : "Pollinations → Puter (Free Mode)",
+    scene: opts.scene,
+  });
 
   // Explicit legacy single-provider test path (Developer Mode only).
   if (opts.only === "pollinations") {
     const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
+    recordTelemetry({ lastMode: mode, lastModel: POLLINATIONS_MODEL, lastScene: opts.scene ?? null, lastFallbackUsed: false, lastResponseMs: Date.now() - start });
     return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
   }
   if (opts.only === "puter") {
     const image = await tryPuter(prompt, opts.scene, flowId);
     setPuterStatus("connected");
+    recordTelemetry({ lastMode: mode, lastModel: "puter-txt2img", lastScene: opts.scene ?? null, lastFallbackUsed: false, lastResponseMs: Date.now() - start });
     return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
   }
 
-  // Primary (and ONLY automatic) provider: Lovable AI Gateway.
-  // No silent fallback to Pollinations/Puter — the caller sees the exact
-  // gateway error so quality/cost can be evaluated honestly.
-  const startedAt = Date.now();
+  // PREMIUM MODE — Lovable AI Gateway (workspace credits). Only reached when
+  // the user manually opts in via the Image Mode selector.
+  if (mode === "premium") {
+    const startedAt = Date.now();
+    try {
+      const r = await lovableGatewayGenerateImage(prompt, {
+        width,
+        height,
+        purpose: purpose === "thumbnail" ? "thumbnail" : "storyboard",
+        references: (opts as { references?: string[] }).references,
+      });
+      pushDebug({
+        flowId, provider: "lovable-gateway", model: r.model, scene: opts.scene,
+        functionInvoked: "generatePipelineImage → lovableGatewayGenerateImage",
+        finalProviderRoute: "Lovable AI Gateway (Premium Mode)",
+        requestUrl: "/api/generate-image", requestDomain: "ai.gateway.lovable.dev",
+        startedAt, responseMs: Date.now() - startedAt, ok: true,
+      });
+      recordTelemetry({
+        lastProvider: "lovable-gateway", lastStatus: "success", lastError: null,
+        lastMode: "premium", lastModel: r.model, lastScene: opts.scene ?? null,
+        lastFallbackUsed: false, lastResponseMs: Date.now() - startedAt,
+      });
+      setLovableGatewayStatus("ready");
+      return { image: r.image, provider: "lovable-gateway", model: r.model, seed, ms: Date.now() - start };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      pushDebug({
+        flowId, provider: "lovable-gateway",
+        model: e instanceof LovableGatewayError ? e.model : "unknown",
+        scene: opts.scene,
+        functionInvoked: "generatePipelineImage → lovableGatewayGenerateImage",
+        finalProviderRoute: "Lovable AI Gateway (Premium Mode)",
+        requestUrl: "/api/generate-image", requestDomain: "ai.gateway.lovable.dev",
+        startedAt, responseMs: Date.now() - startedAt, ok: false, error: msg,
+      });
+      recordTelemetry({
+        lastProvider: "lovable-gateway", lastStatus: "error", lastError: msg,
+        lastMode: "premium", lastScene: opts.scene ?? null,
+        lastFallbackUsed: false, lastResponseMs: Date.now() - startedAt,
+      });
+      recordErrorDetails(e, { provider: "lovable-gateway" });
+      throw e;
+    }
+  }
+
+  // FREE MODE — Pollinations first, one-shot Puter fallback. Never touches
+  // Lovable Gateway / Gemini / OpenAI image endpoints.
+  const pollStart = Date.now();
   try {
-    const r = await lovableGatewayGenerateImage(prompt, {
-      width,
-      height,
-      purpose: purpose === "thumbnail" ? "thumbnail" : "storyboard",
-      references: (opts as { references?: string[] }).references,
+    const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
+    setPollinationsStatus("ready");
+    recordTelemetry({
+      lastProvider: "pollinations", lastStatus: "success", lastError: null,
+      lastMode: "free", lastModel: POLLINATIONS_MODEL, lastScene: opts.scene ?? null,
+      lastFallbackUsed: false, lastResponseMs: Date.now() - pollStart,
     });
-    pushDebug({
-      flowId,
-      provider: "lovable-gateway",
-      model: r.model,
-      scene: opts.scene,
-      functionInvoked: "generatePipelineImage → lovableGatewayGenerateImage",
-      finalProviderRoute: "Lovable AI Gateway (primary, no fallback)",
-      requestUrl: "/api/generate-image",
-      requestDomain: "ai.gateway.lovable.dev",
-      startedAt,
-      responseMs: Date.now() - startedAt,
-      ok: true,
-    });
-    recordTelemetry({ lastProvider: "lovable-gateway", lastStatus: "success", lastError: null });
-    setLovableGatewayStatus("ready");
-    return { image: r.image, provider: "lovable-gateway", model: r.model, seed, ms: Date.now() - start };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    pushDebug({
-      flowId,
-      provider: "lovable-gateway",
-      model: e instanceof LovableGatewayError ? e.model : "unknown",
-      scene: opts.scene,
-      functionInvoked: "generatePipelineImage → lovableGatewayGenerateImage",
-      finalProviderRoute: "Lovable AI Gateway (primary, no fallback)",
-      requestUrl: "/api/generate-image",
-      requestDomain: "ai.gateway.lovable.dev",
-      startedAt,
-      responseMs: Date.now() - startedAt,
-      ok: false,
-      error: msg,
-    });
-    recordTelemetry({ lastProvider: "lovable-gateway", lastStatus: "error", lastError: msg });
-    recordErrorDetails(e, { provider: "lovable-gateway" });
-    throw e;
+    return { image, provider: "pollinations", model: POLLINATIONS_MODEL, seed, ms: Date.now() - start };
+  } catch (pollErr) {
+    const pollMsg = pollErr instanceof Error ? pollErr.message : String(pollErr);
+    console.warn("[image-flow] Pollinations failed, falling back to Puter", pollMsg);
+    const puterStart = Date.now();
+    try {
+      const image = await tryPuter(prompt, opts.scene, flowId);
+      setPuterStatus("connected");
+      recordTelemetry({
+        lastProvider: "puter", lastStatus: "success", lastError: null,
+        lastMode: "free", lastModel: "puter-txt2img", lastScene: opts.scene ?? null,
+        lastFallbackUsed: true, lastResponseMs: Date.now() - puterStart,
+      });
+      return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
+    } catch (puterErr) {
+      const puterMsg = puterErr instanceof Error ? puterErr.message : String(puterErr);
+      recordTelemetry({
+        lastProvider: "puter", lastStatus: "error",
+        lastError: `Pollinations: ${pollMsg} | Puter: ${puterMsg}`,
+        lastMode: "free", lastScene: opts.scene ?? null,
+        lastFallbackUsed: true, lastResponseMs: Date.now() - puterStart,
+      });
+      recordErrorDetails(puterErr, { provider: "puter" });
+      throw new Error(`Free-mode image failed. Pollinations: ${pollMsg}. Puter fallback: ${puterMsg}`);
+    }
   }
 }
 
