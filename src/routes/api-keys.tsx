@@ -71,7 +71,6 @@ function useCleanupLegacyTextProviders() {
 }
 
 function ApiKeysPage() {
-function ApiKeysPage() {
   useCleanupLegacyTextProviders();
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
