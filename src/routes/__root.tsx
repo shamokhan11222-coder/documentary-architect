@@ -636,6 +636,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
       { to: "/timeline", label: "Timeline", icon: GanttChartSquare },
+      { to: "/voice-sync", label: "Voice Sync", icon: GanttChartSquare },
       { to: "/queue", label: "Image Queue", icon: ListVideo },
       { to: "/checklist", label: "Checklist", icon: ListChecks },
       { to: "/export", label: "Export", icon: Download },
