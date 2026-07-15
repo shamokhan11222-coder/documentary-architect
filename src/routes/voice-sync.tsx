@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ProjectPicker, useSelectedProject } from "@/components/ProjectPicker";
-import { useVisualMap } from "@/lib/store";
+import { useVisualMap, saveVisualMap } from "@/lib/store";
 import { useVoice } from "@/lib/production";
 import { fmtClock, fmtTimestamp } from "@/lib/production";
 import { useImage, loadImage } from "@/lib/images";
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/voice-sync")({
   component: VoiceSyncPage,
 });
 
-type Filter = "all" | "ready" | "missing" | "long" | "short" | "unmapped";
+type Filter = "all" | "ready" | "missing" | "long" | "short" | "unmapped" | "locked";
 
 function VoiceSyncPage() {
   const { selected } = useSelectedProject();
@@ -119,12 +119,39 @@ function VoiceSyncPage() {
         case "long": return s.duration > 4;
         case "short": return s.duration > 0 && s.duration < 1.8;
         case "unmapped": return s.duration <= 0.001;
+        case "locked": return !!s.locked;
         default: return true;
       }
     });
   }, [active, filter]);
 
   const stats = active ? computeStats(active) : null;
+
+  // Recommended scenes: aim for average of 3s per scene → total/3.
+  const recommendedScenes = active ? Math.max(1, Math.round(active.totalDuration / 3)) : 0;
+  const tooFew = !!(stats && stats.avg > 4.0 && recommendedScenes > stats.total);
+
+  function createExtraSlots() {
+    if (!selected || !map) return;
+    const needed = recommendedScenes - (stats?.total ?? 0);
+    if (needed <= 0) return;
+    const nextNum = (map.scenes.reduce((m, s) => Math.max(m, s.sceneNumber), 0)) + 1;
+    const slots = Array.from({ length: needed }).map((_, i) => ({
+      sceneNumber: nextNum + i,
+      voiceoverLine: "",
+      visualDescription: "Additional pacing slot — no image required.",
+      mainSubject: "",
+      background: "",
+      cameraShot: "",
+      emotion: "",
+      objectsNeeded: [],
+      sceneType: "abstract concept" as const,
+      visualDifficulty: "easy",
+      notes: "Auto-added by Voice Sync for smooth pacing.",
+    }));
+    saveVisualMap({ ...map, scenes: [...map.scenes, ...slots], generatedAt: Date.now() });
+    toast.success(`Added ${needed} scene slot${needed === 1 ? "" : "s"}. Recalculate to apply.`);
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -182,6 +209,7 @@ function VoiceSyncPage() {
           {stats && (
             <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-6">
               <Stat label="Narration" value={fmtClock(stats.totalDuration)} />
+              <Stat label="Voice blocks" value={`${active!.voiceBlocks.length}`} />
               <Stat label="Scenes" value={`${stats.total}`} />
               <Stat label="Images ready" value={`${stats.ready}/${stats.total}`} />
               <Stat label="Missing" value={`${stats.missing}`} />
@@ -193,6 +221,20 @@ function VoiceSyncPage() {
               <Stat label="Gaps" value={`${validation?.warnings.filter(w => w.includes("Gap")).length ?? 0}`} />
               <Stat label="Status" value={validation?.ok ? (pending ? "Preview" : "Saved") : "Warnings"} />
               <Stat label="Mode" value={active!.mode} />
+            </div>
+          )}
+
+          {tooFew && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+              <div className="flex-1">
+                <div className="font-medium text-amber-700">More scene slots are required for smooth visual pacing.</div>
+                <div className="mt-0.5 text-muted-foreground">
+                  Current {stats!.total} · Recommended {recommendedScenes} · Narration {fmtClock(stats!.totalDuration)} · Avg {stats!.avg.toFixed(2)}s (target ~3.0s)
+                </div>
+              </div>
+              <button onClick={createExtraSlots} className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600">
+                Create Additional Scene Slots
+              </button>
             </div>
           )}
 
@@ -211,7 +253,7 @@ function VoiceSyncPage() {
           {/* Filter */}
           {active && (
             <div className="mt-5 flex flex-wrap items-center gap-1 text-xs">
-              {(["all", "ready", "missing", "long", "short", "unmapped"] as Filter[]).map((f) => (
+              {(["all", "ready", "missing", "long", "short", "unmapped", "locked"] as Filter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
