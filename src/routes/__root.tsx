@@ -625,7 +625,8 @@ const STUDIO_TOP_NAV: NavLink[] = [
 type NavSection = { title: string; items: NavLink[] };
 const SECONDARY_NAV: NavLink[] = [
   { to: "/manager", label: "Production Dashboard", icon: LayoutDashboard },
-  { to: "/export", label: "Export", icon: Download },
+  { to: "/director", label: "AI Director", icon: Film },
+  { to: "/export", label: "Export (Legacy)", icon: Download },
   { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
   { to: "/script-analyzer", label: "Script Analyzer", icon: FileSearch },
   { to: "/rating", label: "Rating", icon: Star },
@@ -652,7 +653,8 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/voice-sync", label: "Voice Sync", icon: GanttChartSquare },
       { to: "/queue", label: "Image Queue", icon: ListVideo },
       { to: "/checklist", label: "Checklist", icon: ListChecks },
-      { to: "/export", label: "Export", icon: Download },
+      { to: "/director", label: "AI Director", icon: Film },
+      { to: "/export", label: "Export (Legacy)", icon: Download },
     ],
   },
   {
