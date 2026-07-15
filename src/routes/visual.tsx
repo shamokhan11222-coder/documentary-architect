@@ -101,47 +101,7 @@ function isValidImage(url: string | null | undefined): boolean {
   return v.startsWith("data:image") || v.startsWith("http://") || v.startsWith("https://") || v.startsWith("blob:");
 }
 
-/** Deterministic local fallback: turn a saved script into storyboard scenes
- *  when the AI returns an empty/invalid map. One sentence = one image; a
- *  sentence with multiple visual ideas is split into 2–3 scenes so a
- *  9–11 minute (~1500 word) script yields roughly 120–180 scenes. */
-function scenesFromScript(script: string): VisualScene[] {
-  const clean = (script || "").replace(/\s+/g, " ").trim();
-  if (!clean) return [];
-  // Split into sentences.
-  const sentences = clean
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  const chunks: string[] = [];
-  for (const sentence of sentences) {
-    // A sentence with multiple visual ideas (clauses) becomes 2–3 scenes.
-    const parts = sentence
-      .split(/,|;|:| — | – | and | then | while | but /i)
-      .map((p) => p.trim())
-      .filter((p) => p.split(/\s+/).length >= 3);
-    if (parts.length >= 2) {
-      for (const p of parts.slice(0, 3)) chunks.push(p);
-    } else {
-      chunks.push(sentence);
-    }
-  }
-
-  return chunks.map((line, i) => ({
-    sceneNumber: i + 1,
-    voiceoverLine: line,
-    visualDescription: line,
-    mainSubject: "",
-    background: "",
-    cameraShot: "medium shot",
-    emotion: "neutral",
-    objectsNeeded: [],
-    sceneType: "abstract concept" as const,
-    visualDifficulty: "medium",
-    notes: "Auto-generated from script.",
-  }));
-}
+// Local fallback lives in src/lib/scene-planner.ts (localScenesFromScript).
 
 function VisualPage() {
   const topics = useTopics();
