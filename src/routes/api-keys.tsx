@@ -432,7 +432,7 @@ function DebugStatus() {
         <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
         <div>Image Route: Puter AI primary → Pollinations fallback</div>
         <div>Active Thumbnail Provider: {settings.thumbnail}</div>
-        <div>Active Voice Provider: Built-in TTS</div>
+        <div>Active Voice Provider: Local TTS — Free (in browser, no credits)</div>
         <div>Credit Mode: {creditMode}</div>
         <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
         <div>Last Request Provider: {lastProvider}</div>
