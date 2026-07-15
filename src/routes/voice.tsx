@@ -354,7 +354,12 @@ function VoicePage() {
               <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
             {selectedProfile && (
-              <Button variant="outline" onClick={previewClone} disabled={!!busy}>
+              <Button
+                variant="outline"
+                onClick={previewClone}
+                disabled={!!busy || !VOICE_GENERATION_ENABLED}
+                title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
+              >
                 {busy === "preview" ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -364,12 +369,23 @@ function VoicePage() {
               </Button>
             )}
             {voice?.blocks.length ? (
-              <Button variant="secondary" onClick={genAll} disabled={!!busy}>
+              <Button
+                variant="secondary"
+                onClick={genAll}
+                disabled={!!busy || !VOICE_GENERATION_ENABLED}
+                title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
+              >
                 {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Generate Remaining
               </Button>
             ) : null}
           </div>
+
+          {!VOICE_GENERATION_ENABLED && (
+            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              {VOICE_DISABLED_MESSAGE} Existing narrated blocks below remain playable.
+            </p>
+          )}
 
           {profiles.length > 0 && !settings.clonedProfileId && (
             <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
