@@ -83,6 +83,17 @@ export async function callAiJsonGateway<T = unknown>(
   // Groq is the permanent text provider. Bypass the Lovable AI Gateway when
   // GROQ_API_KEY is configured — even for callers that historically forced
   // the built-in gateway (e.g. thumbnail concept text).
+  if (openrouterEnabled()) {
+    const content = await openrouterGenerate(fullSystem, user, true);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
+    }
+  }
   if (groqEnabled()) {
     const content = await groqGenerate(fullSystem, user, true);
     try {
