@@ -264,6 +264,13 @@ export interface VoiceSettings {
   voicePresetId?: string; // id from VOICE_PRESETS
   sentencePauseMs?: number; // 0-800
   paragraphPauseMs?: number; // 0-1500
+  // Phase 8 — post-synthesis tuning (Zenn documentary profile).
+  pitchPercent?: number; // -20..+30 (percentage of base pitch)
+  brightness?: number;   // -1..+1
+  warmth?: number;       // -1..+1
+  confidence?: number;   // 0..1
+  emotionStrength?: number; // 0..1
+  savedTuningName?: string; // e.g. "Zenn Clone"
 }
 
 export type VoiceStyle = "documentary" | "friendly" | "narrative" | "educational" | "energetic";
