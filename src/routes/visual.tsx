@@ -594,7 +594,7 @@ function VisualPage() {
         </select>
         <Button onClick={handleBuildBoard} disabled={!selected || !hasValidScript || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {hasMap ? "Rebuild Storyboard" : "Build Storyboard"}
+          {hasMap ? "Recalculate Scene Plan" : "Build Storyboard"}
         </Button>
         {hasMap && (
           <>
