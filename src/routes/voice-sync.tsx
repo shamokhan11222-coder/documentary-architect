@@ -10,8 +10,11 @@ import { useImage, loadImage } from "@/lib/images";
 import { voiceBlockId } from "@/lib/generate-voice";
 import {
   buildSyncTimeline,
+  classifyTimeline,
   deleteSyncTimeline,
+  isReadyForProduction,
   mergeWithNext,
+  repairTimeline,
   saveSyncTimeline,
   setSceneBoundary,
   splitScene,
@@ -80,14 +83,23 @@ function VoiceSyncPage() {
 
   function saveSync() {
     if (!active) return;
-    const v = validateTimeline(active);
-    if (!v.ok) {
-      toast.error(`Cannot save: ${v.errors[0]}`);
+    const c = classifyTimeline(active);
+    if (c.blocking.length) {
+      toast.error(`Cannot save: ${c.blocking[0]}`);
       return;
     }
     saveSyncTimeline(active);
     setPending(null);
     toast.success("Sync saved");
+  }
+
+  function repairSync() {
+    if (!active) return;
+    const { timeline, summary } = repairTimeline(active);
+    setPending(timeline);
+    toast.success(
+      `Long ${summary.before.long}→${summary.after.long} · Short ${summary.before.short}→${summary.after.short} · Gaps ${summary.before.gaps}→${summary.after.gaps} · Missing ${summary.before.missing} (unchanged)`,
+    );
   }
 
   function resetSync() {
@@ -110,6 +122,13 @@ function VoiceSyncPage() {
   }
 
   const validation = active ? validateTimeline(active) : null;
+  const classified = active ? classifyTimeline(active) : null;
+  const ready = active ? isReadyForProduction(active) : false;
+  const needsRepair = !!classified && (
+    classified.autoFixable.longScenes.length > 0
+    || classified.autoFixable.shortScenes.length > 0
+    || classified.autoFixable.gaps.length > 0
+  );
   const displayScenes = useMemo(() => {
     if (!active) return [];
     return active.scenes.filter((s) => {
@@ -199,11 +218,40 @@ function VoiceSyncPage() {
               <button onClick={runSync} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90">
                 {stored ? "Recalculate" : "Auto Sync"}
               </button>
+              <button
+                onClick={repairSync}
+                disabled={!active || !needsRepair}
+                className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-40"
+                title="Split long scenes, merge/redistribute short ones, close gaps"
+              >
+                Repair Sync Issues
+              </button>
               <button onClick={saveSync} disabled={!pending} className="rounded-md border border-input px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-40">Save Sync</button>
               <button onClick={exportJSON} disabled={!active} className="rounded-md border border-input px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-40">Export Timing JSON</button>
               <button onClick={resetSync} disabled={!stored} className="rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-40">Reset Sync</button>
             </div>
           </div>
+
+          {/* Ready banner */}
+          {active && (
+            <div
+              className={[
+                "mt-4 rounded-lg border p-3 text-xs",
+                ready
+                  ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700"
+                  : "border-destructive/40 bg-destructive/5 text-destructive",
+              ].join(" ")}
+            >
+              <div className="font-semibold">
+                {ready ? "READY — TIMING COMPLETE" : "NOT READY — TIMING ISSUES REMAIN"}
+              </div>
+              <div className="mt-0.5 text-muted-foreground">
+                {ready
+                  ? `${active.scenes.filter((s) => s.missingImage).length} scene(s) still need images (non-blocking).`
+                  : `${classified?.autoFixable.longScenes.length ?? 0} long · ${classified?.autoFixable.shortScenes.length ?? 0} short · ${classified?.autoFixable.gaps.length ?? 0} gap(s). Click "Repair Sync Issues".`}
+              </div>
+            </div>
+          )}
 
           {/* Stats */}
           {stats && (
@@ -239,11 +287,11 @@ function VoiceSyncPage() {
           )}
 
           {/* Warnings */}
-          {(warnings.length > 0 || (validation && (validation.errors.length || validation.warnings.length))) && (
+          {(warnings.length > 0 || (classified && (classified.blocking.length || classified.warnings.length))) && (
             <div className="mt-4 space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
               {warnings.map((w, i) => <div key={`w${i}`} className="text-amber-700">• {w}</div>)}
-              {validation?.errors.map((e, i) => <div key={`e${i}`} className="text-destructive">✗ {e}</div>)}
-              {validation?.warnings.map((w, i) => <div key={`vw${i}`} className="text-amber-700">! {w}</div>)}
+              {classified?.blocking.map((e, i) => <div key={`e${i}`} className="text-destructive">✗ {e}</div>)}
+              {classified?.warnings.map((w, i) => <div key={`vw${i}`} className="text-amber-700">! {w}</div>)}
             </div>
           )}
 
