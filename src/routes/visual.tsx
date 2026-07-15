@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw, Images, PlayCircle } from "lucide-react";
 
@@ -13,6 +13,29 @@ import {
   useVisualMap,
   saveVisualMap,
 } from "@/lib/store";
+import { useVoice } from "@/lib/production";
+import {
+  PACING_PRESETS,
+  WPM_PRESETS,
+  DEFAULT_WPM,
+  MIN_SCENE_COUNT,
+  MAX_SCENE_COUNT,
+  MIN_SCENE_SECONDS,
+  MAX_SCENE_SECONDS,
+  SCENES_PER_BATCH,
+  wordCount,
+  resolveScriptDuration,
+  computeTargetSceneCount,
+  splitScriptForBatches,
+  localScenesFromScript,
+  mergeAndRenumber,
+  assignSceneTimings,
+  validateScenePlan,
+  formatDuration,
+  pacingLabel,
+  type PacingMode,
+  type SpeechRate,
+} from "@/lib/scene-planner";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage, generateTestImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
@@ -78,47 +101,7 @@ function isValidImage(url: string | null | undefined): boolean {
   return v.startsWith("data:image") || v.startsWith("http://") || v.startsWith("https://") || v.startsWith("blob:");
 }
 
-/** Deterministic local fallback: turn a saved script into storyboard scenes
- *  when the AI returns an empty/invalid map. One sentence = one image; a
- *  sentence with multiple visual ideas is split into 2–3 scenes so a
- *  9–11 minute (~1500 word) script yields roughly 120–180 scenes. */
-function scenesFromScript(script: string): VisualScene[] {
-  const clean = (script || "").replace(/\s+/g, " ").trim();
-  if (!clean) return [];
-  // Split into sentences.
-  const sentences = clean
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  const chunks: string[] = [];
-  for (const sentence of sentences) {
-    // A sentence with multiple visual ideas (clauses) becomes 2–3 scenes.
-    const parts = sentence
-      .split(/,|;|:| — | – | and | then | while | but /i)
-      .map((p) => p.trim())
-      .filter((p) => p.split(/\s+/).length >= 3);
-    if (parts.length >= 2) {
-      for (const p of parts.slice(0, 3)) chunks.push(p);
-    } else {
-      chunks.push(sentence);
-    }
-  }
-
-  return chunks.map((line, i) => ({
-    sceneNumber: i + 1,
-    voiceoverLine: line,
-    visualDescription: line,
-    mainSubject: "",
-    background: "",
-    cameraShot: "medium shot",
-    emotion: "neutral",
-    objectsNeeded: [],
-    sceneType: "abstract concept" as const,
-    visualDifficulty: "medium",
-    notes: "Auto-generated from script.",
-  }));
-}
+// Local fallback lives in src/lib/scene-planner.ts (localScenesFromScript).
 
 function VisualPage() {
   const topics = useTopics();
@@ -126,6 +109,7 @@ function VisualPage() {
   const selected = topics.find((t) => t.id === selectedId) ?? null;
   const story = useStory(selectedId);
   const map = useVisualMap(selectedId);
+  const voice = useVoice(selectedId);
 
   // A story object can exist without a usable script. Only a non-empty string
   // script is valid — everything downstream (scene counting) depends on it.
@@ -162,6 +146,14 @@ function VisualPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; current: number | null } | null>(null);
+  const [pacing, setPacing] = useState<PacingMode>("recommended");
+  const [customSeconds, setCustomSeconds] = useState<number>(3);
+  const [speechRate, setSpeechRate] = useState<SpeechRate>("natural");
+  const [customWpm, setCustomWpm] = useState<number>(DEFAULT_WPM);
+  const [manualMinutes, setManualMinutes] = useState<string>("");
+  const [manualSceneCount, setManualSceneCount] = useState<string>("");
+  const [batchProgress, setBatchProgress] = useState<{ stage: string; done: number; total: number } | null>(null);
+  const [confirmRecalc, setConfirmRecalc] = useState<null | { newTarget: number }>(null);
   const [report, setReport] = useState<ConsistencyReport | null>(null);
   // Which scenes already have a generated image (smart cache — never redo these)
   // and which failed on the last run (for "Retry Failed Only").
@@ -175,6 +167,32 @@ function VisualPage() {
   useEffect(() => {
     enforceZeroBudgetImageRouting();
   }, []);
+
+  // ---- Scene plan estimate (pure — never triggers AI) ----
+  const wpm = speechRate === "custom" ? customWpm : WPM_PRESETS[speechRate];
+  const voiceRealSeconds = useMemo(() => {
+    if (!voice?.blocks?.length) return null;
+    const total = voice.blocks.reduce((a, b) => a + (b.realSeconds ?? 0), 0);
+    return total > 5 ? total : null;
+  }, [voice]);
+  const duration = useMemo(
+    () =>
+      resolveScriptDuration({
+        script: scriptText,
+        wpm,
+        voiceRealSeconds,
+        manualMinutes: manualMinutes ? parseFloat(manualMinutes) : null,
+      }),
+    [scriptText, wpm, voiceRealSeconds, manualMinutes],
+  );
+  const avgSceneSeconds = pacing === "custom"
+    ? customSeconds
+    : PACING_PRESETS.find((p) => p.id === pacing)?.seconds ?? 3;
+  const estimatedSceneCount = computeTargetSceneCount(duration.seconds, avgSceneSeconds);
+  const manualCountValue = manualSceneCount ? parseInt(manualSceneCount, 10) : NaN;
+  const targetSceneCount = Number.isFinite(manualCountValue)
+    ? Math.max(MIN_SCENE_COUNT, Math.min(MAX_SCENE_COUNT, manualCountValue))
+    : estimatedSceneCount;
 
   const refreshHave = useCallback(async () => {
     if (!selected || !map || !Array.isArray(map.scenes)) {
@@ -253,39 +271,66 @@ function VisualPage() {
 
   function handleBuildBoard() {
     if (!selected || !hasValidScript) return;
+    if (hasMap && !confirmRecalc && Math.abs(scenes.length - targetSceneCount) > 5) {
+      setConfirmRecalc({ newTarget: targetSceneCount });
+      return;
+    }
+    setConfirmRecalc(null);
     return withBusy("gen", async () => {
-      // Derive a scene-count target from the actual script length so long
-      // videos get many scenes (≈1 scene per sentence). A 9–11 min / ~1500
-      // word script yields roughly 120–180 scenes.
-      const words = (scriptText.match(/\S+/g) ?? []).length;
-      const minScenes = Math.max(8, Math.round(words / 12));
-      const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
-      let safeScenes: VisualScene[] = [];
-      try {
-        const scenes = (await gen({
-          data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
-        })) as VisualScene[];
-        safeScenes = Array.isArray(scenes) ? scenes.filter(Boolean) : [];
-      } catch (e) {
-        // fall through to local rebuild below
-        safeScenes = [];
+      // Phase 4 — batched dynamic scene planner. Chunk the script into
+      // SCENES_PER_BATCH-sized pieces so a single AI call never has to emit
+      // hundreds of scenes and truncate (root cause of the 66-scene bug).
+      const target = targetSceneCount;
+      const chunks = splitScriptForBatches(scriptText, target);
+      const totalBatches = Math.max(1, chunks.length);
+      const perBatchTarget = Math.max(4, Math.round(target / totalBatches));
+      const perMin = Math.max(3, Math.round(perBatchTarget * 0.85));
+      const perMax = Math.min(SCENES_PER_BATCH + 20, Math.round(perBatchTarget * 1.2));
+
+      setBatchProgress({ stage: "Planning scenes", done: 0, total: totalBatches });
+      const batches: VisualScene[][] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        setBatchProgress({ stage: `Generating batch ${i + 1} of ${totalBatches}`, done: i, total: totalBatches });
+        try {
+          const res = (await gen({
+            data: {
+              topic: selected.topic,
+              script: chunks[i],
+              minScenes: perMin,
+              maxScenes: perMax,
+              visualInstructions: getVisualInstructions(),
+            },
+          })) as VisualScene[];
+          batches.push(Array.isArray(res) ? res.filter(Boolean) : []);
+        } catch {
+          batches.push([]);
+        }
       }
 
-      // If the AI produced no usable scenes, rebuild locally from the script so
-      // the storyboard is never empty when a valid script exists.
-      if (safeScenes.length === 0) {
-        safeScenes = scenesFromScript(scriptText);
+      setBatchProgress({ stage: "Validating timing", done: totalBatches, total: totalBatches });
+      let safeScenes = mergeAndRenumber(batches);
+
+      // If AI came up dramatically short (previous 66-scene bug), fill locally.
+      if (safeScenes.length < Math.round(target * 0.6)) {
+        safeScenes = localScenesFromScript(scriptText, target);
       }
 
-      // A storyboard is only "built" when it actually has scenes. An empty map
-      // must be treated as Failed — never saved and never shown as completed.
       if (safeScenes.length === 0) {
         toast.error("No storyboard scenes found. Generate Story first, then rebuild storyboard.");
+        setBatchProgress(null);
         return;
       }
 
+      const timed = assignSceneTimings(safeScenes, duration.seconds, pacing, avgSceneSeconds);
+      const validation = validateScenePlan(timed, duration.seconds);
+      setBatchProgress({ stage: "Saving storyboard", done: totalBatches, total: totalBatches });
       saveVisualMap({ topicId: selected.id, scenes: safeScenes, generatedAt: Date.now() });
-      toast.success(`Storyboard built — ${safeScenes.length} scenes. Now generate images`);
+      setBatchProgress(null);
+      if (!validation.ok) {
+        toast.warning(`Storyboard built — ${safeScenes.length} scenes. ${validation.issues[0]}`);
+      } else {
+        toast.success(`Storyboard built — ${safeScenes.length} scenes (~${avgSceneSeconds}s each). Now generate images.`);
+      }
     });
   }
 
@@ -549,7 +594,7 @@ function VisualPage() {
         </select>
         <Button onClick={handleBuildBoard} disabled={!selected || !hasValidScript || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {hasMap ? "Rebuild Storyboard" : "Build Storyboard"}
+          {hasMap ? "Recalculate Scene Plan" : "Build Storyboard"}
         </Button>
         {hasMap && (
           <>
@@ -612,6 +657,129 @@ function VisualPage() {
       </div>
 
       {hasMap && <ImageQueuePanel onStart={startQueue} />}
+
+      {selected && hasValidScript && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
+          <div className="mb-3 text-sm font-semibold">Scene Plan</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Pacing</span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={pacing}
+                onChange={(e) => setPacing(e.target.value as PacingMode)}
+              >
+                {PACING_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label} — {p.description}</option>
+                ))}
+              </select>
+              {pacing === "custom" && (
+                <input
+                  type="number"
+                  min={MIN_SCENE_SECONDS}
+                  max={MAX_SCENE_SECONDS}
+                  step={0.1}
+                  value={customSeconds}
+                  onChange={(e) => setCustomSeconds(parseFloat(e.target.value) || 3)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                />
+              )}
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Narration speed</span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={speechRate}
+                onChange={(e) => setSpeechRate(e.target.value as SpeechRate)}
+              >
+                <option value="slow">Slow — 125 WPM</option>
+                <option value="natural">Natural — 145 WPM</option>
+                <option value="fast">Fast — 165 WPM</option>
+                <option value="custom">Custom…</option>
+              </select>
+              {speechRate === "custom" && (
+                <input
+                  type="number"
+                  min={80}
+                  max={220}
+                  value={customWpm}
+                  onChange={(e) => setCustomWpm(parseInt(e.target.value, 10) || DEFAULT_WPM)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                />
+              )}
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Target duration (minutes){voiceRealSeconds ? " — using real voice" : ""}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={0.5}
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(e.target.value)}
+                placeholder={voiceRealSeconds ? formatDuration(voiceRealSeconds) : "auto from script"}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                disabled={!!voiceRealSeconds}
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 grid gap-1 rounded-md bg-muted/40 p-3 font-mono text-xs text-muted-foreground">
+            <div>Script duration: {formatDuration(duration.seconds)} ({duration.source === "voice" ? "real voice" : duration.source === "manual" ? "manual" : `${wordCount(scriptText)} words @ ${wpm} WPM`})</div>
+            <div>Selected pacing: {pacingLabel(pacing, customSeconds)}</div>
+            <div>Estimated scene count: {estimatedSceneCount} scenes</div>
+            <div>Estimated images needed: {estimatedSceneCount}</div>
+          </div>
+
+          <label className="mt-3 grid gap-1 md:max-w-xs">
+            <span className="text-xs font-medium text-muted-foreground">
+              Manual override ({MIN_SCENE_COUNT}–{MAX_SCENE_COUNT}, blank = auto)
+            </span>
+            <input
+              type="number"
+              min={MIN_SCENE_COUNT}
+              max={MAX_SCENE_COUNT}
+              value={manualSceneCount}
+              onChange={(e) => setManualSceneCount(e.target.value)}
+              placeholder={String(estimatedSceneCount)}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            />
+          </label>
+          {Number.isFinite(manualCountValue) && (
+            <p className="mt-2 text-xs text-primary">Using manual scene count: {targetSceneCount}</p>
+          )}
+        </div>
+      )}
+
+      {confirmRecalc && (
+        <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+          <div className="font-semibold text-amber-700 dark:text-amber-400">Recalculate scene plan?</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Current scenes: {scenes.length} · New estimated scenes: {confirmRecalc.newTarget}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Your existing storyboard is preserved until the new one completes.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setConfirmRecalc(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleBuildBoard}>Create New Scene Plan</Button>
+          </div>
+        </div>
+      )}
+
+      {batchProgress && (
+        <div className="mt-3 rounded-md border border-border bg-muted/30 p-3 text-xs">
+          <div className="mb-1 font-medium">{batchProgress.stage}</div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {hasMap && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
