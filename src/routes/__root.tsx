@@ -610,7 +610,7 @@ const STUDIO_TOP_NAV: NavLink[] = [
   { to: "/topics", label: "Projects", icon: FolderKanban },
   { to: "/research", label: "Research", icon: Search },
   { to: "/story", label: "Story", icon: BookText },
-  { to: "/visual", label: "Images", icon: ImageIcon },
+  { to: "/image-studio", label: "Images", icon: ImageIcon },
   { to: "/voice", label: "Voice", icon: Mic },
   { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/seo", label: "SEO", icon: BarChart3 },
