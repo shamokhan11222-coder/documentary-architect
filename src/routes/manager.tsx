@@ -47,7 +47,7 @@ import { generateVoiceBlock } from "@/lib/generate-voice";
 import { getVisualInstructions } from "@/lib/visual-instructions";
 import { buildInjection, getScriptPattern } from "@/lib/generation-context";
 import { buildSyncTimeline, repairTimeline, saveSyncTimeline, readSyncTimeline } from "@/lib/voice-sync";
-import { hasStoredIdWithPrefix, loadImage } from "@/lib/images";
+import { loadImage } from "@/lib/images";
 import {
   DEFAULT_VOICE_SETTINGS,
   scriptToParagraphs,
