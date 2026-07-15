@@ -50,23 +50,53 @@ export function extractJson<T = unknown>(raw: string): T {
     .replace(/```\s*/g, "")
     .trim();
 
+  // 1. direct
+  try { return JSON.parse(cleaned) as T; } catch { /* keep going */ }
+
+  // 2. trim to outermost object/array by boundary
   const start = cleaned.search(/[[{]/);
   if (start !== -1) {
     const open = cleaned[start];
     const close = open === "[" ? "]" : "}";
     const end = cleaned.lastIndexOf(close);
-    if (end > start) cleaned = cleaned.slice(start, end + 1);
+    if (end > start) {
+      const slice = cleaned.slice(start, end + 1);
+      try { return JSON.parse(slice) as T; } catch { cleaned = slice; }
+    }
   }
 
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
-    const repaired = cleaned
-      .replace(/,\s*}/g, "}")
-      .replace(/,\s*]/g, "]")
-      .replace(/[\u0000-\u001F\u007F]/g, " ");
-    return JSON.parse(repaired) as T;
+  // 3. balanced-brace scan from the first `{` (handles trailing prose)
+  const first = cleaned.indexOf("{");
+  if (first !== -1) {
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    for (let i = first; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const slice = cleaned.slice(first, i + 1);
+          try { return JSON.parse(slice) as T; } catch { break; }
+        }
+      }
+    }
   }
+
+  // 4. repair common issues and retry
+  const repaired = cleaned
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]")
+    .replace(/[\u0000-\u001F\u007F]/g, " ");
+  return JSON.parse(repaired) as T;
 }
 
 /**
@@ -182,11 +212,19 @@ export async function callAiJson<T = unknown>(
     try {
       return extractJson<T>(content);
     } catch {
-      console.error("[AI] openrouter JSON parse failed");
-      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
-      err.code = "JSON_PARSE_FAILED";
-      err.raw = content.slice(0, 20000);
-      throw err;
+      console.warn("[AI] openrouter JSON parse failed — retrying with strict repair prompt");
+      const repairSystem = `${fullSystem}\n\nThe previous attempt did not return valid JSON. Output ONLY a single valid JSON value. No markdown, no code fences, no prose.`;
+      const repairUser = `${user}\n\nReturn valid JSON only. Do not use markdown. Do not use code fences. Do not add explanations before or after the JSON.`;
+      const retry = await openrouterGenerate(repairSystem, repairUser, true);
+      try {
+        return extractJson<T>(retry);
+      } catch {
+        console.error("[AI] openrouter JSON parse failed after retry");
+        const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+        err.code = "JSON_PARSE_FAILED";
+        err.raw = retry.slice(0, 20000);
+        throw err;
+      }
     }
   }
   if (groqEnabled()) {
