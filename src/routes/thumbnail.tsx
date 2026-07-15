@@ -585,7 +585,7 @@ function ThumbnailPage() {
           <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
             First thumbnail ready.
           </p>
-        ) : providerError ? (
+        ) : providerError && !retryJob ? (
           dev ? (
             // Developer Mode: surface the EXACT raw provider error.
             <p className="mt-3 whitespace-pre-wrap break-words rounded-md bg-destructive/10 px-3 py-2 font-mono text-xs text-destructive">
