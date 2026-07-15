@@ -12,20 +12,20 @@ export interface VoicePreset {
 
 export const VOICE_PRESETS: VoicePreset[] = [
   {
+    id: "young-confident-male",
+    label: "Young Confident Male",
+    desc: "Young, light, confident American male documentary narrator — default",
+    voice: "am_michael",
+    gender: "male",
+    defaultSpeed: 1.06,
+  },
+  {
     id: "zenn-clone",
     label: "Zenn Clone",
     desc: "Confident young male documentary narrator (post-tuned)",
     voice: "am_puck",
     gender: "male",
     defaultSpeed: 1.10,
-  },
-  {
-    id: "young-smooth-male",
-    label: "Young Smooth Male",
-    desc: "Light, warm, modern documentary — default",
-    voice: "am_puck",
-    gender: "male",
-    defaultSpeed: 1.0,
   },
   {
     id: "calm-educational-male",
@@ -61,7 +61,7 @@ export const VOICE_PRESETS: VoicePreset[] = [
   },
 ];
 
-export const DEFAULT_PRESET_ID = "young-smooth-male";
+export const DEFAULT_PRESET_ID = "young-confident-male";
 
 export function getPreset(id: string | undefined | null): VoicePreset {
   return VOICE_PRESETS.find((p) => p.id === id) ?? VOICE_PRESETS[0];
