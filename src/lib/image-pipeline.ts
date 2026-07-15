@@ -15,6 +15,7 @@ import { recordTelemetry } from "./provider-telemetry";
 import { recordErrorDetails } from "./error-details";
 import { lovableGatewayGenerateImage, LovableGatewayError, setLovableGatewayStatus } from "./lovable-gateway-image";
 import { getImageMode } from "./provider";
+import { isProviderAvailable, noteRateLimit, noteFailure, getBreaker } from "./image-circuit-breaker";
 
 export type ImageProviderName = "puter" | "pollinations" | "lovable-gateway";
 
@@ -293,8 +294,24 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
 
   // FREE MODE — Pollinations first, one-shot Puter fallback. Never touches
   // Lovable Gateway / Gemini / OpenAI image endpoints.
+  const breaker = getBreaker();
+  const pollAvail = isProviderAvailable("pollinations");
+  const puterAvail = isProviderAvailable("puter");
+
+  // If both providers are currently in cooldown / paused, surface a specific
+  // error carrying the next-available timestamp so the UI can show a countdown.
+  if (!pollAvail && !puterAvail) {
+    const err = new Error(
+      "Both free image providers are temporarily unavailable. Your thumbnail concept is saved. Retry later, use an existing scene image, or create a local thumbnail draft.",
+    ) as Error & { code: string; nextAvailableAt: number | null };
+    err.code = "PROVIDERS_UNAVAILABLE";
+    err.nextAvailableAt = breaker.nextAvailableAt;
+    throw err;
+  }
+
   const pollStart = Date.now();
   try {
+    if (!pollAvail) throw new PollinationsError("Pollinations cooling down.", "rate-limit");
     const image = await tryPollinations(prompt, seed, { width, height }, opts.scene, flowId);
     setPollinationsStatus("ready");
     recordTelemetry({
@@ -306,8 +323,14 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
   } catch (pollErr) {
     const pollMsg = pollErr instanceof Error ? pollErr.message : String(pollErr);
     console.warn("[image-flow] Pollinations failed, falling back to Puter", pollMsg);
+    if (pollErr instanceof PollinationsError && pollErr.kind === "rate-limit") {
+      noteRateLimit("pollinations", pollErr.retryAfterMs ?? undefined, pollMsg);
+    } else if (pollAvail) {
+      noteFailure("pollinations", pollMsg);
+    }
     const puterStart = Date.now();
     try {
+      if (!isProviderAvailable("puter")) throw new PuterError("Puter cooling down.", "rate-limit");
       const image = await tryPuter(prompt, opts.scene, flowId);
       setPuterStatus("connected");
       recordTelemetry({
@@ -318,6 +341,8 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
       return { image, provider: "puter", model: "puter-txt2img", seed, ms: Date.now() - start };
     } catch (puterErr) {
       const puterMsg = puterErr instanceof Error ? puterErr.message : String(puterErr);
+      if (puterErr instanceof PuterError && puterErr.kind === "rate-limit") noteRateLimit("puter", undefined, puterMsg);
+      else noteFailure("puter", puterMsg);
       recordTelemetry({
         lastProvider: "puter", lastStatus: "error",
         lastError: `Pollinations: ${pollMsg} | Puter: ${puterMsg}`,
@@ -325,7 +350,14 @@ export async function generatePipelineImage(prompt: string, opts: PipelineOption
         lastFallbackUsed: true, lastResponseMs: Date.now() - puterStart,
       });
       recordErrorDetails(puterErr, { provider: "puter" });
-      throw new Error(`Free-mode image failed. Pollinations: ${pollMsg}. Puter fallback: ${puterMsg}`);
+      const next = getBreaker().nextAvailableAt;
+      const wrapped = new Error(
+        "Both free image providers are temporarily unavailable. Your thumbnail concept is saved. Retry later, use an existing scene image, or create a local thumbnail draft.",
+      ) as Error & { code: string; nextAvailableAt: number | null; detail: string };
+      wrapped.code = "PROVIDERS_UNAVAILABLE";
+      wrapped.nextAvailableAt = next;
+      wrapped.detail = `Pollinations: ${pollMsg}. Puter fallback: ${puterMsg}`;
+      throw wrapped;
     }
   }
 }

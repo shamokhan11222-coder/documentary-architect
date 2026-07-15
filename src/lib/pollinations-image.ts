@@ -25,10 +25,13 @@ export function setPollinationsStatus(s: PollinationsStatus) {
 
 export class PollinationsError extends Error {
   kind: "rate-limit" | "unavailable" | "error";
-  constructor(message: string, kind: "rate-limit" | "unavailable" | "error") {
+  /** Milliseconds the caller must wait before retrying (from Retry-After). */
+  retryAfterMs: number | null;
+  constructor(message: string, kind: "rate-limit" | "unavailable" | "error", retryAfterMs: number | null = null) {
     super(message);
     this.name = "PollinationsError";
     this.kind = kind;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -93,7 +96,21 @@ export async function pollinationsGenerateImage(
     if (!res.ok) {
       const kind = res.status === 429 ? "rate-limit" : res.status >= 500 ? "unavailable" : "error";
       setPollinationsStatus(kind === "rate-limit" ? "rate-limited" : kind === "unavailable" ? "unavailable" : "failed");
-      throw new PollinationsError(`Pollinations HTTP ${res.status}`, kind);
+      // Read Retry-After when the server sends one; the caller uses it to
+      // schedule the next attempt precisely instead of the default 90s cooldown.
+      let retryAfterMs: number | null = null;
+      if (res.status === 429) {
+        const h = res.headers.get("retry-after");
+        if (h) {
+          const secs = Number(h);
+          if (Number.isFinite(secs) && secs >= 0) retryAfterMs = Math.round(secs * 1000);
+          else {
+            const t = Date.parse(h);
+            if (Number.isFinite(t)) retryAfterMs = Math.max(0, t - Date.now());
+          }
+        }
+      }
+      throw new PollinationsError(`Pollinations HTTP ${res.status}`, kind, retryAfterMs);
     }
     const blob = await res.blob();
     if (!blob.type.startsWith("image/") || blob.size === 0) {

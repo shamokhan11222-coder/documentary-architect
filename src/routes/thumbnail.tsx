@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Check, Sparkles, Code, Upload, Clock, ImageOff } from "lucide-react";
+import { Loader2, RefreshCw, Check, Sparkles, Code, Upload, Clock, ImageOff, Images, FileText, Zap } from "lucide-react";
 
 import { generateThumbnails, regenerateThumbnail, reviewThumbnails } from "@/lib/ai.functions";
 import {
@@ -13,12 +13,22 @@ import {
   useResearch,
   useThumbnails,
   saveThumbnails,
+  useVisualMap,
 } from "@/lib/store";
 import { useImage, putImage, loadImage, fileToDataUrl } from "@/lib/images";
 import { generateThumbnailImage, imageErrorMessage, isRateLimitError, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { getFreeMode, useFreeMode } from "@/lib/free-mode";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { useCreditConfig } from "@/lib/credit-mode";
+import { useBreaker, resetBreaker } from "@/lib/image-circuit-breaker";
+import {
+  useThumbRetry,
+  recordThumbFailure,
+  clearThumbRetry,
+  resetThumbRetry,
+  MAX_ATTEMPTS,
+} from "@/lib/thumbnail-retry";
+import { conceptFromIdea, composeTextOnlyDraft } from "@/lib/thumbnail-compositor";
 import { Button } from "@/components/ui/button";
 import { Score, Meta } from "@/components/Score";
 import { StageShell } from "@/components/StageShell";
@@ -39,8 +49,24 @@ export const Route = createFileRoute("/thumbnail")({
 });
 
 const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
+const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 
 const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
+
+const PROVIDERS_UNAVAILABLE_MESSAGE =
+  "Both free image providers are temporarily unavailable. Your thumbnail concept is saved. Retry later, use an existing scene image, or create a local thumbnail draft.";
+
+function isProvidersUnavailableError(e: unknown): boolean {
+  return e instanceof Error && (e as Error & { code?: string }).code === "PROVIDERS_UNAVAILABLE";
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const s = Math.ceil(ms / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
 
 /** Normal-user friendly image error. Images run on the built-in Lovable AI, so
  *  the common failure is running out of Lovable credits (HTTP 402). Surface a
@@ -81,6 +107,10 @@ function ThumbnailPage() {
   const [conceptPending, setConceptPending] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
   const [conceptProvider, setConceptProvider] = useState<string | null>(null);
+  const breaker = useBreaker();
+  const retryJob = useThumbRetry(selectedId ?? null);
+  const visual = useVisualMap(selectedId ?? null);
+  const [showScenePicker, setShowScenePicker] = useState(false);
   const telemetry = useTelemetry();
   const pixelProvider =
     telemetry.lastProvider === "pollinations"
@@ -100,9 +130,23 @@ function ThumbnailPage() {
     ? "rate_limited"
     : thumbnailReady
       ? "completed"
-      : pack
-        ? "concept_only"
-        : "none";
+      : retryJob?.status === "unavailable"
+        ? "provider_unavailable"
+        : retryJob?.status === "waiting"
+          ? "retry_waiting"
+          : pack
+            ? "concept_only"
+            : "none";
+
+  // Auto-clear the retry job when a stored image appears (success from any path).
+  useEffect(() => {
+    if (hasImageUrl && selected && retryJob) clearThumbRetry(selected.id);
+  }, [hasImageUrl, selected, retryJob]);
+
+  // Sequential 10s gap when the user asks for more variants.
+  async function sleep(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
 
   function handleReview() {
     if (!selected || !pack) return;
@@ -149,20 +193,33 @@ function ThumbnailPage() {
         const url = await generateThumbnailImage(ideas[i]);
         await putImage(thumbImageId(selected.id, i), url);
         wrote++;
+        // Success — clear any prior retry state for this project.
+        clearThumbRetry(selected.id);
       } catch (e) {
         // Emergency Debug: surface the EXACT provider error — never a generic line.
         const msg = imageErrorMessage(e, "failed");
         setProviderError(msg);
+        if (isProvidersUnavailableError(e)) {
+          setProviderLimit(true);
+          recordThumbFailure(selected.id, i, PROVIDERS_UNAVAILABLE_MESSAGE);
+          toast.error(PROVIDERS_UNAVAILABLE_MESSAGE);
+          setProgress(null);
+          return "provider-limit";
+        }
         if (isRateLimitError(e)) {
           setProviderLimit(true);
+          recordThumbFailure(selected.id, i, msg);
           toast.error(`Thumbnail ${i + 1}: ${msg}`);
           setProgress(null);
           return "provider-limit";
         }
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
+        recordThumbFailure(selected.id, i, msg);
         if (/credit|402/i.test(msg)) break;
       }
       setProgress({ done: i + 1, total: end });
+      // Sequential Free-Mode pacing between variants.
+      if (getFreeMode() && i + 1 < end) await sleep(10_000);
     }
     setProgress(null);
     // Only report success when an actual image was stored. Otherwise the concept
@@ -299,6 +356,94 @@ function ThumbnailPage() {
     toast.success("Placeholder thumbnail added");
   }
 
+  // "Use Existing Scene Image" — reuse a completed storyboard image as the
+  // illustration layer. Runs the local compositor only. No provider request.
+  async function handleUseExistingScene(sceneNumber: number) {
+    if (!selected || !pack) return;
+    return withBusy("scene", async () => {
+      const img = await loadImage(sceneImageId(selected.id, sceneNumber));
+      if (!img) {
+        toast.error("That storyboard image isn't stored yet.");
+        return;
+      }
+      const { composeThumbnail } = await import("@/lib/thumbnail-compositor");
+      const concept = conceptFromIdea(pack.ideas[0]);
+      const composed = await composeThumbnail(concept, img);
+      await putImage(thumbImageId(selected.id, 0), composed);
+      clearThumbRetry(selected.id);
+      setProviderLimit(false);
+      setProviderError(null);
+      setShowScenePicker(false);
+      toast.success("Thumbnail built from existing scene image.");
+    });
+  }
+
+  // "Create Text-Only Thumbnail Draft" — zero-provider fallback using compositor.
+  async function handleTextDraft() {
+    if (!selected) return;
+    return withBusy("draft", async () => {
+      const idea =
+        pack?.ideas?.[0] ??
+        ({
+          thumbnailTitle: selected.topic,
+          textOnThumbnail: selected.topic,
+          mainSubject: "",
+          mainVisualConcept: "",
+          composition: "",
+          background: "",
+          emotion: "curious",
+          ctrScore: 0,
+          imagePrompt: "",
+          whyItWorks: "",
+        } as ThumbnailIdea);
+      const concept = conceptFromIdea(idea);
+      const draft = await composeTextOnlyDraft(concept);
+      await putImage(thumbImageId(selected.id, 0), draft);
+      clearThumbRetry(selected.id);
+      setProviderLimit(false);
+      setProviderError(null);
+      toast.success("Local Thumbnail Draft created — no AI image used.");
+    });
+  }
+
+  // "Retry Now" — clear the cooldown/pause and immediately try again.
+  function handleRetryNow() {
+    if (!selected) return;
+    resetBreaker();
+    resetThumbRetry(selected.id);
+    setProviderLimit(false);
+    setProviderError(null);
+    void handleGenerate();
+  }
+
+  // "Retry Later" — just dismiss the error banner; job stays persisted.
+  function handleRetryLater() {
+    setProviderLimit(false);
+    toast.message("Thumbnail concept saved. Come back later — the retry state is preserved.");
+  }
+
+  // Sequential "Generate More Variants" — one at a time with 10s spacing.
+  function handleGenerateMoreVariants() {
+    if (!selected || !pack) return;
+    return withBusy("more", async () => {
+      setProviderLimit(false);
+      setConceptPending(false);
+      const nextIndex = pack.ideas.findIndex((_, i) => !firstImg && i === 0)
+        + 0; // placeholder to appease TS
+      // Find first slot without an image
+      let start = 0;
+      for (let i = 0; i < pack.ideas.length; i++) {
+        const has = await loadImage(thumbImageId(selected.id, i));
+        if (!has) { start = i; break; }
+        start = i + 1;
+      }
+      void nextIndex;
+      const end = Math.min(pack.ideas.length, start + 1);
+      const status = await renderImages(pack.ideas, start, end);
+      if (status === "ok") toast.success("Variant generated.");
+    });
+  }
+
   return (
     <StageShell stage="thumbnail" maxWidth="max-w-5xl">
       <div className="flex items-center justify-between">
@@ -335,6 +480,23 @@ function ThumbnailPage() {
           <ImageOff className="mr-2 h-4 w-4" /> Use Placeholder Thumbnail
         </Button>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onUploadFile} />
+        {pack && (
+          <>
+            <Button variant="outline" onClick={() => setShowScenePicker(true)} disabled={!!busy}>
+              <Images className="mr-2 h-4 w-4" /> Use Existing Scene Image
+            </Button>
+            <Button variant="outline" onClick={handleTextDraft} disabled={!!busy}>
+              {busy === "draft" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <FileText className="mr-2 h-4 w-4" /> Create Text-Only Draft
+            </Button>
+          </>
+        )}
+        {pack && hasImageUrl && freeMode && (
+          <Button variant="secondary" onClick={handleGenerateMoreVariants} disabled={!!busy}>
+            {busy === "more" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Sparkles className="mr-2 h-4 w-4" /> Generate More Variants
+          </Button>
+        )}
         {/* Developer-only actions */}
         {dev && (
           <>
@@ -358,6 +520,57 @@ function ThumbnailPage() {
         )}
       </div>
 
+      {/* Provider status pills — visible whenever any cooldown or pause is live. */}
+      {selected && (breaker.pollinations.cooldownRemainingMs > 0 || breaker.pollinations.pausedRemainingMs > 0 || breaker.puter.cooldownRemainingMs > 0 || breaker.puter.pausedRemainingMs > 0) && (
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <span className={`rounded-full px-3 py-1 ${breaker.pollinations.pausedRemainingMs > 0 ? "bg-destructive/15 text-destructive" : breaker.pollinations.cooldownRemainingMs > 0 ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600"}`}>
+            Pollinations — {breaker.pollinations.pausedRemainingMs > 0 ? `Paused ${formatCountdown(breaker.pollinations.pausedRemainingMs)}` : breaker.pollinations.cooldownRemainingMs > 0 ? `Rate Limited ${formatCountdown(breaker.pollinations.cooldownRemainingMs)}` : "Ready"}
+          </span>
+          <span className={`rounded-full px-3 py-1 ${breaker.puter.pausedRemainingMs > 0 ? "bg-destructive/15 text-destructive" : breaker.puter.cooldownRemainingMs > 0 ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600"}`}>
+            Puter — {breaker.puter.pausedRemainingMs > 0 ? `Unavailable ${formatCountdown(breaker.puter.pausedRemainingMs)}` : breaker.puter.cooldownRemainingMs > 0 ? `Cooling ${formatCountdown(breaker.puter.cooldownRemainingMs)}` : "Ready"}
+          </span>
+          {retryJob?.nextRetryAt && (
+            <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+              Next Retry — {formatCountdown(retryJob.nextRetryAt - Date.now())}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Retry Waiting / Provider Unavailable banner with recovery actions. */}
+      {selected && retryJob && retryJob.status !== "idle" && (
+        <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+          <p className="font-medium text-amber-700 dark:text-amber-300">
+            {retryJob.status === "unavailable"
+              ? `Provider unavailable after ${MAX_ATTEMPTS} attempts.`
+              : `Retry Waiting — attempt ${retryJob.attempts + 1} of ${MAX_ATTEMPTS}.`}
+          </p>
+          <p className="mt-1 text-muted-foreground">{PROVIDERS_UNAVAILABLE_MESSAGE}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button size="sm" onClick={handleRetryNow} disabled={!!busy}>
+              <Zap className="mr-1 h-3.5 w-3.5" /> Retry Now
+            </Button>
+            <Button size="sm" variant="secondary" onClick={handleRetryLater} disabled={!!busy}>
+              <Clock className="mr-1 h-3.5 w-3.5" /> Retry Later
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowScenePicker(true)} disabled={!!busy}>
+              <Images className="mr-1 h-3.5 w-3.5" /> Use Existing Scene Image
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openUpload(0)} disabled={!!busy}>
+              <Upload className="mr-1 h-3.5 w-3.5" /> Upload Background
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleTextDraft} disabled={!!busy}>
+              <FileText className="mr-1 h-3.5 w-3.5" /> Text-Only Draft
+            </Button>
+          </div>
+          {dev && retryJob.lastError && (
+            <p className="mt-2 whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-[11px] text-destructive">
+              {retryJob.lastError}
+            </p>
+          )}
+        </div>
+      )}
+
       {freeMode && (
         <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
           Free Queue Mode: generates only 1 thumbnail image and disables multiple variations.
@@ -370,7 +583,7 @@ function ThumbnailPage() {
           <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600">
             First thumbnail ready.
           </p>
-        ) : providerError ? (
+        ) : providerError && !retryJob ? (
           dev ? (
             // Developer Mode: surface the EXACT raw provider error.
             <p className="mt-3 whitespace-pre-wrap break-words rounded-md bg-destructive/10 px-3 py-2 font-mono text-xs text-destructive">
@@ -441,7 +654,72 @@ function ThumbnailPage() {
           ))}
         </div>
       )}
+
+      {showScenePicker && selected && (
+        <ScenePicker
+          topicId={selected.id}
+          sceneNumbers={(visual?.scenes ?? []).map((s) => s.sceneNumber)}
+          onClose={() => setShowScenePicker(false)}
+          onPick={handleUseExistingScene}
+        />
+      )}
     </StageShell>
+  );
+}
+
+function ScenePicker({
+  topicId,
+  sceneNumbers,
+  onClose,
+  onPick,
+}: {
+  topicId: string;
+  sceneNumbers: number[];
+  onClose: () => void;
+  onPick: (n: number) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="max-h-[80vh] w-full max-w-3xl overflow-auto rounded-xl border border-border bg-background p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Use an existing scene image</h2>
+          <Button size="sm" variant="ghost" onClick={onClose}>Close</Button>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The local compositor adds the headline, highlight and layout — no provider request is made.
+        </p>
+        {sceneNumbers.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">No storyboard scenes exist for this project yet.</p>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {sceneNumbers.map((n) => (
+              <ScenePickerCard key={n} topicId={topicId} sceneNumber={n} onPick={() => onPick(n)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScenePickerCard({ topicId, sceneNumber, onPick }: { topicId: string; sceneNumber: number; onPick: () => void }) {
+  const img = useImage(`scene:${topicId}:${sceneNumber}`);
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      disabled={!img}
+      className="group flex flex-col overflow-hidden rounded-lg border border-border text-left transition hover:border-primary disabled:opacity-50"
+    >
+      <div className="flex aspect-video items-center justify-center bg-muted/40">
+        {img ? (
+          <img src={img} alt={`Scene ${sceneNumber}`} className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-xs text-muted-foreground">No image</span>
+        )}
+      </div>
+      <div className="px-2 py-1.5 text-xs">Scene {sceneNumber}</div>
+    </button>
   );
 }
 

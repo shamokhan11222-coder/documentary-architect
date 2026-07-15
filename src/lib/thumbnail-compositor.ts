@@ -370,3 +370,38 @@ export async function composeThumbnail(concept: ThumbnailConcept, illustrationDa
 export function validateComposedThumbnail(dataUrl: string): boolean {
   return typeof dataUrl === "string" && dataUrl.startsWith("data:image/png");
 }
+
+/** Text-only Local Thumbnail Draft. Uses the same compositor (background,
+ *  headline text, highlight annotation) but skips the AI illustration layer.
+ *  Guarantees an on-screen thumbnail when both free providers are unavailable. */
+export async function composeTextOnlyDraft(concept: ThumbnailConcept): Promise<string> {
+  if (typeof document === "undefined") throw new Error("Draft compositor requires a browser canvas.");
+  const family = await ensureFont();
+  const canvas = document.createElement("canvas");
+  canvas.width = THUMB_W;
+  canvas.height = THUMB_H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context unavailable.");
+
+  // Gradient background so the draft looks intentional, not broken.
+  const grad = ctx.createLinearGradient(0, 0, THUMB_W, THUMB_H);
+  grad.addColorStop(0, "#1f2937");
+  grad.addColorStop(1, "#0f172a");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+
+  // Accent stripe.
+  ctx.fillStyle = COLORS[concept.highlightColor];
+  ctx.fillRect(0, THUMB_H - 18, THUMB_W, 18);
+
+  const textRect: Rect = { x: 80, y: 80, w: THUMB_W - 160, h: THUMB_H - 200 };
+  drawHeadline(ctx, concept.headline, textRect, family, "#ffffff", "center");
+
+  ctx.font = `500 28px ${family}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fillText("Local Thumbnail Draft — No AI Image Used", THUMB_W / 2, THUMB_H - 60);
+
+  return canvas.toDataURL("image/png");
+}
