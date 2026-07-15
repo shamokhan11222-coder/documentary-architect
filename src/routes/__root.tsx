@@ -299,19 +299,12 @@ function RouteMotion() {
   );
 }
 
-// Public marketing/auth pages use the top navbar; everything else is the
-// dashboard "studio" and uses the collapsible left sidebar.
+// Phase 5 — owner-operated studio. All customer marketing surfaces are
+// removed; only auth flows still use the plain top navbar shell.
 const PUBLIC_PREFIXES = [
-  "/landing",
-  "/pricing",
-  "/faq",
-  "/docs",
-  "/community",
-  "/roadmap",
   "/login",
   "/signup",
   "/forgot-password",
-  "/upgrade",
   "/unlock",
 ];
 
