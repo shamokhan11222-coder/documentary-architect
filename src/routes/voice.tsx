@@ -19,7 +19,12 @@ import {
   fmtClock,
 } from "@/lib/production";
 import { useImage } from "@/lib/images";
-import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
+import {
+  generateVoiceBlock,
+  voiceBlockId,
+  VOICE_GENERATION_ENABLED,
+  VOICE_DISABLED_MESSAGE,
+} from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
 import { pitchSimilarity, measurePitchHz } from "@/lib/voice-analysis";
 import { CustomVoice } from "@/components/CustomVoice";
