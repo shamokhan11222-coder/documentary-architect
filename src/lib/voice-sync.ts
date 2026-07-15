@@ -17,6 +17,7 @@ export interface SyncVoiceBlock {
   end: number;
   duration: number;
   text: string;
+  audioId: string;
 }
 
 export interface SyncScene {
@@ -32,6 +33,7 @@ export interface SyncScene {
   locked?: boolean;
   missingImage?: boolean;
   manual?: boolean;
+  status: "ready" | "missing" | "locked" | "unmapped";
 }
 
 export interface SyncTimeline {
@@ -168,7 +170,14 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
   let clock = 0;
   for (const b of sortedBlocks) {
     const dur = Math.max(0.1, resolveBlockDuration(projectId, b));
-    vBlocks.push({ blockIndex: b.index, start: clock, end: clock + dur, duration: dur, text: b.text });
+    vBlocks.push({
+      blockIndex: b.index,
+      start: clock,
+      end: clock + dur,
+      duration: dur,
+      text: b.text,
+      audioId: `voice:${projectId}:${b.index}`,
+    });
     clock += dur;
   }
   const totalDuration = clock;
@@ -251,6 +260,7 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
         imageId: `scene:${projectId}:${scene.sceneNumber}`,
         narrationText: scene.voiceoverLine ?? "",
         missingImage: !hasImage(scene.sceneNumber),
+        status: hasImage(scene.sceneNumber) ? "ready" : "missing",
       };
       t = end;
     }
@@ -278,6 +288,7 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
         imageId: `scene:${projectId}:${scene.sceneNumber}`,
         narrationText: scene.voiceoverLine ?? "",
         missingImage: !hasImage(scene.sceneNumber),
+        status: "unmapped",
       });
     }
   }
@@ -293,6 +304,7 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
         s.start = lk.start;
         s.end = lk.end;
         s.duration = lk.end - lk.start;
+        s.status = "locked";
       }
     }
   }
