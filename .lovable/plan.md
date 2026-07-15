@@ -1,63 +1,88 @@
-## Phase 5B — Scene Composer Lab (isolated)
+## Phase 8 — AI Image Studio (production redesign)
 
-Builds a `/scene-composer-lab` route that composes 5 test scenes from a strict `SceneSpec` JSON using the Phase 5A rig. No production pipeline is touched.
+Rebuild the Images module as an 8-tab studio. Nothing outside `visual*`, `image*`, and the new `image-studio` route is touched. Story / Voice / Sync / Research / Timeline stay untouched.
+
+### New route
+
+- `src/routes/image-studio.tsx` — single route hosting the studio shell with a left sidebar and a right work panel. Sidebar tabs (URL-driven via `?tab=`):
+  1. Overview
+  2. Image Queue
+  3. Characters (Character Lock)
+  4. Style Lock
+  5. Backgrounds (Background Lock)
+  6. Providers
+  7. Assets
+  8. History
+  9. Settings
+
+Old `visual.tsx` stays as a redirect wrapper → `/image-studio` so existing links keep working.
 
 ### Files created
-```
-src/lib/scene/
-  scene-model.ts       SceneSpec, ObjectSpec, CharacterSpec, LayoutWarning types
-  joints.ts            getJointPositions(rig, pose) → world coords for hands/feet/head
-  object-library.tsx   SVG components: tree, sun, moon, cloud, streetlight, campfire,
-                       tent, chair, table, machine, parking-meter, arrow, red-circle,
-                       checkmark, cross, house, road/path — plus getBBox() per type
-  layout.ts            Constraint resolver: ground-snap, sky-region clamp, joint-anchor
-                       binding, canvas-margin clamp, overlap detection, warnings
-  render-scene.tsx     SceneRenderer — resolves layout, draws bg → objects → chars,
-                       supports bbox overlay + layer-order overlay
-  test-scenes.ts       The 5 exact SceneSpec objects
-  export.ts            Scene SVG → PNG (opaque or transparent), JSON download
 
-src/routes/scene-composer-lab.tsx
-```
+- `src/routes/image-studio.tsx` — shell + tab router
+- `src/components/image-studio/Sidebar.tsx`
+- `src/components/image-studio/OverviewPanel.tsx` — 6 stat tiles (Scenes / Complete / Queued / Failed / Locked / ETA), live from queue
+- `src/components/image-studio/QueuePanel.tsx` — filterable table (scene #, thumb, status, provider, retry, replace, priority)
+- `src/components/image-studio/CharacterLockPanel.tsx` — master upload + 8 lock toggles (face/body/clothes/hair/accessories/expression/style/pose family)
+- `src/components/image-studio/StyleLockPanel.tsx` — 8 global controls (art style, lighting, line weight, camera angle, palette, background style, aspect ratio, perspective)
+- `src/components/image-studio/BackgroundLockPanel.tsx` — environment/weather/time/fog/snow/sky/landscape
+- `src/components/image-studio/ProviderPanel.tsx` — enable/disable + drag-priority for OpenRouter / Gemini / Grok / Local SDXL, with automatic failover toggle
+- `src/components/image-studio/AssetsPanel.tsx` — grid of all generated images (search, filter, bulk delete)
+- `src/components/image-studio/HistoryPanel.tsx` — chronological log of generations w/ prompt + provider + score
+- `src/components/image-studio/SettingsPanel.tsx` — batch size, concurrency, min consistency threshold, auto-retry policy
+- `src/components/image-studio/ImageInspector.tsx` — modal: zoom / replace / re-generate / pin / delete / copy prompt / download
+- `src/components/image-studio/FailedRecoveryDialog.tsx` — Retry / Retry Another Provider / Skip / Continue Queue
+- `src/components/image-studio/SmartBatchBar.tsx` — 5 / 10 / 20 / 50 / 100 / Entire Project
+- `src/lib/image-studio/queue-engine.ts` — background job runner, survives tab switches, resumes on refresh from `localStorage`
+- `src/lib/image-studio/consistency.ts` — heuristic scorer (character / prompt-match / style / background / lighting / overall) — pure client, no paid provider calls. Below-80 triggers regenerate suggestion.
+- `src/lib/image-studio/provider-manager.ts` — priority list, enable flags, failover logic. Wraps existing `generate-image.ts` providers; adds no new paid providers.
+- `src/lib/image-studio/locks.ts` — character + style + background lock state (persisted per-project in existing `store.ts`)
+- `src/lib/image-studio/types.ts` — QueueJob, LockState, ProviderConfig, ConsistencyScore, HistoryEntry
 
-### Scene coordinate system
-- Viewbox `960 × 540` (16:9).
-- Default `groundY = 420`, sky region `y < groundY - 40`.
-- Character `x` = feet center x; feet always placed on `groundY` when `grounded`.
-- Object anchors:
-  - `ground` → bottom of bbox = groundY
-  - `sky` → top of bbox in sky region
-  - `character-{left|right}-hand` → bbox center attached to that joint of the referenced rig
-  - `character-pointing-target` → 60px ahead of the extended arm end, ground-snapped
-  - `seated-under-character` → chair/rock placed so its seat aligns with character pelvis
-  - `behind-character` → same x, z-order below the character
-  - `foreground` / `background` → z-order buckets only
+### Files modified (minimal)
 
-### Constraint resolver (`layout.ts`)
-1. Assign z-layer: `background` (0) → `background-props` (10) → `characters` (20) → `foreground` (30) → `labels` (40).
-2. For each object: resolve anchor to a target `(x, y)`, then clamp `x` to `[40, 920]`.
-3. For character-attached objects, compute joint world position via `joints.ts` after the character's own placement is known.
-4. Ground-snap grounded items.
-5. Sky-region items get `y` clamped to `[40, groundY - 60]`.
-6. Detect bbox overlap between focal subject and large props; if a background prop overlaps the focal subject bbox by > 30%, push it horizontally to the nearest edge; if still overlapping → emit `LayoutWarning`.
-7. Camera scale: `wide` = char h ~28% canvas, `medium` = ~50%, `close` = ~72%. Applied uniformly by scaling the rig svg (never distorting).
+- `src/routes/visual.tsx` — replace body with `<Navigate to="/image-studio" />` so old bookmarks work
+- `src/routeTree.gen.ts` — auto-regenerated
+- `src/routes/__root.tsx` — sidebar link "Images" → `/image-studio` (single string change)
 
-### 5 test scenes (`test-scenes.ts`)
-Exactly per spec: walking-at-night, campsite, pointing-at-machine, classroom-infographic, one-in-seven-diagram.
+### Queue architecture
 
-### Object rendering
-Each object type is a function returning `{ svg: ReactNode, bbox: {w,h} }` at its natural size. Same rough black outline, `stroke-linecap="round"`, thickness matched to rig `lineThickness`. Reuses the rig's roughness filter feel.
+- Central `queueEngine` singleton (`src/lib/image-studio/queue-engine.ts`)
+- Jobs: `{ id, sceneId, status, provider, priority, attempts, lastError, score?, imageUrl? }`
+- Persistence: `localStorage["image-studio.queue.v1"]` — writes on every state change
+- Runner: `requestIdleCallback`-driven loop, configurable concurrency (default 2)
+- Uses existing `src/lib/image-pipeline.ts` + `src/lib/generate-image.ts` for actual generation — no new provider calls
+- Tab-independent: runs from a module-level singleton mounted in `__root.tsx` provider (already there via existing `image-queue.ts`)
+- On refresh: engine reads localStorage, re-queues everything not `completed`
+- Auto-save: each completed job's image URL is written straight into project scene state via existing `store.ts` setters
 
-### Lab UI
-- 5 panels stacked, each showing:
-  - final 16:9 preview
-  - toggles: [Bounding boxes] [Layer order] [Show JSON] [Show warnings]
-  - export buttons: [SVG] [PNG opaque] [PNG transparent] [JSON]
-- Reads the approved rig from Phase 5A (`loadRig()`). If no rig approved yet, shows a friendly banner linking to `/character-rig-lab`.
+### Consistency engine
 
-### Verification with Playwright
-- Load `/scene-composer-lab`, screenshot each panel, view all five in QA.
-- Confirm ground-snapped items and joint-attached items.
+Pure client-side heuristic (no paid calls):
+- Character score: compare filename/prompt against locked character name tokens
+- Prompt-match score: token overlap between requested prompt and provider echo
+- Style / background / lighting: check style-lock tokens are present in final prompt
+- Overall = weighted average
+- Score < 80 → shows a subtle "Re-generate suggested" pill on the image; user chooses
 
-### NOT touched
-Research, Story, Storyboard, Voice, Thumbnail, SEO, Rating, Auth, project data, image queue, style-lock, credit-saver, existing image pipeline. The lab is a self-contained page.
+### Provider manager
+
+- Registry of providers: OpenRouter, Gemini, Grok, Local SDXL, plus a placeholder "Add provider" for future
+- Each entry: `{ id, name, enabled, priority, requiresKey, hasKey, model? }`
+- Only providers already configured in `apikeys.ts` are wired to real calls; others show a "Add key" CTA
+- Failover: on job failure, engine picks next enabled provider by priority
+- No automatic paid-provider calls if user hasn't enabled it
+
+### Guarantees
+
+- No modification to Story / Voice / Sync / Research / Timeline routes or their lib files
+- No new paid provider added, no automatic key usage
+- All queue state persisted; refresh-safe
+- All generated images auto-saved to project
+
+### Verification steps I'll run before handing off
+
+1. `tsgo` typecheck
+2. Playwright: navigate `/image-studio`, screenshot each tab, verify no console errors
+3. Verify `/visual` still resolves (redirect)
+4. Confirm Story/Voice/Sync/Research/Timeline routes still mount
