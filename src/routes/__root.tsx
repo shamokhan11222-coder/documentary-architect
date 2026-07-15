@@ -380,13 +380,7 @@ function RootComponent() {
   );
 }
 
-const TOP_LINKS = [
-  { to: "/landing", label: "Features" },
-  { to: "/pricing", label: "Pricing" },
-  { to: "/docs", label: "Docs" },
-  { to: "/community", label: "Community" },
-  { to: "/roadmap", label: "Roadmap" },
-] as const;
+// TOP_LINKS removed — no customer marketing nav in owner mode.
 
 function TopSeparator() {
   return <span className="mx-1 hidden h-6 w-px bg-border/70 sm:block" aria-hidden />;
