@@ -178,7 +178,7 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
         </label>
 
         <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" onClick={onStart} disabled={running || !testedOk}>
+          <Button size="sm" variant="outline" onClick={onStart} disabled={running || (imageMode === "premium" && !testedOk)}>
             <Play className="mr-1 h-4 w-4" /> Start Queue
           </Button>
           {running ? (
@@ -245,7 +245,7 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
         <Stat label="Error" value={telemetry.lastError ? telemetry.lastError.slice(0, 40) : "—"} />
       </div>
 
-      {!testedOk && (
+      {imageMode === "premium" && !testedOk && (
         <div className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
           Generate at least one test image below before the full queue unlocks.
         </div>
