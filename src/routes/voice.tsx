@@ -116,7 +116,13 @@ function VoicePage() {
   const queueRef = useRef(queueState);
   queueRef.current = queueState;
 
-  const supported = browserSupported();
+  // Browser capability depends on `window`/WebAssembly, so never read it during
+  // SSR or the first hydration render. Rendering a different warning on the
+  // server and client was causing the route-level "This page didn't load" crash.
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => {
+    setSupported(browserSupported());
+  }, []);
 
   function update(patch: Partial<VoiceSettings>) {
     if (!selected) return;
@@ -368,7 +374,7 @@ function VoicePage() {
         credits, no server calls.
       </p>
 
-      {!supported && (
+      {supported === false && (
         <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
           Your browser does not support the local voice engine. Use a recent version of Chrome or
           Edge.
@@ -523,7 +529,7 @@ function VoicePage() {
               <>
                 <Button
                   onClick={generateTest}
-                  disabled={!!busy || queueState.running || !supported}
+                  disabled={!!busy || queueState.running || supported === false}
                 >
                   {busy === "test" ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -538,7 +544,7 @@ function VoicePage() {
                   disabled={
                     !!busy ||
                     queueState.running ||
-                    !supported ||
+                    supported === false ||
                     (!testPassed && generatedCount === 0)
                   }
                   title={
