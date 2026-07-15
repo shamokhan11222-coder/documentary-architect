@@ -658,6 +658,129 @@ function VisualPage() {
 
       {hasMap && <ImageQueuePanel onStart={startQueue} />}
 
+      {selected && hasValidScript && (
+        <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
+          <div className="mb-3 text-sm font-semibold">Scene Plan</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Pacing</span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={pacing}
+                onChange={(e) => setPacing(e.target.value as PacingMode)}
+              >
+                {PACING_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label} — {p.description}</option>
+                ))}
+              </select>
+              {pacing === "custom" && (
+                <input
+                  type="number"
+                  min={MIN_SCENE_SECONDS}
+                  max={MAX_SCENE_SECONDS}
+                  step={0.1}
+                  value={customSeconds}
+                  onChange={(e) => setCustomSeconds(parseFloat(e.target.value) || 3)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                />
+              )}
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Narration speed</span>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={speechRate}
+                onChange={(e) => setSpeechRate(e.target.value as SpeechRate)}
+              >
+                <option value="slow">Slow — 125 WPM</option>
+                <option value="natural">Natural — 145 WPM</option>
+                <option value="fast">Fast — 165 WPM</option>
+                <option value="custom">Custom…</option>
+              </select>
+              {speechRate === "custom" && (
+                <input
+                  type="number"
+                  min={80}
+                  max={220}
+                  value={customWpm}
+                  onChange={(e) => setCustomWpm(parseInt(e.target.value, 10) || DEFAULT_WPM)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                />
+              )}
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Target duration (minutes){voiceRealSeconds ? " — using real voice" : ""}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={0.5}
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(e.target.value)}
+                placeholder={voiceRealSeconds ? formatDuration(voiceRealSeconds) : "auto from script"}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                disabled={!!voiceRealSeconds}
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 grid gap-1 rounded-md bg-muted/40 p-3 font-mono text-xs text-muted-foreground">
+            <div>Script duration: {formatDuration(duration.seconds)} ({duration.source === "voice" ? "real voice" : duration.source === "manual" ? "manual" : `${wordCount(scriptText)} words @ ${wpm} WPM`})</div>
+            <div>Selected pacing: {pacingLabel(pacing, customSeconds)}</div>
+            <div>Estimated scene count: {estimatedSceneCount} scenes</div>
+            <div>Estimated images needed: {estimatedSceneCount}</div>
+          </div>
+
+          <label className="mt-3 grid gap-1 md:max-w-xs">
+            <span className="text-xs font-medium text-muted-foreground">
+              Manual override ({MIN_SCENE_COUNT}–{MAX_SCENE_COUNT}, blank = auto)
+            </span>
+            <input
+              type="number"
+              min={MIN_SCENE_COUNT}
+              max={MAX_SCENE_COUNT}
+              value={manualSceneCount}
+              onChange={(e) => setManualSceneCount(e.target.value)}
+              placeholder={String(estimatedSceneCount)}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            />
+          </label>
+          {Number.isFinite(manualCountValue) && (
+            <p className="mt-2 text-xs text-primary">Using manual scene count: {targetSceneCount}</p>
+          )}
+        </div>
+      )}
+
+      {confirmRecalc && (
+        <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+          <div className="font-semibold text-amber-700 dark:text-amber-400">Recalculate scene plan?</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Current scenes: {scenes.length} · New estimated scenes: {confirmRecalc.newTarget}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Your existing storyboard is preserved until the new one completes.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setConfirmRecalc(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleBuildBoard}>Create New Scene Plan</Button>
+          </div>
+        </div>
+      )}
+
+      {batchProgress && (
+        <div className="mt-3 rounded-md border border-border bg-muted/30 p-3 text-xs">
+          <div className="mb-1 font-medium">{batchProgress.stage}</div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {hasMap && (
         <div className="mt-4 rounded-lg border border-border bg-card p-4 text-sm">
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
