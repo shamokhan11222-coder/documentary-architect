@@ -4,13 +4,13 @@
 // server-only secret and is never stored in the browser.
 import { readLocal, writeLocal, useLocal } from "./local";
 
-// Kept in sync with OPENROUTER_DEFAULT_MODELS in openrouter.server.ts.
-// Duplicated intentionally so this module stays client-safe (no .server import).
-export const OPENROUTER_DEFAULT_MODELS = [
-  "deepseek/deepseek-chat-v3-0324:free",
-  "qwen/qwen3-32b:free",
-  "mistralai/mistral-small-3.2-24b-instruct:free",
-] as const;
+// Sentinels understood by the server router (mirror openrouter.server.ts).
+export const OR_AUTO = "auto";
+export const OR_FREE_ROUTER = "openrouter/free";
+
+// Client-safe defaults. No hardcoded stale ":free" slugs — the server fetches
+// the live free-model catalog on every request and routes dynamically.
+export const OPENROUTER_DEFAULT_MODELS = [OR_AUTO, OR_FREE_ROUTER] as const;
 
 export interface OpenRouterSettings {
   primary: string;
@@ -20,8 +20,8 @@ export interface OpenRouterSettings {
 const KEY = "docos.openrouter.settings";
 
 export const DEFAULT_OPENROUTER_SETTINGS: OpenRouterSettings = {
-  primary: OPENROUTER_DEFAULT_MODELS[0],
-  fallback: OPENROUTER_DEFAULT_MODELS[1],
+  primary: OR_AUTO,
+  fallback: OR_FREE_ROUTER,
 };
 
 function normalize(s: Partial<OpenRouterSettings> | null): OpenRouterSettings {
@@ -49,11 +49,11 @@ export function resetOpenRouterSettings() {
   writeLocal(KEY, DEFAULT_OPENROUTER_SETTINGS);
 }
 
-/** Free preset labels shown as a starter option in the model picker. */
+/** Preset options shown in the model picker. Live free models fetched from
+ *  the OpenRouter API are merged in on top of these. Stale outdated slugs
+ *  such as `mistralai/mistral-small-3.2-24b-instruct:free` are intentionally
+ *  omitted — the server catalog is the source of truth. */
 export const OPENROUTER_FREE_PRESETS: ReadonlyArray<{ id: string; label: string }> = [
-  { id: "deepseek/deepseek-chat-v3-0324:free", label: "DeepSeek V3 0324 (free)" },
-  { id: "qwen/qwen3-32b:free", label: "Qwen3 32B (free)" },
-  { id: "mistralai/mistral-small-3.2-24b-instruct:free", label: "Mistral Small 3.2 24B (free)" },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B (free)" },
-  { id: "google/gemma-2-9b-it:free", label: "Gemma 2 9B (free)" },
+  { id: OR_AUTO, label: "Auto — Free Models" },
+  { id: OR_FREE_ROUTER, label: "OpenRouter Free Router" },
 ];
