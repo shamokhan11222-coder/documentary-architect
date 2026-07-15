@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { TrendingUp, AlertTriangle, Plus, Zap, Crown, CalendarClock } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { TrendingUp, AlertTriangle, Plus, Zap, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,11 +44,7 @@ function CreditsPage() {
               Track your balance, usage, and estimated cost before you generate.
             </p>
           </div>
-          <Button asChild variant="brand" size="lg" className="btn-press">
-            <Link to="/upgrade">
-              <Crown className="h-4 w-4" /> Upgrade
-            </Link>
-          </Button>
+          {/* Owner-operated studio: no customer upgrade CTA. */}
         </div>
 
         {admin && (
@@ -70,11 +66,7 @@ function CreditsPage() {
         <div className="mt-6 grid gap-5 md:grid-cols-3">
           <Card className="glass-card flex flex-col items-center justify-center gap-4 p-6">
             <CreditMeter balance={balance} admin={admin} />
-            <Button asChild variant={admin ? "outline" : "brand"} size="sm" className="btn-press">
-              <Link to="/upgrade">
-                <Crown className="h-4 w-4" /> Upgrade
-              </Link>
-            </Button>
+            {/* No upgrade CTA in owner mode. */}
           </Card>
           <Card className="glass-card p-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -116,9 +108,7 @@ function CreditsPage() {
                     day: "numeric",
                   })}
                 </p>
-                <Button asChild variant="outline" className="mt-auto">
-                  <Link to="/upgrade">Get more, faster</Link>
-                </Button>
+                {/* No upgrade CTA in owner mode. */}
               </>
             )}
           </Card>

@@ -13,11 +13,11 @@ import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as VisualInstructionsRouteImport } from './routes/visual-instructions'
 import { Route as VisualDnaRouteImport } from './routes/visual-dna'
 import { Route as VisualRouteImport } from './routes/visual'
-import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as UnlockRouteImport } from './routes/unlock'
 import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
+import { Route as SystemHealthRouteImport } from './routes/system-health'
 import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -30,7 +30,6 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as RecoveryTestRouteImport } from './routes/recovery-test'
 import { Route as RatingRouteImport } from './routes/rating'
 import { Route as QueueRouteImport } from './routes/queue'
-import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ManagerRouteImport } from './routes/manager'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LandingRouteImport } from './routes/landing'
@@ -41,15 +40,14 @@ import { Route as GeminiDiagnosticsRouteImport } from './routes/gemini-diagnosti
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as ExportRouteImport } from './routes/export'
-import { Route as DocsRouteImport } from './routes/docs'
 import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as ComponentsRouteImport } from './routes/components'
-import { Route as CommunityRouteImport } from './routes/community'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as CharacterRigLabRouteImport } from './routes/character-rig-lab'
 import { Route as AudioRouteImport } from './routes/audio'
 import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as ApiKeysRouteImport } from './routes/api-keys'
+import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
@@ -75,11 +73,6 @@ const VisualRoute = VisualRouteImport.update({
   path: '/visual',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UpgradeRoute = UpgradeRouteImport.update({
-  id: '/upgrade',
-  path: '/upgrade',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const UnlockRoute = UnlockRouteImport.update({
   id: '/unlock',
   path: '/unlock',
@@ -98,6 +91,11 @@ const TimelineRoute = TimelineRouteImport.update({
 const ThumbnailRoute = ThumbnailRouteImport.update({
   id: '/thumbnail',
   path: '/thumbnail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemHealthRoute = SystemHealthRouteImport.update({
+  id: '/system-health',
+  path: '/system-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubtitlesRoute = SubtitlesRouteImport.update({
@@ -160,11 +158,6 @@ const QueueRoute = QueueRouteImport.update({
   path: '/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ManagerRoute = ManagerRouteImport.update({
   id: '/manager',
   path: '/manager',
@@ -215,11 +208,6 @@ const ExportRoute = ExportRouteImport.update({
   path: '/export',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsRoute = DocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CreditsRoute = CreditsRouteImport.update({
   id: '/credits',
   path: '/credits',
@@ -228,11 +216,6 @@ const CreditsRoute = CreditsRouteImport.update({
 const ComponentsRoute = ComponentsRouteImport.update({
   id: '/components',
   path: '/components',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CommunityRoute = CommunityRouteImport.update({
-  id: '/community',
-  path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChecklistRoute = ChecklistRouteImport.update({
@@ -260,6 +243,11 @@ const ApiKeysRoute = ApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalyticsRoute = AnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -283,15 +271,14 @@ const ApiChatRoute = ApiChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
   '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/character-rig-lab': typeof CharacterRigLabRoute
   '/checklist': typeof ChecklistRoute
-  '/community': typeof CommunityRoute
   '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
-  '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -302,7 +289,6 @@ export interface FileRoutesByFullPath {
   '/landing': typeof LandingRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
-  '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/recovery-test': typeof RecoveryTestRoute
@@ -315,11 +301,11 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
+  '/system-health': typeof SystemHealthRoute
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/unlock': typeof UnlockRoute
-  '/upgrade': typeof UpgradeRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
   '/visual-instructions': typeof VisualInstructionsRoute
@@ -330,15 +316,14 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
   '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/character-rig-lab': typeof CharacterRigLabRoute
   '/checklist': typeof ChecklistRoute
-  '/community': typeof CommunityRoute
   '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
-  '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -349,7 +334,6 @@ export interface FileRoutesByTo {
   '/landing': typeof LandingRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
-  '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/recovery-test': typeof RecoveryTestRoute
@@ -362,11 +346,11 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
+  '/system-health': typeof SystemHealthRoute
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/unlock': typeof UnlockRoute
-  '/upgrade': typeof UpgradeRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
   '/visual-instructions': typeof VisualInstructionsRoute
@@ -378,15 +362,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analytics': typeof AnalyticsRoute
   '/api-keys': typeof ApiKeysRoute
   '/assets': typeof AssetsRoute
   '/audio': typeof AudioRoute
   '/character-rig-lab': typeof CharacterRigLabRoute
   '/checklist': typeof ChecklistRoute
-  '/community': typeof CommunityRoute
   '/components': typeof ComponentsRoute
   '/credits': typeof CreditsRoute
-  '/docs': typeof DocsRoute
   '/export': typeof ExportRoute
   '/faq': typeof FaqRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -397,7 +380,6 @@ export interface FileRoutesById {
   '/landing': typeof LandingRoute
   '/login': typeof LoginRoute
   '/manager': typeof ManagerRoute
-  '/pricing': typeof PricingRoute
   '/queue': typeof QueueRoute
   '/rating': typeof RatingRoute
   '/recovery-test': typeof RecoveryTestRoute
@@ -410,11 +392,11 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
+  '/system-health': typeof SystemHealthRoute
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
   '/unlock': typeof UnlockRoute
-  '/upgrade': typeof UpgradeRoute
   '/visual': typeof VisualRoute
   '/visual-dna': typeof VisualDnaRoute
   '/visual-instructions': typeof VisualInstructionsRoute
@@ -427,15 +409,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analytics'
     | '/api-keys'
     | '/assets'
     | '/audio'
     | '/character-rig-lab'
     | '/checklist'
-    | '/community'
     | '/components'
     | '/credits'
-    | '/docs'
     | '/export'
     | '/faq'
     | '/forgot-password'
@@ -446,7 +427,6 @@ export interface FileRouteTypes {
     | '/landing'
     | '/login'
     | '/manager'
-    | '/pricing'
     | '/queue'
     | '/rating'
     | '/recovery-test'
@@ -459,11 +439,11 @@ export interface FileRouteTypes {
     | '/signup'
     | '/story'
     | '/subtitles'
+    | '/system-health'
     | '/thumbnail'
     | '/timeline'
     | '/topics'
     | '/unlock'
-    | '/upgrade'
     | '/visual'
     | '/visual-dna'
     | '/visual-instructions'
@@ -474,15 +454,14 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analytics'
     | '/api-keys'
     | '/assets'
     | '/audio'
     | '/character-rig-lab'
     | '/checklist'
-    | '/community'
     | '/components'
     | '/credits'
-    | '/docs'
     | '/export'
     | '/faq'
     | '/forgot-password'
@@ -493,7 +472,6 @@ export interface FileRouteTypes {
     | '/landing'
     | '/login'
     | '/manager'
-    | '/pricing'
     | '/queue'
     | '/rating'
     | '/recovery-test'
@@ -506,11 +484,11 @@ export interface FileRouteTypes {
     | '/signup'
     | '/story'
     | '/subtitles'
+    | '/system-health'
     | '/thumbnail'
     | '/timeline'
     | '/topics'
     | '/unlock'
-    | '/upgrade'
     | '/visual'
     | '/visual-dna'
     | '/visual-instructions'
@@ -521,15 +499,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/analytics'
     | '/api-keys'
     | '/assets'
     | '/audio'
     | '/character-rig-lab'
     | '/checklist'
-    | '/community'
     | '/components'
     | '/credits'
-    | '/docs'
     | '/export'
     | '/faq'
     | '/forgot-password'
@@ -540,7 +517,6 @@ export interface FileRouteTypes {
     | '/landing'
     | '/login'
     | '/manager'
-    | '/pricing'
     | '/queue'
     | '/rating'
     | '/recovery-test'
@@ -553,11 +529,11 @@ export interface FileRouteTypes {
     | '/signup'
     | '/story'
     | '/subtitles'
+    | '/system-health'
     | '/thumbnail'
     | '/timeline'
     | '/topics'
     | '/unlock'
-    | '/upgrade'
     | '/visual'
     | '/visual-dna'
     | '/visual-instructions'
@@ -569,15 +545,14 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalyticsRoute: typeof AnalyticsRoute
   ApiKeysRoute: typeof ApiKeysRoute
   AssetsRoute: typeof AssetsRoute
   AudioRoute: typeof AudioRoute
   CharacterRigLabRoute: typeof CharacterRigLabRoute
   ChecklistRoute: typeof ChecklistRoute
-  CommunityRoute: typeof CommunityRoute
   ComponentsRoute: typeof ComponentsRoute
   CreditsRoute: typeof CreditsRoute
-  DocsRoute: typeof DocsRoute
   ExportRoute: typeof ExportRoute
   FaqRoute: typeof FaqRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -588,7 +563,6 @@ export interface RootRouteChildren {
   LandingRoute: typeof LandingRoute
   LoginRoute: typeof LoginRoute
   ManagerRoute: typeof ManagerRoute
-  PricingRoute: typeof PricingRoute
   QueueRoute: typeof QueueRoute
   RatingRoute: typeof RatingRoute
   RecoveryTestRoute: typeof RecoveryTestRoute
@@ -601,11 +575,11 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   StoryRoute: typeof StoryRoute
   SubtitlesRoute: typeof SubtitlesRoute
+  SystemHealthRoute: typeof SystemHealthRoute
   ThumbnailRoute: typeof ThumbnailRoute
   TimelineRoute: typeof TimelineRoute
   TopicsRoute: typeof TopicsRoute
   UnlockRoute: typeof UnlockRoute
-  UpgradeRoute: typeof UpgradeRoute
   VisualRoute: typeof VisualRoute
   VisualDnaRoute: typeof VisualDnaRoute
   VisualInstructionsRoute: typeof VisualInstructionsRoute
@@ -645,13 +619,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisualRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/upgrade': {
-      id: '/upgrade'
-      path: '/upgrade'
-      fullPath: '/upgrade'
-      preLoaderRoute: typeof UpgradeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/unlock': {
       id: '/unlock'
       path: '/unlock'
@@ -678,6 +645,13 @@ declare module '@tanstack/react-router' {
       path: '/thumbnail'
       fullPath: '/thumbnail'
       preLoaderRoute: typeof ThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system-health': {
+      id: '/system-health'
+      path: '/system-health'
+      fullPath: '/system-health'
+      preLoaderRoute: typeof SystemHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subtitles': {
@@ -764,13 +738,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QueueRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/manager': {
       id: '/manager'
       path: '/manager'
@@ -841,13 +808,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/credits': {
       id: '/credits'
       path: '/credits'
@@ -860,13 +820,6 @@ declare module '@tanstack/react-router' {
       path: '/components'
       fullPath: '/components'
       preLoaderRoute: typeof ComponentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/community': {
-      id: '/community'
-      path: '/community'
-      fullPath: '/community'
-      preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checklist': {
@@ -904,6 +857,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKeysRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analytics': {
+      id: '/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -937,15 +897,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalyticsRoute: AnalyticsRoute,
   ApiKeysRoute: ApiKeysRoute,
   AssetsRoute: AssetsRoute,
   AudioRoute: AudioRoute,
   CharacterRigLabRoute: CharacterRigLabRoute,
   ChecklistRoute: ChecklistRoute,
-  CommunityRoute: CommunityRoute,
   ComponentsRoute: ComponentsRoute,
   CreditsRoute: CreditsRoute,
-  DocsRoute: DocsRoute,
   ExportRoute: ExportRoute,
   FaqRoute: FaqRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -956,7 +915,6 @@ const rootRouteChildren: RootRouteChildren = {
   LandingRoute: LandingRoute,
   LoginRoute: LoginRoute,
   ManagerRoute: ManagerRoute,
-  PricingRoute: PricingRoute,
   QueueRoute: QueueRoute,
   RatingRoute: RatingRoute,
   RecoveryTestRoute: RecoveryTestRoute,
@@ -969,11 +927,11 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   StoryRoute: StoryRoute,
   SubtitlesRoute: SubtitlesRoute,
+  SystemHealthRoute: SystemHealthRoute,
   ThumbnailRoute: ThumbnailRoute,
   TimelineRoute: TimelineRoute,
   TopicsRoute: TopicsRoute,
   UnlockRoute: UnlockRoute,
-  UpgradeRoute: UpgradeRoute,
   VisualRoute: VisualRoute,
   VisualDnaRoute: VisualDnaRoute,
   VisualInstructionsRoute: VisualInstructionsRoute,
