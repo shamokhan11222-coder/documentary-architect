@@ -192,12 +192,12 @@ function getProviders(): ProviderConfig[] {
 export function useProviders(): ProviderConfig[] {
   return useSyncExternalStore(subscribe, getProviders, () => DEFAULT_PROVIDERS);
 }
-export function toggleProvider(id: string, enabled: boolean) {
+export function toggleProvider(id: ProviderConfig["id"], enabled: boolean) {
   providersCache = getProviders().map((p) => (p.id === id ? { ...p, enabled } : p));
   write(K_PROVIDERS, providersCache);
   emit();
 }
-export function reorderProviders(order: string[]) {
+export function reorderProviders(order: ProviderConfig["id"][]) {
   const map = new Map(getProviders().map((p) => [p.id, p]));
   providersCache = order
     .map((id, i) => {
