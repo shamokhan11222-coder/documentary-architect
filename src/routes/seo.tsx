@@ -151,6 +151,14 @@ function SeoPage() {
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {seo ? "Regenerate SEO" : "Generate SEO"}
         </Button>
+        {seo && (
+          <CopyButton
+            value={seoToText(seo)}
+            label="Copy All SEO"
+            variant="default"
+            className="ml-auto"
+          />
+        )}
       </div>
 
       {!selected && (
@@ -164,21 +172,12 @@ function SeoPage() {
               {busy === "titles" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Regenerate Titles
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => copyText(seo.description, "Description copied")}>
-              Copy Description
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => copyText(seo.tags.join(", "), "Tags copied")}>
-              Copy Tags
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => copyText(seoToText(seo), "All SEO copied")}>
-              Copy All SEO
-            </Button>
             <Button size="sm" onClick={() => downloadTxt(slugify(selected.topic) + "-seo", seoToText(seo))}>
               Download TXT
             </Button>
           </div>
 
-          <Card title="Best Title">
+          <Card title="Best Title" copyValue={seo.bestTitle} copyLabel="Copy Title">
             <input
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               value={seo.bestTitle}
@@ -186,7 +185,7 @@ function SeoPage() {
             />
           </Card>
 
-          <Card title="Title Options">
+          <Card title="Title Options" copyValue={seo.titleOptions.join("\n")}>
             <ol className="list-decimal space-y-1 pl-5 text-sm">
               {seo.titleOptions.map((t, i) => (
                 <li key={i}>{t}</li>
@@ -194,15 +193,15 @@ function SeoPage() {
             </ol>
           </Card>
 
-          <EditableCard label="Description" value={seo.description} rows={8} onChange={(v) => update({ description: v })} />
+          <EditableCard label="Description" value={seo.description} rows={8} onChange={(v) => update({ description: v })} copyLabel="Copy Description" />
 
-          <Card title="Tags">
+          <Card title="Tags" copyValue={seo.tags.join(", ")} copyLabel="Copy Tags">
             <p className="text-sm">{seo.tags.join(", ")}</p>
           </Card>
-          <Card title="Hashtags">
+          <Card title="Hashtags" copyValue={seo.hashtags.join(" ")} copyLabel="Copy Hashtags">
             <p className="text-sm">{seo.hashtags.join(" ")}</p>
           </Card>
-          <Card title="Keywords">
+          <Card title="Keywords" copyValue={seo.keywords.join(", ")} copyLabel="Copy Keywords">
             <p className="text-sm">{seo.keywords.join(", ")}</p>
           </Card>
 
@@ -210,7 +209,7 @@ function SeoPage() {
           <EditableCard label="Short Summary" value={seo.shortSummary} rows={2} onChange={(v) => update({ shortSummary: v })} />
           <EditableCard label="Long Summary" value={seo.longSummary} rows={5} onChange={(v) => update({ longSummary: v })} />
 
-          <Card title="Upload Checklist">
+          <Card title="Upload Checklist" copyValue={(seo.uploadChecklist ?? []).join("\n")}>
             <ul className="list-disc space-y-1 pl-5 text-sm">
               {(seo.uploadChecklist ?? []).map((c, i) => (
                 <li key={i}>{c}</li>
@@ -223,10 +222,25 @@ function SeoPage() {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  children,
+  copyValue,
+  copyLabel,
+}: {
+  title: string;
+  children: React.ReactNode;
+  copyValue?: string;
+  copyLabel?: string;
+}) {
   return (
     <section className="rounded-lg border border-border p-4">
-      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {copyValue !== undefined && (
+          <CopyButton value={copyValue} label={copyLabel ?? `Copy ${title}`} />
+        )}
+      </div>
       {children}
     </section>
   );
@@ -237,14 +251,16 @@ function EditableCard({
   value,
   rows,
   onChange,
+  copyLabel,
 }: {
   label: string;
   value: string;
   rows: number;
   onChange: (v: string) => void;
+  copyLabel?: string;
 }) {
   return (
-    <Card title={label}>
+    <Card title={label} copyValue={value} copyLabel={copyLabel ?? `Copy ${label}`}>
       <textarea
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         rows={rows}
@@ -252,5 +268,41 @@ function EditableCard({
         onChange={(e) => onChange(e.target.value)}
       />
     </Card>
+  );
+}
+
+function CopyButton({
+  value,
+  label,
+  variant = "ghost",
+  className,
+}: {
+  value: string;
+  label: string;
+  variant?: "ghost" | "default";
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  function onCopy(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    copyText(value, `${label.replace(/^Copy\s+/i, "")} copied`);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={variant === "default" ? "default" : "ghost"}
+      onClick={onCopy}
+      disabled={!value}
+      className={`h-8 gap-1.5 text-xs transition-all ${className ?? ""}`}
+      aria-label={label}
+      title={label}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      <span>{copied ? "Copied" : label}</span>
+    </Button>
   );
 }
