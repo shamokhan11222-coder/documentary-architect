@@ -195,20 +195,33 @@ function ThumbnailPage() {
         const url = await generateThumbnailImage(ideas[i]);
         await putImage(thumbImageId(selected.id, i), url);
         wrote++;
+        // Success — clear any prior retry state for this project.
+        clearThumbRetry(selected.id);
       } catch (e) {
         // Emergency Debug: surface the EXACT provider error — never a generic line.
         const msg = imageErrorMessage(e, "failed");
         setProviderError(msg);
+        if (isProvidersUnavailableError(e)) {
+          setProviderLimit(true);
+          recordThumbFailure(selected.id, i, PROVIDERS_UNAVAILABLE_MESSAGE);
+          toast.error(PROVIDERS_UNAVAILABLE_MESSAGE);
+          setProgress(null);
+          return "provider-limit";
+        }
         if (isRateLimitError(e)) {
           setProviderLimit(true);
+          recordThumbFailure(selected.id, i, msg);
           toast.error(`Thumbnail ${i + 1}: ${msg}`);
           setProgress(null);
           return "provider-limit";
         }
         toast.error(`Thumbnail ${i + 1}: ${msg}`);
+        recordThumbFailure(selected.id, i, msg);
         if (/credit|402/i.test(msg)) break;
       }
       setProgress({ done: i + 1, total: end });
+      // Sequential Free-Mode pacing between variants.
+      if (getFreeMode() && i + 1 < end) await sleep(10_000);
     }
     setProgress(null);
     // Only report success when an actual image was stored. Otherwise the concept
