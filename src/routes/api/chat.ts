@@ -1,5 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { OPENROUTER_ENDPOINT, OPENROUTER_MODELS } from "@/lib/openrouter.server";
+
+const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODELS = [
+  "deepseek/deepseek-chat-v3-0324:free",
+  "qwen/qwen3-32b:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+] as const;
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
 type Body = { messages?: Msg[]; context?: string };
