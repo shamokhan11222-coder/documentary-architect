@@ -5,6 +5,7 @@ import { getActiveTextProvider } from "./lib/provider";
 import { recordTelemetry } from "./lib/provider-telemetry";
 import { enqueueAi } from "./lib/ai-queue";
 import { GEMINI_TEXT_MODEL_DEFAULT_FULL, normalizeGeminiModel } from "./lib/gemini-model";
+import { getOpenRouterSettings } from "./lib/openrouter";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -30,6 +31,16 @@ const aiProviderMiddleware = createMiddleware({ type: "function" }).client(
     const externalProviderDisabled = true;
     const activeProvider = externalProviderDisabled ? null : p;
     const headers: Record<string, string> = {};
+    // Attach the user's OpenRouter model preferences so the server picks the
+    // exact primary/fallback selected in API Settings. Free defaults still
+    // apply on the server if these headers are absent or empty.
+    try {
+      const or = getOpenRouterSettings();
+      if (or.primary) headers["x-openrouter-primary"] = or.primary;
+      if (or.fallback) headers["x-openrouter-fallback"] = or.fallback;
+    } catch {
+      /* localStorage unavailable during SSR */
+    }
     // Route text tasks to the selected Text Provider (Gemini or OpenAI) when a
     // matching key is connected. A "built-in" selection (or no key) is honored
     // by leaving the headers off so the server uses the built-in AI.
