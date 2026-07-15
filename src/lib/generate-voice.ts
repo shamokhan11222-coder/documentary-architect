@@ -9,6 +9,30 @@ import type { VoiceSettings } from "./types";
 
 export const voiceBlockId = (topicId: string, index: number) => `voice:${topicId}:${index}`;
 
+/** Temporarily disabled: the free local downloadable TTS engine isn't wired up yet.
+ *  This function intentionally makes ZERO network calls (no Lovable AI Gateway,
+ *  no Gemini, no model download) and never throws — it surfaces a friendly
+ *  inline message so the Voice page stays usable and saved blocks keep playing. */
+export const VOICE_DISABLED_MESSAGE =
+  "Free local voice engine is not installed yet. Voice generation is temporarily disabled.";
+export const VOICE_GENERATION_ENABLED = false;
+
+export async function generateVoiceBlock(
+  _topicId: string,
+  _index: number,
+  _text: string,
+  _settings: VoiceSettings,
+): Promise<number> {
+  toast.message(VOICE_DISABLED_MESSAGE);
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// Legacy local-TTS implementation (kokoro-js). Kept here, unused, so we can
+// re-enable it once the downloadable engine is finalized. Do not call.
+// -----------------------------------------------------------------------------
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
 
 // Voice mapping for our narrator profiles. Defaults tuned for a calm,
