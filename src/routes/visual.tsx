@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from "react";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Upload, Trash2, ImagePlus, RotateCcw, Images, PlayCircle } from "lucide-react";
 
@@ -13,6 +13,29 @@ import {
   useVisualMap,
   saveVisualMap,
 } from "@/lib/store";
+import { useVoice } from "@/lib/production";
+import {
+  PACING_PRESETS,
+  WPM_PRESETS,
+  DEFAULT_WPM,
+  MIN_SCENE_COUNT,
+  MAX_SCENE_COUNT,
+  MIN_SCENE_SECONDS,
+  MAX_SCENE_SECONDS,
+  SCENES_PER_BATCH,
+  wordCount,
+  resolveScriptDuration,
+  computeTargetSceneCount,
+  splitScriptForBatches,
+  localScenesFromScript,
+  mergeAndRenumber,
+  assignSceneTimings,
+  validateScenePlan,
+  formatDuration,
+  pacingLabel,
+  type PacingMode,
+  type SpeechRate,
+} from "@/lib/scene-planner";
 import { useImage, putImage, deleteImage, fileToDataUrl, loadImage } from "@/lib/images";
 import { generateSceneImage, generateTestImage, imageErrorMessage, isRateLimitError, PROVIDER_FREE_TIER_LIMIT_MESSAGE, getImageCooldownRemainingMs } from "@/lib/generate-image";
 import { useFreeMode, setFreeMode } from "@/lib/free-mode";
