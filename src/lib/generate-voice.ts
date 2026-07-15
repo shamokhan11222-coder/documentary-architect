@@ -5,6 +5,15 @@ import { putImage } from "./images";
 import { generateBlockAudio } from "./local-tts/engine";
 import { concatSegments, encodeWav, blobToDataUrl, hashText } from "./local-tts/wav";
 import { ENGINE_VERSION } from "./local-tts/presets";
+import { postProcess } from "./local-tts/dsp";
+import {
+  NEUTRAL_TUNING,
+  ZENN_TUNING,
+  ZENN_PRESET_ID,
+  compensatedKokoroSpeed,
+  tuningHash,
+  type VoiceTuning,
+} from "./local-tts/tuning";
 import type { VoiceSettings } from "./types";
 
 export const voiceBlockId = (topicId: string, index: number) =>
@@ -24,6 +33,7 @@ export interface VoiceBlockMeta {
   speed: number;
   textHash: string;
   engineVersion: string;
+  tuningHash?: string;
 }
 
 const META_KEY = "docos.voiceMeta";
@@ -51,6 +61,20 @@ function writeMeta(id: string, meta: VoiceBlockMeta) {
   }
 }
 
+/** Resolve the effective tuning from settings + preset defaults. */
+export function resolveTuning(settings: VoiceSettings): VoiceTuning {
+  const base: VoiceTuning = (settings.voicePresetId === ZENN_PRESET_ID)
+    ? { ...ZENN_TUNING }
+    : { ...NEUTRAL_TUNING };
+  if (settings.pitchPercent !== undefined) base.pitchPercent = settings.pitchPercent;
+  if (settings.brightness !== undefined) base.brightness = settings.brightness;
+  if (settings.warmth !== undefined) base.warmth = settings.warmth;
+  if (settings.confidence !== undefined) base.confidence = settings.confidence;
+  if (settings.energy !== undefined) base.energy = settings.energy;
+  if (settings.emotionStrength !== undefined) base.emotion = settings.emotionStrength;
+  return base;
+}
+
 /** Generate one voice block, store the WAV in IndexedDB, return duration (s). */
 export async function generateVoiceBlock(
   topicId: string,
@@ -62,13 +86,17 @@ export async function generateVoiceBlock(
   const id = voiceBlockId(topicId, index);
   const hash = hashText(text);
   const presetId = settings.voicePresetId ?? "young-smooth-male";
-  const speed = settings.speed || 1.0;
+  const targetSpeed = settings.speed || 1.0;
+  const tuning = resolveTuning(settings);
+  const kokoroSpeed = compensatedKokoroSpeed(targetSpeed, tuning);
+  const tHash = tuningHash(tuning);
   const existing = getVoiceMeta(id);
   if (
     existing &&
     existing.textHash === hash &&
     existing.voicePresetId === presetId &&
-    existing.speed === speed &&
+    existing.speed === targetSpeed &&
+    existing.tuningHash === tHash &&
     existing.engineVersion === ENGINE_VERSION
   ) {
     return existing.duration;
@@ -76,25 +104,27 @@ export async function generateVoiceBlock(
   const { segments } = await generateBlockAudio({
     text,
     presetId,
-    speed,
+    speed: kokoroSpeed,
     dictionary: settings.dictionary,
     onChunk,
   });
   if (!segments.length) return 0;
   const sentencePause = (settings.sentencePauseMs ?? 120) / 1000;
   const merged = concatSegments(segments, sentencePause);
-  const blob = encodeWav(merged);
+  const processed = await postProcess(merged, tuning);
+  const blob = encodeWav(processed);
   const dataUrl = await blobToDataUrl(blob);
   await putImage(id, dataUrl);
-  const duration = merged.samples.length / merged.sampleRate;
+  const duration = processed.samples.length / processed.sampleRate;
   const meta: VoiceBlockMeta = {
     duration,
-    sampleRate: merged.sampleRate,
+    sampleRate: processed.sampleRate,
     generatedAt: Date.now(),
     voicePresetId: presetId,
-    speed,
+    speed: targetSpeed,
     textHash: hash,
     engineVersion: ENGINE_VERSION,
+    tuningHash: tHash,
   };
   writeMeta(id, meta);
   return duration;
