@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Sparkles,
 } from "lucide-react";
 
 import { useSelectedTopicId, useVisualMap } from "@/lib/store";
@@ -62,6 +63,7 @@ import {
   clearHistory,
 } from "@/lib/image-studio/state";
 import { scoreImage, scoreBand } from "@/lib/image-studio/consistency";
+import { ReferenceStudioPanel } from "@/components/ReferenceStudioPanel";
 import type { ProviderConfig } from "@/lib/image-studio/types";
 import type { VisualScene } from "@/lib/types";
 
@@ -84,6 +86,7 @@ export const Route = createFileRoute("/image-studio")({
 type TabId =
   | "overview"
   | "queue"
+  | "references"
   | "characters"
   | "style"
   | "backgrounds"
@@ -95,6 +98,7 @@ type TabId =
 const TABS: { id: TabId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "queue", label: "Image Queue", icon: ListVideo },
+  { id: "references", label: "Reference Studio", icon: Sparkles },
   { id: "characters", label: "Characters", icon: UserSquare2 },
   { id: "style", label: "Style Lock", icon: Palette },
   { id: "backgrounds", label: "Backgrounds", icon: Mountain },
@@ -131,6 +135,7 @@ function ImageStudioPage() {
         <div className="mx-auto max-w-6xl px-6 py-6">
           {tab === "overview" && <OverviewPanel scenes={scenes} topicId={topicId} />}
           {tab === "queue" && <QueuePanel scenes={scenes} topicId={topicId} />}
+          {tab === "references" && <ReferenceStudioPanel projectId={topicId} />}
           {tab === "characters" && <CharacterPanel />}
           {tab === "style" && <StylePanel />}
           {tab === "backgrounds" && <BackgroundPanel />}
