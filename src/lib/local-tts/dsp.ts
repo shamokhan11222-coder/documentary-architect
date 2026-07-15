@@ -33,7 +33,7 @@ export async function postProcess(
   const ctx = new OACtor(1, outLen, seg.sampleRate);
 
   const inputBuffer = ctx.createBuffer(1, inLen, seg.sampleRate);
-  inputBuffer.copyToChannel(seg.samples, 0);
+  inputBuffer.getChannelData(0).set(seg.samples);
 
   const src = ctx.createBufferSource();
   src.buffer = inputBuffer;
