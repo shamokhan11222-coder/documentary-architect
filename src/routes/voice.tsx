@@ -285,7 +285,7 @@ function VoicePage() {
         toast.error("No completed voice blocks to export.");
         return;
       }
-      const base = (selected.title || selected.id).replace(/[^\w-]+/g, "_");
+      const base = (selected.topic || selected.id).replace(/[^\w-]+/g, "_");
       downloadBlob(result.wav, `${base}_narration.wav`);
       const timingBlob = new Blob([JSON.stringify(result.timing, null, 2)], {
         type: "application/json",
