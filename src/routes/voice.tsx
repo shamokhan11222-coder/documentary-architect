@@ -1,7 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Play, RefreshCw, Plus, X, Mic } from "lucide-react";
+import {
+  Cpu,
+  Download,
+  FileAudio,
+  Loader2,
+  Mic,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Square,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -12,8 +24,6 @@ import {
   DEFAULT_VOICE_SETTINGS,
   useVoice,
   saveVoice,
-  useVoiceProfiles,
-  getVoiceProfile,
   scriptToParagraphs,
   estimateSeconds,
   fmtClock,
@@ -22,86 +32,99 @@ import { useImage } from "@/lib/images";
 import {
   generateVoiceBlock,
   voiceBlockId,
-  VOICE_GENERATION_ENABLED,
-  VOICE_DISABLED_MESSAGE,
+  getVoiceMeta,
 } from "@/lib/generate-voice";
-import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
-import { pitchSimilarity, measurePitchHz } from "@/lib/voice-analysis";
-import { CustomVoice } from "@/components/CustomVoice";
+import type { VoiceBlock, VoiceSettings } from "@/lib/types";
+import {
+  DEFAULT_PRESET_ID,
+  VOICE_PRESETS,
+  getPreset,
+} from "@/lib/local-tts/presets";
+import {
+  browserSupported,
+  getEngineState,
+  loadEngine,
+  subscribeEngine,
+  type EngineState,
+} from "@/lib/local-tts/engine";
+import {
+  downloadBlob,
+  exportFullNarration,
+} from "@/lib/local-tts/export";
 import { humanizeError } from "@/lib/humanize-error";
-import { hasUnlimitedAccess } from "@/lib/account";
 
 export const Route = createFileRoute("/voice")({
-  head: () => ({ meta: [{ title: "Voice Studio — Stickmax Studio" }] }),
+  head: () => ({
+    meta: [
+      { title: "Voice Studio — Local Free Narration" },
+      {
+        name: "description",
+        content:
+          "Generate narration locally in your browser with the free Kokoro voice engine. No API keys, no credits.",
+      },
+    ],
+  }),
   component: VoicePage,
 });
-
-const PROFILES: { key: NarratorProfile; label: string; desc: string }[] = [
-  { key: "deep", label: "Deep Documentary", desc: "Authoritative, resonant" },
-  { key: "calm", label: "Calm Narrator", desc: "Warm, measured" },
-  { key: "storyteller", label: "Story Teller", desc: "Expressive, engaging" },
-  { key: "educational", label: "Educational", desc: "Clear, explanatory" },
-  { key: "cinematic", label: "Cinematic", desc: "Dramatic, trailer-like" },
-];
 
 function VoicePage() {
   const { selected } = useSelectedProject();
   const story = useStory(selected?.id ?? null);
   const voice = useVoice(selected?.id ?? null);
-  const settings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
-  const profiles = useVoiceProfiles();
+  const settings: VoiceSettings = voice?.settings ?? DEFAULT_VOICE_SETTINGS;
+  const presetId = settings.voicePresetId ?? DEFAULT_PRESET_ID;
+  const speed = settings.speed || 1.0;
+  const sentencePauseMs = settings.sentencePauseMs ?? 120;
+  const paragraphPauseMs = settings.paragraphPauseMs ?? 500;
+  const energy = settings.energy ?? 0.5;
+
+  const [engine, setEngine] = useState<EngineState>(getEngineState());
+  useEffect(() => subscribeEngine(setEngine), []);
+
   const [busy, setBusy] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  // Measured clone similarity from the most recent preview (0-1), and whether
-  // it passed the required threshold. Full generation is blocked until a
-  // preview passes.
-  const [similarity, setSimilarity] = useState<number | null>(null);
+  const [chunkStatus, setChunkStatus] = useState<string>("");
+  const [testPassed, setTestPassed] = useState(false);
+  const [queueState, setQueueState] = useState<{
+    running: boolean;
+    paused: boolean;
+    stopRequested: boolean;
+    current: number | null;
+    completed: number;
+    failed: number[];
+    startedAt: number | null;
+  }>({
+    running: false,
+    paused: false,
+    stopRequested: false,
+    current: null,
+    completed: 0,
+    failed: [],
+    startedAt: null,
+  });
+  const queueRef = useRef(queueState);
+  queueRef.current = queueState;
 
-  // The cloned voice selected for this project (persisted per project via
-  // settings.clonedProfileId). When profiles exist, one must be selected
-  // before any voiceover can be generated.
-  const selectedProfile = profiles.find((p) => p.id === settings.clonedProfileId) ?? null;
-
-  /** Settings actually used for generation — a selected cloned profile's saved
-   *  settings take over, but the project's pronunciation dictionary is kept. */
-  function genSettings(): VoiceSettings {
-    if (selectedProfile?.settings) {
-      return { ...selectedProfile.settings, dictionary: settings.dictionary, clonedProfileId: selectedProfile.id };
-    }
-    return settings;
-  }
-
-  /** Returns an error message if voiceover generation is not allowed yet. */
-  function voiceGuard(): string | null {
-    if (profiles.length > 0 && !settings.clonedProfileId) return "Select a voice profile first.";
-    if (settings.clonedProfileId) {
-      const p = getVoiceProfile(settings.clonedProfileId);
-      if (!p) return "Select a voice profile first.";
-      if (!p.sampleAudioId && !p.sampleAudio)
-        return "Voice sample missing. Upload or record a sample for this profile.";
-      if (!p.consent) return "Permission not confirmed for this voice profile.";
-      // Similarity gate: require a passing preview before generating anything.
-      const target = genSettings().similarityTarget ?? 0.9;
-      if (similarity == null)
-        return "Run Preview Clone first to check voice similarity.";
-      if (similarity < target) return "Voice clone quality is insufficient.";
-    }
-    return null;
-  }
+  const supported = browserSupported();
 
   function update(patch: Partial<VoiceSettings>) {
     if (!selected) return;
     const blocks = voice?.blocks ?? [];
-    saveVoice({ topicId: selected.id, settings: { ...settings, ...patch }, blocks, generatedAt: Date.now() });
-    // Any change that affects the cloned voice invalidates the last similarity
-    // check — force a fresh preview before generation is unlocked again.
-    if (
-      ["clonedProfileId", "pitch", "age", "energy", "style", "profile", "speed", "stability"].some(
-        (k) => k in patch,
-      )
-    ) {
-      setSimilarity(null);
-      setPreviewUrl(null);
+    saveVoice({
+      topicId: selected.id,
+      settings: { ...settings, ...patch },
+      blocks,
+      generatedAt: Date.now(),
+    });
+  }
+
+  async function ensureEngine(): Promise<boolean> {
+    if (engine.status === "ready" || engine.status === "generating") return true;
+    try {
+      await loadEngine();
+      return true;
+    } catch (e) {
+      toast.error(humanizeError(e, "Voice engine failed to load"));
+      return false;
     }
   }
 
@@ -113,20 +136,59 @@ function VoicePage() {
       text,
       estSeconds: estimateSeconds(text),
     }));
-    saveVoice({ topicId: selected.id, settings, blocks, generatedAt: Date.now() });
+    saveVoice({
+      topicId: selected.id,
+      settings,
+      blocks,
+      generatedAt: Date.now(),
+    });
     toast.success(`${blocks.length} voice blocks created`);
+  }
+
+  // Energy tweaks speed slightly (low = -3%, natural = 0, lively = +5%).
+  function energyAdjustedSpeed(): number {
+    const bump = energy < 0.34 ? -0.03 : energy > 0.66 ? 0.05 : 0;
+    return Math.max(0.85, Math.min(1.15, speed + bump));
+  }
+
+  async function genOne(block: VoiceBlock): Promise<number> {
+    setChunkStatus("");
+    return generateVoiceBlock(
+      selected!.id,
+      block.index,
+      block.text,
+      { ...settings, speed: energyAdjustedSpeed() },
+      (i, total) => setChunkStatus(`Synthesizing chunk ${i + 1} of ${total}`),
+    );
+  }
+
+  async function generateTest() {
+    if (!selected || !voice || !voice.blocks.length) return;
+    if (!(await ensureEngine())) return;
+    const block = voice.blocks[0];
+    setBusy("test");
+    try {
+      const real = await genOne(block);
+      const blocks = voice.blocks.map((b) =>
+        b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b,
+      );
+      saveVoice({ ...voice, blocks });
+      setTestPassed(true);
+      toast.success(`Test block ready — ${real.toFixed(1)}s`);
+    } catch (e) {
+      toast.error(humanizeError(e, "Voice generation failed"));
+    } finally {
+      setBusy(null);
+      setChunkStatus("");
+    }
   }
 
   async function genBlock(block: VoiceBlock) {
     if (!selected || !voice) return;
-    const guard = voiceGuard();
-    if (guard) {
-      toast.error(guard);
-      return;
-    }
+    if (!(await ensureEngine())) return;
     setBusy(`b-${block.index}`);
     try {
-      const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
+      const real = await genOne(block);
       const blocks = voice.blocks.map((b) =>
         b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b,
       );
@@ -136,104 +198,65 @@ function VoicePage() {
       toast.error(humanizeError(e, "Voice generation failed"));
     } finally {
       setBusy(null);
+      setChunkStatus("");
     }
   }
 
-  async function genAll() {
+  async function generateAll() {
     if (!selected || !voice) return;
-    const guard = voiceGuard();
-    if (guard) {
-      toast.error(guard);
+    if (!testPassed && !voice.blocks.some((b) => b.realSeconds != null)) {
+      toast.error("Run the Test Block first.");
       return;
     }
-    setBusy("all");
+    if (!(await ensureEngine())) return;
+    setQueueState({
+      running: true,
+      paused: false,
+      stopRequested: false,
+      current: null,
+      completed: 0,
+      failed: [],
+      startedAt: Date.now(),
+    });
     let blocks = [...voice.blocks];
-    let creditsOut = false;
-    // Smart cache: only narrate blocks that haven't been generated yet.
-    const pending = voice.blocks.filter((b) => b.realSeconds == null);
-    if (!pending.length) {
-      setBusy(null);
-      toast.info("Every paragraph is already narrated.");
-      return;
-    }
-    for (const block of pending) {
+    const failed: number[] = [];
+    for (const block of voice.blocks) {
+      // wait while paused
+      while (queueRef.current.paused && !queueRef.current.stopRequested) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (queueRef.current.stopRequested) break;
+      if (block.realSeconds != null) {
+        setQueueState((s) => ({ ...s, completed: s.completed + 1 }));
+        continue;
+      }
+      setQueueState((s) => ({ ...s, current: block.index }));
       try {
-        const real = await generateVoiceBlock(selected.id, block.index, block.text, genSettings());
-        blocks = blocks.map((b) => (b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b));
+        const real = await genOne(block);
+        blocks = blocks.map((b) =>
+          b.index === block.index ? { ...b, realSeconds: real, generatedAt: Date.now() } : b,
+        );
+        // Persist immediately so a refresh preserves progress.
         saveVoice({ ...voice, blocks, generatedAt: Date.now() });
+        setQueueState((s) => ({ ...s, completed: s.completed + 1 }));
       } catch (e) {
-        const msg = humanizeError(e, "voice generation failed");
-        if (!hasUnlimitedAccess() && /credit|CREDITS_EXHAUSTED|402/i.test(msg)) {
-          creditsOut = true;
-          toast.error("Credits exhausted. Your generated voice blocks are saved. Continue later.");
-        } else {
-          toast.error(`Block ${block.index + 1}: ${msg}`);
-        }
-        break;
+        failed.push(block.index);
+        setQueueState((s) => ({ ...s, failed: [...s.failed, block.index] }));
+        toast.error(
+          `Block ${block.index + 1}: ${humanizeError(e, "voice generation failed")}. Completed blocks are safe.`,
+        );
       }
     }
-    setBusy(null);
-    if (!creditsOut) toast.success("Narration complete");
-  }
-
-  /** Preview Clone — narrate a single sentence so the user can compare the
-   *  generated voice against the uploaded sample. */
-  async function previewClone() {
-    if (!selectedProfile) {
-      toast.error("Select a voice profile first.");
-      return;
-    }
-    // Preview must run even when the similarity gate hasn't passed yet — it's
-    // how the gate gets measured. Only check the basic sample/consent guards.
-    const p = getVoiceProfile(selectedProfile.id);
-    if (!p || (!p.sampleAudioId && !p.sampleAudio)) {
-      toast.error("Voice sample missing for this profile.");
-      return;
-    }
-    if (!p.consent) {
-      toast.error("Permission not confirmed for this voice profile.");
-      return;
-    }
-    setBusy("preview");
-    setPreviewUrl(null);
-    setSimilarity(null);
-    const sentence = "This is a preview of the selected voice clone. Compare it with your uploaded sample.";
-    const key = `voicepreview:${selectedProfile.id}`;
-    try {
-      await generateVoiceBlock("__preview__", -1, sentence, {
-        ...genSettings(),
-        // reuse the preview slot instead of a real block index
-      });
-      // generateVoiceBlock stores under voice:__preview__:-1
-      const { loadImage } = await import("@/lib/images");
-      const url = await loadImage(voiceBlockId("__preview__", -1));
-      setPreviewUrl(url ?? null);
-      void key;
-      // Measure similarity against the uploaded sample's pitch fingerprint.
-      const target = genSettings().similarityTarget ?? 0.9;
-      if (url && selectedProfile.pitchHz) {
-        try {
-          const genHz = await measurePitchHz(url);
-          const sim = pitchSimilarity(selectedProfile.pitchHz, genHz);
-          setSimilarity(sim);
-          if (sim < target) {
-            toast.error("Voice clone quality is insufficient.");
-          } else {
-            toast.success(`Clone preview ready — ${Math.round(sim * 100)}% similarity`);
-          }
-        } catch {
-          setSimilarity(null);
-          toast.warning("Preview ready, but similarity could not be measured.");
-        }
-      } else {
-        // No sample fingerprint — cannot verify quality; allow but warn.
-        setSimilarity(target);
-        toast.success("Clone preview ready");
-      }
-    } catch (e) {
-      toast.error(humanizeError(e, "Preview failed"));
-    } finally {
-      setBusy(null);
+    setQueueState((s) => ({
+      ...s,
+      running: false,
+      paused: false,
+      stopRequested: false,
+      current: null,
+    }));
+    setChunkStatus("");
+    if (!failed.length && !queueRef.current.stopRequested) {
+      toast.success("Narration complete");
     }
   }
 
@@ -241,19 +264,63 @@ function VoicePage() {
     if (!voice) return;
     saveVoice({
       ...voice,
-      blocks: voice.blocks.map((b) => (b.index === index ? { ...b, text, estSeconds: estimateSeconds(text) } : b)),
+      blocks: voice.blocks.map((b) =>
+        b.index === index
+          ? { ...b, text, estSeconds: estimateSeconds(text), realSeconds: undefined }
+          : b,
+      ),
     });
   }
 
-  const totalEst = (voice?.blocks ?? []).reduce((s, b) => s + (b.realSeconds ?? b.estSeconds), 0);
+  async function exportNarration() {
+    if (!selected || !voice) return;
+    setBusy("export");
+    try {
+      const result = await exportFullNarration(
+        selected.id,
+        voice.blocks,
+        paragraphPauseMs,
+      );
+      if (!result) {
+        toast.error("No completed voice blocks to export.");
+        return;
+      }
+      const base = (selected.topic || selected.id).replace(/[^\w-]+/g, "_");
+      downloadBlob(result.wav, `${base}_narration.wav`);
+      const timingBlob = new Blob([JSON.stringify(result.timing, null, 2)], {
+        type: "application/json",
+      });
+      downloadBlob(timingBlob, `${base}_narration_timing.json`);
+      toast.success("Narration exported");
+    } catch (e) {
+      toast.error(humanizeError(e, "Export failed"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const generatedCount = (voice?.blocks ?? []).filter((b) => b.realSeconds != null).length;
+  const totalReal = (voice?.blocks ?? []).reduce(
+    (s, b) => s + (b.realSeconds ?? b.estSeconds),
+    0,
+  );
 
   return (
     <StageShell stage="voice" maxWidth="max-w-5xl">
       <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Voice Studio</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Generate natural documentary narration. Each paragraph is its own voice block you can preview and regenerate.
+        100% free local narration — powered by Kokoro 82M running in your browser. No API keys, no
+        credits, no server calls.
       </p>
+
+      {!supported && (
+        <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+          Your browser does not support the local voice engine. Use a recent version of Chrome or
+          Edge.
+        </p>
+      )}
+
+      <EngineCard engine={engine} onLoad={() => void loadEngine().catch(() => {})} />
 
       {!selected && <p className="mt-6 text-sm text-muted-foreground">Select a project to begin.</p>}
       {selected && !story && (
@@ -263,209 +330,181 @@ function VoicePage() {
       {selected && story && (
         <>
           <div className="mt-6 rounded-xl border border-border p-4">
-            <div className="text-sm font-medium">Narrator profile</div>
-            <div className="mt-3">
-              <label className="text-xs font-medium">Voice name</label>
-              <input
-                className="mt-1 h-8 w-56 rounded-md border border-input bg-background px-2 text-sm"
-                placeholder="Voice name"
-                value={settings.voiceName ?? ""}
-                onChange={(e) => update({ voiceName: e.target.value })}
-              />
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {PROFILES.map((p) => (
+            <div className="text-sm font-medium">Voice preset</div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {VOICE_PRESETS.map((p) => (
                 <button
-                  key={p.key}
-                  onClick={() => update({ profile: p.key })}
+                  key={p.id}
+                  onClick={() => update({ voicePresetId: p.id })}
                   className={[
                     "rounded-lg border p-3 text-left transition-colors",
-                    settings.profile === p.key
+                    presetId === p.id
                       ? "border-primary bg-primary/5"
                       : "border-border hover:bg-accent",
                   ].join(" ")}
                 >
                   <div className="text-sm font-medium">{p.label}</div>
                   <div className="text-[11px] text-muted-foreground">{p.desc}</div>
+                  <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {p.gender} · {p.voice}
+                  </div>
                 </button>
               ))}
             </div>
 
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <Ctrl label="Speed" value={settings.speed} min={0.7} max={1.2} step={0.05} onChange={(v) => update({ speed: v })} />
-              <Ctrl label="Stability" value={settings.stability} onChange={(v) => update({ stability: v })} />
-              <Ctrl label="Emotion" value={settings.emotion} onChange={(v) => update({ emotion: v })} />
-              <Ctrl label="Pause Length" value={settings.pauseStrength} onChange={(v) => update({ pauseStrength: v })} />
-              <Ctrl label="Pitch" value={settings.pitch} onChange={(v) => update({ pitch: v })} />
-              <Ctrl label="Age (young → older)" value={settings.age ?? 0.3} onChange={(v) => update({ age: v })} />
-              <Ctrl label="Energy" value={settings.energy ?? 0.5} onChange={(v) => update({ energy: v })} />
+            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               <Ctrl
-                label="Min Similarity %"
-                value={settings.similarityTarget ?? 0.9}
-                min={0.5}
-                max={0.99}
+                label="Speed"
+                value={speed}
+                min={0.85}
+                max={1.15}
                 step={0.01}
-                onChange={(v) => update({ similarityTarget: v })}
+                onChange={(v) => update({ speed: v })}
+              />
+              <Ctrl
+                label="Sentence pause (ms)"
+                value={sentencePauseMs}
+                min={0}
+                max={600}
+                step={20}
+                onChange={(v) => update({ sentencePauseMs: Math.round(v) })}
+                format={(v) => `${Math.round(v)}`}
+              />
+              <Ctrl
+                label="Paragraph pause (ms)"
+                value={paragraphPauseMs}
+                min={0}
+                max={1500}
+                step={50}
+                onChange={(v) => update({ paragraphPauseMs: Math.round(v) })}
+                format={(v) => `${Math.round(v)}`}
               />
               <div>
-                <div className="mb-2 text-xs font-medium">Style</div>
+                <div className="mb-2 text-xs font-medium">Energy</div>
                 <select
                   className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                  value={settings.style ?? "documentary"}
-                  onChange={(e) => update({ style: e.target.value as VoiceSettings["style"] })}
+                  value={energy < 0.34 ? "low" : energy > 0.66 ? "lively" : "natural"}
+                  onChange={(e) =>
+                    update({
+                      energy:
+                        e.target.value === "low"
+                          ? 0.2
+                          : e.target.value === "lively"
+                            ? 0.8
+                            : 0.5,
+                    })
+                  }
                 >
-                  <option value="documentary">Documentary</option>
-                  <option value="friendly">Friendly</option>
-                  <option value="narrative">Storyteller</option>
-                  <option value="educational">Educational</option>
-                  <option value="energetic">Energetic</option>
+                  <option value="low">Low</option>
+                  <option value="natural">Natural</option>
+                  <option value="lively">Lively</option>
                 </select>
               </div>
             </div>
 
             <Dictionary settings={settings} onChange={(dictionary) => update({ dictionary })} />
-
-            <CustomVoice
-              activeProfileId={settings.clonedProfileId}
-              onUse={(id) => update({ clonedProfileId: id })}
-              currentSettings={settings}
-            />
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            {/* Select Voice Profile — drives which cloned voice narration uses. */}
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-muted-foreground">Voice profile</label>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                value={settings.clonedProfileId ?? ""}
-                onChange={(e) => update({ clonedProfileId: e.target.value || undefined })}
-              >
-                <option value="">Select a voice profile…</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.isDefault ? " (default)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button onClick={buildBlocks}>
-              <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
+            <Button onClick={buildBlocks} variant="outline">
+              <Mic className="mr-2 h-4 w-4" />
+              {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
-            {selectedProfile && (
-              <Button
-                variant="outline"
-                onClick={previewClone}
-                disabled={!!busy || !VOICE_GENERATION_ENABLED}
-                title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
-              >
-                {busy === "preview" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="mr-2 h-4 w-4" />
-                )}
-                Preview Clone
-              </Button>
-            )}
             {voice?.blocks.length ? (
-              <Button
-                variant="secondary"
-                onClick={genAll}
-                disabled={!!busy || !VOICE_GENERATION_ENABLED}
-                title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
-              >
-                {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Generate Remaining
-              </Button>
+              <>
+                <Button
+                  onClick={generateTest}
+                  disabled={!!busy || queueState.running || !supported}
+                >
+                  {busy === "test" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 h-4 w-4" />
+                  )}
+                  Generate Test Block
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={generateAll}
+                  disabled={
+                    !!busy ||
+                    queueState.running ||
+                    !supported ||
+                    (!testPassed && generatedCount === 0)
+                  }
+                  title={
+                    !testPassed && generatedCount === 0
+                      ? "Run the Test Block first"
+                      : undefined
+                  }
+                >
+                  Generate All Voice Blocks
+                </Button>
+                {queueState.running && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setQueueState((s) => ({ ...s, paused: !s.paused }))
+                      }
+                    >
+                      {queueState.paused ? (
+                        <Play className="mr-1 h-3.5 w-3.5" />
+                      ) : (
+                        <Pause className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      {queueState.paused ? "Resume" : "Pause"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setQueueState((s) => ({ ...s, stopRequested: true, paused: false }))
+                      }
+                    >
+                      <Square className="mr-1 h-3.5 w-3.5" /> Stop
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={exportNarration}
+                  disabled={!!busy || queueState.running || generatedCount === 0}
+                >
+                  {busy === "export" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Export Full Narration
+                </Button>
+              </>
             ) : null}
           </div>
 
-          {!VOICE_GENERATION_ENABLED && (
-            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-              {VOICE_DISABLED_MESSAGE} Existing narrated blocks below remain playable.
-            </p>
-          )}
-
-          {profiles.length > 0 && !settings.clonedProfileId && (
-            <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
-          )}
-
-          {selectedProfile && (
-            <div className="mt-3 rounded-lg border border-border p-3 text-xs">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="font-medium">Active Voice Profile:</span>
-                <span>{selectedProfile.name}</span>
-                <span className="text-muted-foreground">Voice ID: {selectedProfile.id.slice(0, 8)}</span>
-                <span
-                  className={[
-                    "rounded-full px-2 py-0.5 font-medium",
-                    selectedProfile.status && selectedProfile.status !== "ready"
-                      ? "bg-amber-500/15 text-amber-600"
-                      : "bg-green-500/15 text-green-600 dark:text-green-400",
-                  ].join(" ")}
-                >
-                  {selectedProfile.status && selectedProfile.status !== "ready"
-                    ? "Processing"
-                    : "Ready"}
-                </span>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4">
-                <ValRow label="Gender" ok={selectedProfile.gender !== "unknown"} value={selectedProfile.gender ?? "unknown"} />
-                <ValRow
-                  label="Pitch"
-                  ok={!!selectedProfile.pitchHz}
-                  value={selectedProfile.pitchHz ? `${selectedProfile.pitchHz} Hz` : "—"}
-                />
-                <ValRow
-                  label="Sample length"
-                  ok={(selectedProfile.sampleSeconds ?? 0) >= 30}
-                  value={selectedProfile.sampleSeconds ? `${Math.round(selectedProfile.sampleSeconds)}s` : "—"}
-                />
-                <ValRow
-                  label="Confidence"
-                  ok={(selectedProfile.analysisConfidence ?? 0) >= 0.5}
-                  value={
-                    selectedProfile.analysisConfidence != null
-                      ? `${Math.round(selectedProfile.analysisConfidence * 100)}%`
-                      : "—"
-                  }
-                />
-              </div>
-              {(selectedProfile.sampleSeconds ?? 60) < 30 && (
-                <p className="mt-2 text-amber-600">
-                  For higher accuracy, use 30–60s of clean speech with no music or background noise.
-                </p>
-              )}
-              {similarity != null && (
-                <div className="mt-2">
-                  {similarity < (genSettings().similarityTarget ?? 0.9) ? (
-                    <p className="font-medium text-red-600">
-                      Voice clone quality is insufficient. ({Math.round(similarity * 100)}% vs{" "}
-                      {Math.round((genSettings().similarityTarget ?? 0.9) * 100)}% required)
-                    </p>
-                  ) : (
-                    <p className="font-medium text-green-600 dark:text-green-400">
-                      Clone similarity: {Math.round(similarity * 100)}% — ready to generate.
-                    </p>
-                  )}
+          {(queueState.running || chunkStatus) && (
+            <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+              {queueState.running && (
+                <div>
+                  Block {queueState.current != null ? queueState.current + 1 : "—"} ·{" "}
+                  {queueState.completed}/{voice?.blocks.length} completed ·{" "}
+                  {queueState.failed.length} failed
+                  {queueState.startedAt
+                    ? ` · ${fmtClock(Math.round((Date.now() - queueState.startedAt) / 1000))} elapsed`
+                    : ""}
                 </div>
               )}
-              {previewUrl && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-muted-foreground">Clone preview:</span>
-                  <audio controls src={previewUrl} className="h-8" />
-                </div>
-              )}
+              {chunkStatus && <div className="text-muted-foreground">{chunkStatus}</div>}
             </div>
           )}
 
           {voice?.blocks.length ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <SummaryStat label="Total duration" value={fmtClock(totalEst)} />
-              <SummaryStat label="Estimated video length" value={fmtClock(totalEst)} />
+              <SummaryStat label="Total duration" value={fmtClock(totalReal)} />
               <SummaryStat label="Paragraphs" value={String(voice.blocks.length)} />
               <SummaryStat label="Narrated" value={`${generatedCount}/${voice.blocks.length}`} />
+              <SummaryStat label="Preset" value={getPreset(presetId).label} />
             </div>
           ) : null}
 
@@ -476,6 +515,8 @@ function VoicePage() {
                 topicId={selected.id}
                 block={b}
                 busy={busy === `b-${b.index}`}
+                current={queueState.current === b.index}
+                failed={queueState.failed.includes(b.index)}
                 onGen={() => genBlock(b)}
                 onEdit={(t) => editText(b.index, t)}
               />
@@ -487,6 +528,62 @@ function VoicePage() {
   );
 }
 
+function EngineCard({ engine, onLoad }: { engine: EngineState; onLoad: () => void }) {
+  const label: Record<EngineState["status"], string> = {
+    idle: "Not loaded",
+    downloading: "Downloading model",
+    initializing: "Initializing",
+    ready: engine.fromCache ? "Loaded from local cache" : "Ready",
+    generating: "Generating",
+    error: "Error",
+  };
+  const pct = Math.round(engine.progress * 100);
+  return (
+    <div className="mt-4 rounded-xl border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Cpu className="h-4 w-4" /> Local Kokoro Voice — Free
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            Status: {label[engine.status]}
+            {engine.device ? ` · ${engine.device.toUpperCase()}` : ""}
+            {engine.currentFile ? ` · ${engine.currentFile}` : ""}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={onLoad}
+          disabled={engine.status === "downloading" || engine.status === "initializing" || engine.status === "ready" || engine.status === "generating"}
+        >
+          {engine.status === "downloading" || engine.status === "initializing" ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <FileAudio className="mr-2 h-4 w-4" />
+          )}
+          {engine.status === "ready" || engine.status === "generating"
+            ? "Engine Ready"
+            : "Load Free Voice Engine"}
+        </Button>
+      </div>
+      {(engine.status === "downloading" || engine.status === "initializing") && (
+        <div className="mt-3">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{pct}%</div>
+        </div>
+      )}
+      {engine.status === "error" && engine.error && (
+        <p className="mt-2 text-xs text-red-600">{engine.error}</p>
+      )}
+    </div>
+  );
+}
+
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border px-3 py-2">
@@ -495,14 +592,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function ValRow({ label, ok, value }: { label: string; ok: boolean; value: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-md border border-border px-2 py-1">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={ok ? "text-green-600 dark:text-green-400" : "text-amber-600"}>{value}</span>
-    </div>
-  );
-}
+
 function Ctrl({
   label,
   value,
@@ -510,6 +600,7 @@ function Ctrl({
   min = 0,
   max = 1,
   step = 0.05,
+  format,
 }: {
   label: string;
   value: number;
@@ -517,12 +608,13 @@ function Ctrl({
   min?: number;
   max?: number;
   step?: number;
+  format?: (v: number) => string;
 }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs">
         <span className="font-medium">{label}</span>
-        <span className="text-muted-foreground">{value.toFixed(2)}</span>
+        <span className="text-muted-foreground">{format ? format(value) : value.toFixed(2)}</span>
       </div>
       <Slider value={[value]} min={min} max={max} step={step} onValueChange={(v) => onChange(v[0])} />
     </div>
@@ -585,23 +677,34 @@ function VoiceBlockCard({
   topicId,
   block,
   busy,
+  current,
+  failed,
   onGen,
   onEdit,
 }: {
   topicId: string;
   block: VoiceBlock;
   busy: boolean;
+  current: boolean;
+  failed: boolean;
   onGen: () => void;
   onEdit: (t: string) => void;
 }) {
   const audio = useImage(voiceBlockId(topicId, block.index));
+  const meta = getVoiceMeta(voiceBlockId(topicId, block.index));
   return (
-    <div className="rounded-xl border border-border p-3">
+    <div
+      className={[
+        "rounded-xl border p-3",
+        current ? "border-primary" : failed ? "border-red-500/40" : "border-border",
+      ].join(" ")}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">Block {block.index + 1}</span>
         <span className="text-xs text-muted-foreground">
           ~{fmtClock(block.estSeconds)}
           {block.realSeconds ? ` · actual ${fmtClock(block.realSeconds)}` : ""}
+          {meta ? ` · ${meta.voicePresetId}` : ""}
         </span>
       </div>
       <textarea
@@ -611,21 +714,24 @@ function VoiceBlockCard({
         onChange={(e) => onEdit(e.target.value)}
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          onClick={onGen}
-          disabled={busy || !VOICE_GENERATION_ENABLED}
-          title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
-        >
-          {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+        <Button size="sm" onClick={onGen} disabled={busy}>
+          {busy ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+          )}
           {audio ? "Regenerate" : "Generate"}
         </Button>
         {audio && (
           <>
             <audio controls src={audio} className="h-8" />
-            <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] font-medium text-green-600 dark:text-green-400">
-              <Play className="h-3 w-3" /> Ready
-            </span>
+            <a
+              href={audio}
+              download={`block-${block.index + 1}.wav`}
+              className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs hover:bg-accent"
+            >
+              <Download className="h-3 w-3" /> WAV
+            </a>
           </>
         )}
       </div>

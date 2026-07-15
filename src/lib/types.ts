@@ -260,6 +260,10 @@ export interface VoiceSettings {
   energy?: number; // 0 (relaxed) - 1 (energetic)
   style?: VoiceStyle;
   similarityTarget?: number; // 0 - 1; block generation below this (default 0.9)
+  // Local Kokoro engine controls (Phase 6).
+  voicePresetId?: string; // id from VOICE_PRESETS
+  sentencePauseMs?: number; // 0-800
+  paragraphPauseMs?: number; // 0-1500
 }
 
 export type VoiceStyle = "documentary" | "friendly" | "narrative" | "educational" | "energetic";
