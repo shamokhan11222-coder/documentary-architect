@@ -1,11 +1,57 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODELS = [
-  "deepseek/deepseek-chat-v3-0324:free",
-  "qwen/qwen3-32b:free",
-  "mistralai/mistral-small-3.2-24b-instruct:free",
-] as const;
+const OPENROUTER_MODELS_ENDPOINT = "https://openrouter.ai/api/v1/models";
+// Runtime chain starts with OpenRouter's free router, then falls through to the
+// live free-model catalog fetched at request time. No hardcoded ":free" slugs
+// — those go stale as OpenRouter rotates offerings and cause 404s like
+// "This model is unavailable for free. The paid version is available now."
+const OR_FREE_ROUTER = "openrouter/free";
+
+async function fetchFreeModelIds(key: string): Promise<string[]> {
+  try {
+    const res = await fetch(OPENROUTER_MODELS_ENDPOINT, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      data?: Array<{
+        id: string;
+        pricing?: { prompt?: string; completion?: string };
+        architecture?: { modality?: string };
+      }>;
+    };
+    const free = (data.data ?? []).filter((m) => {
+      const p = Number(m.pricing?.prompt ?? "0");
+      const c = Number(m.pricing?.completion ?? "0");
+      if (!(p === 0 && c === 0)) return false;
+      const mod = (m.architecture?.modality ?? "").toLowerCase();
+      return !mod || mod.includes("text");
+    });
+    const patterns = [
+      /qwen.*(instruct|chat)/i,
+      /deepseek.*(chat|instruct)/i,
+      /mistral.*(instruct)/i,
+      /(llama|meta-llama).*(instruct)/i,
+      /gemma.*(it|instruct)/i,
+      /./i,
+    ];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const pat of patterns) {
+      for (const m of free) {
+        if (seen.has(m.id)) continue;
+        if (pat.test(m.id)) {
+          out.push(m.id);
+          seen.add(m.id);
+        }
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
 type Body = { messages?: Msg[]; context?: string };
@@ -29,9 +75,11 @@ export const Route = createFileRoute("/api/chat")({
 
         const sys = context ? `${SYSTEM}\n\nCURRENT PROJECT CONTEXT:\n${context.slice(0, 6000)}` : SYSTEM;
 
+        const freeIds = await fetchFreeModelIds(key);
+        const chain = [OR_FREE_ROUTER, ...freeIds];
         let lastStatus = 0;
         let lastText = "";
-        for (const model of OPENROUTER_MODELS) {
+        for (const model of chain) {
           const res = await fetch(OPENROUTER_ENDPOINT, {
             method: "POST",
             headers: {
@@ -58,7 +106,9 @@ export const Route = createFileRoute("/api/chat")({
         const msg =
           lastStatus === 429
             ? "All free models are rate limited — try again in a bit 🙏"
-            : `Chat failed (${lastStatus}): ${lastText.slice(0, 160)}`;
+            : lastStatus === 0
+              ? "No free OpenRouter model is currently available. Try again later."
+              : `Chat failed (${lastStatus}): ${lastText.slice(0, 160)}`;
         return Response.json({ reply: msg }, { status: 200 });
       },
     },
