@@ -358,6 +358,94 @@ function ThumbnailPage() {
     toast.success("Placeholder thumbnail added");
   }
 
+  // "Use Existing Scene Image" — reuse a completed storyboard image as the
+  // illustration layer. Runs the local compositor only. No provider request.
+  async function handleUseExistingScene(sceneNumber: number) {
+    if (!selected || !pack) return;
+    return withBusy("scene", async () => {
+      const img = await loadImage(sceneImageId(selected.id, sceneNumber));
+      if (!img) {
+        toast.error("That storyboard image isn't stored yet.");
+        return;
+      }
+      const { composeThumbnail } = await import("@/lib/thumbnail-compositor");
+      const concept = conceptFromIdea(pack.ideas[0]);
+      const composed = await composeThumbnail(concept, img);
+      await putImage(thumbImageId(selected.id, 0), composed);
+      clearThumbRetry(selected.id);
+      setProviderLimit(false);
+      setProviderError(null);
+      setShowScenePicker(false);
+      toast.success("Thumbnail built from existing scene image.");
+    });
+  }
+
+  // "Create Text-Only Thumbnail Draft" — zero-provider fallback using compositor.
+  async function handleTextDraft() {
+    if (!selected) return;
+    return withBusy("draft", async () => {
+      const idea =
+        pack?.ideas?.[0] ??
+        ({
+          thumbnailTitle: selected.topic,
+          textOnThumbnail: selected.topic,
+          mainSubject: "",
+          mainVisualConcept: "",
+          composition: "",
+          background: "",
+          emotion: "curious",
+          ctrScore: 0,
+          imagePrompt: "",
+          whyItWorks: "",
+        } as ThumbnailIdea);
+      const concept = conceptFromIdea(idea);
+      const draft = await composeTextOnlyDraft(concept);
+      await putImage(thumbImageId(selected.id, 0), draft);
+      clearThumbRetry(selected.id);
+      setProviderLimit(false);
+      setProviderError(null);
+      toast.success("Local Thumbnail Draft created — no AI image used.");
+    });
+  }
+
+  // "Retry Now" — clear the cooldown/pause and immediately try again.
+  function handleRetryNow() {
+    if (!selected) return;
+    resetBreaker();
+    resetThumbRetry(selected.id);
+    setProviderLimit(false);
+    setProviderError(null);
+    void handleGenerate();
+  }
+
+  // "Retry Later" — just dismiss the error banner; job stays persisted.
+  function handleRetryLater() {
+    setProviderLimit(false);
+    toast.message("Thumbnail concept saved. Come back later — the retry state is preserved.");
+  }
+
+  // Sequential "Generate More Variants" — one at a time with 10s spacing.
+  function handleGenerateMoreVariants() {
+    if (!selected || !pack) return;
+    return withBusy("more", async () => {
+      setProviderLimit(false);
+      setConceptPending(false);
+      const nextIndex = pack.ideas.findIndex((_, i) => !firstImg && i === 0)
+        + 0; // placeholder to appease TS
+      // Find first slot without an image
+      let start = 0;
+      for (let i = 0; i < pack.ideas.length; i++) {
+        const has = await loadImage(thumbImageId(selected.id, i));
+        if (!has) { start = i; break; }
+        start = i + 1;
+      }
+      void nextIndex;
+      const end = Math.min(pack.ideas.length, start + 1);
+      const status = await renderImages(pack.ideas, start, end);
+      if (status === "ok") toast.success("Variant generated.");
+    });
+  }
+
   return (
     <StageShell stage="thumbnail" maxWidth="max-w-5xl">
       <div className="flex items-center justify-between">
