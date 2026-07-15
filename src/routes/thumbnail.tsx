@@ -482,6 +482,23 @@ function ThumbnailPage() {
           <ImageOff className="mr-2 h-4 w-4" /> Use Placeholder Thumbnail
         </Button>
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onUploadFile} />
+        {pack && (
+          <>
+            <Button variant="outline" onClick={() => setShowScenePicker(true)} disabled={!!busy}>
+              <Images className="mr-2 h-4 w-4" /> Use Existing Scene Image
+            </Button>
+            <Button variant="outline" onClick={handleTextDraft} disabled={!!busy}>
+              {busy === "draft" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <FileText className="mr-2 h-4 w-4" /> Create Text-Only Draft
+            </Button>
+          </>
+        )}
+        {pack && hasImageUrl && freeMode && (
+          <Button variant="secondary" onClick={handleGenerateMoreVariants} disabled={!!busy}>
+            {busy === "more" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Sparkles className="mr-2 h-4 w-4" /> Generate More Variants
+          </Button>
+        )}
         {/* Developer-only actions */}
         {dev && (
           <>
@@ -504,6 +521,57 @@ function ThumbnailPage() {
           </>
         )}
       </div>
+
+      {/* Provider status pills — visible whenever any cooldown or pause is live. */}
+      {selected && (breaker.pollinations.cooldownRemainingMs > 0 || breaker.pollinations.pausedRemainingMs > 0 || breaker.puter.cooldownRemainingMs > 0 || breaker.puter.pausedRemainingMs > 0) && (
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <span className={`rounded-full px-3 py-1 ${breaker.pollinations.pausedRemainingMs > 0 ? "bg-destructive/15 text-destructive" : breaker.pollinations.cooldownRemainingMs > 0 ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600"}`}>
+            Pollinations — {breaker.pollinations.pausedRemainingMs > 0 ? `Paused ${formatCountdown(breaker.pollinations.pausedRemainingMs)}` : breaker.pollinations.cooldownRemainingMs > 0 ? `Rate Limited ${formatCountdown(breaker.pollinations.cooldownRemainingMs)}` : "Ready"}
+          </span>
+          <span className={`rounded-full px-3 py-1 ${breaker.puter.pausedRemainingMs > 0 ? "bg-destructive/15 text-destructive" : breaker.puter.cooldownRemainingMs > 0 ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600"}`}>
+            Puter — {breaker.puter.pausedRemainingMs > 0 ? `Unavailable ${formatCountdown(breaker.puter.pausedRemainingMs)}` : breaker.puter.cooldownRemainingMs > 0 ? `Cooling ${formatCountdown(breaker.puter.cooldownRemainingMs)}` : "Ready"}
+          </span>
+          {retryJob?.nextRetryAt && (
+            <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground">
+              Next Retry — {formatCountdown(retryJob.nextRetryAt - Date.now())}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Retry Waiting / Provider Unavailable banner with recovery actions. */}
+      {selected && retryJob && retryJob.status !== "idle" && (
+        <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+          <p className="font-medium text-amber-700 dark:text-amber-300">
+            {retryJob.status === "unavailable"
+              ? `Provider unavailable after ${MAX_ATTEMPTS} attempts.`
+              : `Retry Waiting — attempt ${retryJob.attempts + 1} of ${MAX_ATTEMPTS}.`}
+          </p>
+          <p className="mt-1 text-muted-foreground">{PROVIDERS_UNAVAILABLE_MESSAGE}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button size="sm" onClick={handleRetryNow} disabled={!!busy}>
+              <Zap className="mr-1 h-3.5 w-3.5" /> Retry Now
+            </Button>
+            <Button size="sm" variant="secondary" onClick={handleRetryLater} disabled={!!busy}>
+              <Clock className="mr-1 h-3.5 w-3.5" /> Retry Later
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowScenePicker(true)} disabled={!!busy}>
+              <Images className="mr-1 h-3.5 w-3.5" /> Use Existing Scene Image
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openUpload(0)} disabled={!!busy}>
+              <Upload className="mr-1 h-3.5 w-3.5" /> Upload Background
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleTextDraft} disabled={!!busy}>
+              <FileText className="mr-1 h-3.5 w-3.5" /> Text-Only Draft
+            </Button>
+          </div>
+          {dev && retryJob.lastError && (
+            <p className="mt-2 whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-[11px] text-destructive">
+              {retryJob.lastError}
+            </p>
+          )}
+        </div>
+      )}
 
       {freeMode && (
         <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
