@@ -19,8 +19,14 @@ export const OPENROUTER_DEFAULT_MODELS = [
 /** Resolve the current preferred model chain: user primary → user fallback →
  *  built-in free defaults. Duplicates are removed while preserving order. */
 function resolveModelChain(): string[] {
-  const primary = (getRequestHeader?.("x-openrouter-primary") ?? "").trim();
-  const fallback = (getRequestHeader?.("x-openrouter-fallback") ?? "").trim();
+  let primary = "";
+  let fallback = "";
+  try {
+    primary = (getRequestHeader("x-openrouter-primary") ?? "").trim();
+    fallback = (getRequestHeader("x-openrouter-fallback") ?? "").trim();
+  } catch {
+    // outside a request context (e.g. warmup); fall through to defaults
+  }
   const chain = [primary, fallback, ...OPENROUTER_DEFAULT_MODELS].filter(Boolean);
   return Array.from(new Set(chain));
 }
