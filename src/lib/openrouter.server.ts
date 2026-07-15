@@ -46,7 +46,9 @@ interface CacheEntry {
   models: FreeModelInfo[];
 }
 
-const CACHE_TTL_MS = 15 * 60 * 1000;
+// Phase 2: bump free-model catalog cache to 30 minutes so we don't refetch the
+// models list before every generation.
+const CACHE_TTL_MS = 30 * 60 * 1000;
 let freeModelsCache: CacheEntry | null = null;
 
 // Temporary per-model blacklist for models that returned 404 unavailable /
@@ -206,8 +208,13 @@ export async function openrouterCallOnce(
 ): Promise<CallResult> {
   const startedAt = Date.now();
   const doFetch = async (useJsonMode: boolean) => {
-    const sys = json
-      ? `${system}\n\nReturn valid JSON only. Do not use markdown. Do not use code fences. Do not add explanations before or after the JSON.`
+    // Phase 2: callers that need JSON already inject a strict "JSON only"
+    // preamble in the system prompt. Only add the short reminder when the
+    // caller's system prompt doesn't already contain one — avoids sending
+    // duplicated instructions on every request.
+    const alreadyStrict = /json only|valid json/i.test(system);
+    const sys = json && !alreadyStrict
+      ? `${system}\n\nReturn valid JSON only. No markdown, no code fences, no prose.`
       : system;
     return fetch(OPENROUTER_ENDPOINT, {
       method: "POST",

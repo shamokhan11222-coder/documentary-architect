@@ -20,18 +20,14 @@ async function reviewStage(
   stageName: string,
   content: string,
 ): Promise<StageReview> {
-  try {
-    const user = `Review this ${stageName} output for a YouTube documentary. Be ruthless but fair.
-
-Return a JSON object:
-{ "score": number (1-10), "issues": ["concrete problems"], "verdict": "one-line verdict" }
-
-OUTPUT:
-${content.slice(0, 8000)}`;
-    return await callAiJson<StageReview>(EXPERTS.reviewer, user);
-  } catch {
-    return { score: 7, issues: [], verdict: "Review unavailable." };
-  }
+  // Phase 2 speed optimization: automatic self-review doubled every Research /
+  // Story generation into two sequential LLM calls (and up to four when the
+  // low-score retry path fired). Users can still trigger an explicit review
+  // from the Rating page; skip the implicit one here so one click = one
+  // provider request. Kept as a stub so downstream types are unchanged.
+  void stageName;
+  void content;
+  return { score: 8, issues: [], verdict: "" };
 }
 
 // ---------------- Shared injection (Instructions + Knowledge Base) ----------------
@@ -221,14 +217,8 @@ Perform deep documentary research. Be specific and concrete (real names, real da
   "endingIdea": "string - a memorable, resonant way to end the documentary"
 }`;
     const research = await callAiJson<ResearchData>(system, user);
-    const review = await reviewStage("documentary research", JSON.stringify(research));
-    if (review.score < 6) {
-      const retry = await callAiJson<ResearchData>(
-        system,
-        `${user}\n\nA reviewer flagged issues: ${review.issues.join("; ")}. Produce a stronger, more specific version.`,
-      );
-      return { ...retry, review: await reviewStage("documentary research", JSON.stringify(retry)) };
-    }
+    // Skip auto-review + auto-retry to keep one click = one provider request.
+    const review = await reviewStage("documentary research", "");
     return { ...research, review };
   });
 
