@@ -1,57 +1,41 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { isRecoverableProviderError } from "./lib/humanize-error";
 
-// Per-route error boundary: a single broken page renders this fallback inside
-// the shared layout instead of crashing the whole app.
+// Per-route error boundary: renders inline inside the shared layout. It is
+// intentionally passive — no auto-invalidate, no setTimeout recovery, no
+// useEffect-driven reset. Recovery only happens on an explicit user click,
+// so a transient provider error never triggers a retry loop or a hook-count
+// mismatch on the next render.
 function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
-  const [retrying, setRetrying] = useState(true);
-
   const recoverable = isRecoverableProviderError(error);
 
-  useEffect(() => {
-    if (recoverable) return;
-    const route = typeof window !== "undefined" ? window.location.pathname : "ssr";
-    console.error("[route-error]", {
-      route,
-      component: "RouteErrorFallback",
-      message: error?.message ?? String(error),
-    });
-
-    if (typeof window === "undefined") {
-      setRetrying(false);
-      return;
-    }
-
-    const key = `stickmax.route-recovery:${route}`;
-    const alreadyTried = window.sessionStorage.getItem(key) === "1";
-    if (alreadyTried) {
-      setRetrying(false);
-      return;
-    }
-
-    window.sessionStorage.setItem(key, "1");
-    const id = window.setTimeout(() => {
-      void router.invalidate({ sync: true }).finally(reset);
-    }, 80);
-    return () => window.clearTimeout(id);
-  }, [error, reset, router, recoverable]);
+  // Log once for diagnostics — no side effects, no state changes.
+  console.error("[route-error]", error?.message ?? String(error));
 
   if (recoverable) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
         <h2 className="text-lg font-semibold text-foreground">Generation unavailable</h2>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          AI credits or provider access are currently unavailable. Your saved project data is safe.
+          Generation failed, but your saved project data is safe. Please retry or select another model.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              void router.invalidate();
+              reset();
+            }}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Retry
+          </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Go home
           </a>
@@ -66,26 +50,35 @@ function RouteErrorFallback({ error, reset }: { error: Error; reset: () => void 
     );
   }
 
-  if (retrying) return <RoutePendingSkeleton />;
-
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-      <h2 className="text-lg font-semibold text-foreground">Page recovery needed</h2>
+      <h2 className="text-lg font-semibold text-foreground">Generation unavailable</h2>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-        Your project data is safe. Refresh this page or try opening it again.
+        The AI request failed, but your saved project data is safe.
       </p>
-      <button
-        onClick={() => {
-          if (typeof window !== "undefined") {
-            window.sessionStorage.removeItem(`stickmax.route-recovery:${window.location.pathname}`);
-          }
-          router.invalidate();
-          reset();
-        }}
-        className="mt-5 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        Try again
-      </button>
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        <button
+          onClick={() => {
+            void router.invalidate();
+            reset();
+          }}
+          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Retry
+        </button>
+        <a
+          href="/"
+          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          Go home
+        </a>
+        <a
+          href="/api-keys"
+          className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          Open API Settings
+        </a>
+      </div>
     </div>
   );
 }
