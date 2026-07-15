@@ -1,19 +1,26 @@
 export type StageId =
+  | "topic"
   | "research"
   | "story"
-  | "storyboard"
+  | "scene-planner"
   | "voice"
   | "voice-sync"
   | "images"
-  | "motion"
-  | "captions"
+  | "camera-motion"
+  | "subtitle-timing"
   | "music"
   | "sfx"
-  | "color"
-  | "transitions"
-  | "render";
+  | "thumbnail"
+  | "seo"
+  | "export-queue";
 
-export type StageStatus = "pending" | "running" | "done" | "failed" | "waiting";
+export type StageStatus =
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "waiting"
+  | "skipped";
 
 export type Mode = "guided" | "auto" | "professional";
 
@@ -28,6 +35,10 @@ export interface StageState {
   finishedAt?: number;
   error?: string;
   checkpoint?: unknown;
+  /** Approval flag: undefined = untouched, true = approved, false = needs review. */
+  approved?: boolean;
+  /** Free-form auto-detected warnings for this stage. */
+  warnings?: string[];
 }
 
 export interface DirectorProject {
@@ -43,6 +54,17 @@ export interface DirectorProject {
   captionPreset: CaptionPresetId;
   musicMood?: MusicMood;
   sfxCues: Record<string, string[]>; // sceneId -> sfx ids
+  /** Director memory — user-locked artifacts that must never be regenerated. */
+  locks: DirectorLocks;
+  /** Persistent Director suggestions (regenerable list). */
+  suggestions: string[];
+}
+
+export interface DirectorLocks {
+  scenes: number[];
+  prompts: number[];
+  character: boolean;
+  backgrounds: number[];
 }
 
 export interface ExportConfig {
@@ -66,17 +88,18 @@ export type CaptionPresetId = "clean" | "bold" | "highlight" | "cinema";
 export type MusicMood = "epic" | "dark" | "nature" | "mystery" | "hope" | "sad";
 
 export const STAGES: { id: StageId; label: string }[] = [
+  { id: "topic", label: "Topic" },
   { id: "research", label: "Research" },
   { id: "story", label: "Story" },
-  { id: "storyboard", label: "Storyboard" },
+  { id: "scene-planner", label: "Scene Planner" },
   { id: "voice", label: "Voice" },
   { id: "voice-sync", label: "Voice Sync" },
-  { id: "images", label: "Images" },
-  { id: "motion", label: "Motion" },
-  { id: "captions", label: "Captions" },
+  { id: "images", label: "Image Queue" },
+  { id: "camera-motion", label: "Camera Motion" },
+  { id: "subtitle-timing", label: "Subtitle Timing" },
   { id: "music", label: "Music" },
   { id: "sfx", label: "SFX" },
-  { id: "color", label: "Color" },
-  { id: "transitions", label: "Transitions" },
-  { id: "render", label: "Render" },
+  { id: "thumbnail", label: "Thumbnail Draft" },
+  { id: "seo", label: "SEO" },
+  { id: "export-queue", label: "Export Queue" },
 ];

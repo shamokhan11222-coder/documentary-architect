@@ -37,6 +37,8 @@ export function newProject(projectId: string, mode: DirectorProject["mode"]): Di
     motionPresets: {},
     captionPreset: "bold",
     sfxCues: {},
+    locks: { scenes: [], prompts: [], character: false, backgrounds: [] },
+    suggestions: [],
   };
 }
 
