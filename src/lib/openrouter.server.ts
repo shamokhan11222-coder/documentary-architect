@@ -205,23 +205,37 @@ export async function openrouterCallOnce(
   json: boolean,
 ): Promise<CallResult> {
   const startedAt = Date.now();
-  const res = await fetch(OPENROUTER_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://stickmax.studio",
-      "X-Title": "Stickmax Studio",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      ...(json ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
+  const doFetch = async (useJsonMode: boolean) => {
+    const sys = json
+      ? `${system}\n\nReturn valid JSON only. Do not use markdown. Do not use code fences. Do not add explanations before or after the JSON.`
+      : system;
+    return fetch(OPENROUTER_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://stickmax.studio",
+        "X-Title": "Stickmax Studio",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: user },
+        ],
+        ...(json && useJsonMode ? { response_format: { type: "json_object" } } : {}),
+      }),
+    });
+  };
+  let res = await doFetch(true);
+  // Some free models don't support response_format=json_object and reject with
+  // 400/404. Retry once without json mode, keeping the strict JSON instruction.
+  if (json && !res.ok && (res.status === 400 || res.status === 404)) {
+    const peek = await res.clone().text().catch(() => "");
+    if (/response_format|json_object|json mode|not support/i.test(peek)) {
+      res = await doFetch(false);
+    }
+  }
   const ms = Date.now() - startedAt;
   const requestId = res.headers.get("x-request-id");
   if (!res.ok) {
