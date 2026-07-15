@@ -135,6 +135,7 @@ function ImageStudioPage() {
         <div className="mx-auto max-w-6xl px-6 py-6">
           {tab === "overview" && <OverviewPanel scenes={scenes} topicId={topicId} />}
           {tab === "queue" && <QueuePanel scenes={scenes} topicId={topicId} />}
+          {tab === "references" && <ReferenceStudioPanel projectId={topicId} />}
           {tab === "characters" && <CharacterPanel />}
           {tab === "style" && <StylePanel />}
           {tab === "backgrounds" && <BackgroundPanel />}
