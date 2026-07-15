@@ -245,39 +245,66 @@ function VisualPage() {
 
   function handleBuildBoard() {
     if (!selected || !hasValidScript) return;
+    if (hasMap && !confirmRecalc && Math.abs(scenes.length - targetSceneCount) > 5) {
+      setConfirmRecalc({ newTarget: targetSceneCount });
+      return;
+    }
+    setConfirmRecalc(null);
     return withBusy("gen", async () => {
-      // Derive a scene-count target from the actual script length so long
-      // videos get many scenes (≈1 scene per sentence). A 9–11 min / ~1500
-      // word script yields roughly 120–180 scenes.
-      const words = (scriptText.match(/\S+/g) ?? []).length;
-      const minScenes = Math.max(8, Math.round(words / 12));
-      const maxScenes = Math.max(minScenes + 4, Math.round(words / 8));
-      let safeScenes: VisualScene[] = [];
-      try {
-        const scenes = (await gen({
-          data: { topic: selected.topic, script: scriptText, minScenes, maxScenes, visualInstructions: getVisualInstructions() },
-        })) as VisualScene[];
-        safeScenes = Array.isArray(scenes) ? scenes.filter(Boolean) : [];
-      } catch (e) {
-        // fall through to local rebuild below
-        safeScenes = [];
+      // Phase 4 — batched dynamic scene planner. Chunk the script into
+      // SCENES_PER_BATCH-sized pieces so a single AI call never has to emit
+      // hundreds of scenes and truncate (root cause of the 66-scene bug).
+      const target = targetSceneCount;
+      const chunks = splitScriptForBatches(scriptText, target);
+      const totalBatches = Math.max(1, chunks.length);
+      const perBatchTarget = Math.max(4, Math.round(target / totalBatches));
+      const perMin = Math.max(3, Math.round(perBatchTarget * 0.85));
+      const perMax = Math.min(SCENES_PER_BATCH + 20, Math.round(perBatchTarget * 1.2));
+
+      setBatchProgress({ stage: "Planning scenes", done: 0, total: totalBatches });
+      const batches: VisualScene[][] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        setBatchProgress({ stage: `Generating batch ${i + 1} of ${totalBatches}`, done: i, total: totalBatches });
+        try {
+          const res = (await gen({
+            data: {
+              topic: selected.topic,
+              script: chunks[i],
+              minScenes: perMin,
+              maxScenes: perMax,
+              visualInstructions: getVisualInstructions(),
+            },
+          })) as VisualScene[];
+          batches.push(Array.isArray(res) ? res.filter(Boolean) : []);
+        } catch {
+          batches.push([]);
+        }
       }
 
-      // If the AI produced no usable scenes, rebuild locally from the script so
-      // the storyboard is never empty when a valid script exists.
-      if (safeScenes.length === 0) {
-        safeScenes = scenesFromScript(scriptText);
+      setBatchProgress({ stage: "Validating timing", done: totalBatches, total: totalBatches });
+      let safeScenes = mergeAndRenumber(batches);
+
+      // If AI came up dramatically short (previous 66-scene bug), fill locally.
+      if (safeScenes.length < Math.round(target * 0.6)) {
+        safeScenes = localScenesFromScript(scriptText, target);
       }
 
-      // A storyboard is only "built" when it actually has scenes. An empty map
-      // must be treated as Failed — never saved and never shown as completed.
       if (safeScenes.length === 0) {
         toast.error("No storyboard scenes found. Generate Story first, then rebuild storyboard.");
+        setBatchProgress(null);
         return;
       }
 
+      const timed = assignSceneTimings(safeScenes, duration.seconds, pacing, avgSceneSeconds);
+      const validation = validateScenePlan(timed, duration.seconds);
+      setBatchProgress({ stage: "Saving storyboard", done: totalBatches, total: totalBatches });
       saveVisualMap({ topicId: selected.id, scenes: safeScenes, generatedAt: Date.now() });
-      toast.success(`Storyboard built — ${safeScenes.length} scenes. Now generate images`);
+      setBatchProgress(null);
+      if (!validation.ok) {
+        toast.warning(`Storyboard built — ${safeScenes.length} scenes. ${validation.issues[0]}`);
+      } else {
+        toast.success(`Storyboard built — ${safeScenes.length} scenes (~${avgSceneSeconds}s each). Now generate images.`);
+      }
     });
   }
 
