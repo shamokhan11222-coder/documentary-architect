@@ -43,6 +43,7 @@ import {
   BookOpen,
   KeyRound,
   Settings,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { AIChat } from "../components/AIChat";
