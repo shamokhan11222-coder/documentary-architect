@@ -34,6 +34,10 @@ export interface SyncScene {
   missingImage?: boolean;
   manual?: boolean;
   status: "ready" | "missing" | "locked" | "unmapped";
+  /** Storyboard scene kind (e.g. "infographic") used to approve 5s complex scenes. */
+  sceneKind?: string;
+  /** For children created by auto-repair splits: the original parent scene id. */
+  derivedFromSceneId?: string;
 }
 
 export interface SyncTimeline {
