@@ -12,6 +12,32 @@ import {
 
 const KEY = "docos.apikeys";
 const SETTINGS_KEY = "docos.provider.settings";
+const IMAGE_MODE_KEY = "docos.image.generationMode";
+
+// ---------------------------------------------------------------------------
+// Image Generation Mode (FREE vs PREMIUM)
+// ---------------------------------------------------------------------------
+// FREE mode routes every storyboard/thumbnail through Pollinations first with
+// Puter as a one-shot fallback. It NEVER hits Lovable AI Gateway, Gemini or
+// OpenAI image APIs, so it burns zero workspace credits.
+// PREMIUM mode routes through the Lovable AI Gateway (workspace credits). It
+// must only ever be selected explicitly by the user — never auto-selected.
+export type ImageGenerationMode = "free" | "premium";
+export const DEFAULT_IMAGE_MODE: ImageGenerationMode = "free";
+
+function normalizeImageMode(v: unknown): ImageGenerationMode {
+  return v === "premium" ? "premium" : "free";
+}
+
+export function getImageMode(): ImageGenerationMode {
+  return normalizeImageMode(readLocal<ImageGenerationMode>(IMAGE_MODE_KEY, DEFAULT_IMAGE_MODE));
+}
+export function useImageMode(): ImageGenerationMode {
+  return normalizeImageMode(useLocal<ImageGenerationMode>(IMAGE_MODE_KEY, DEFAULT_IMAGE_MODE));
+}
+export function setImageMode(m: ImageGenerationMode) {
+  writeLocal<ImageGenerationMode>(IMAGE_MODE_KEY, normalizeImageMode(m));
+}
 
 export type AiTask = "text" | "image" | "tts";
 
