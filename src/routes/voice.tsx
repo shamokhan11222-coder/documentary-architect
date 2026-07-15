@@ -265,11 +265,13 @@ function VoicePage() {
 
   async function generateAll() {
     if (!selected || !voice) return;
-    if (!testPassed && !voice.blocks.some((b) => b.realSeconds != null)) {
-      toast.error("Run the Test Block first.");
+    if (!(await ensureEngine())) return;
+    const remaining = voice.blocks.filter((b) => b.realSeconds == null).length;
+    if (!remaining) {
+      toast.success("All blocks already generated.");
       return;
     }
-    if (!(await ensureEngine())) return;
+    if (typeof window !== "undefined" && !window.confirm(`Generate ${remaining} voice block${remaining === 1 ? "" : "s"} now?`)) return;
     setQueueState({
       running: true,
       paused: false,
@@ -541,17 +543,7 @@ function VoicePage() {
                 <Button
                   variant="secondary"
                   onClick={generateAll}
-                  disabled={
-                    !!busy ||
-                    queueState.running ||
-                    supported === false ||
-                    (!testPassed && generatedCount === 0)
-                  }
-                  title={
-                    !testPassed && generatedCount === 0
-                      ? "Run the Test Block first"
-                      : undefined
-                  }
+                  disabled={!!busy || queueState.running || supported === false}
                 >
                   Generate All Voice Blocks
                 </Button>

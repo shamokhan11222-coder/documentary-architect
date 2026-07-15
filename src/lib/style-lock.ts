@@ -7,6 +7,41 @@
 // (comic, panel, storyboard sheet, collage, montage, sequence...) ever reach
 // the image provider.
 import type { VisualScene, ThumbnailIdea, ThumbnailConcept } from "./types";
+import { detectContentMode, primarySubjectLock, type DetectedContent } from "./content-mode";
+
+// ---------------------------------------------------------------------------
+// MODE-AWARE STYLE LOCKS
+//
+// The default style below is Stickmax (MS-Paint stick figures) for explainer
+// projects. For animal/wildlife/nature topics we swap it for a nature-
+// documentary illustration lock so nothing forces the model into stick
+// figures or alien mascots.
+// ---------------------------------------------------------------------------
+
+const NATURE_FRAME_PREFIX =
+  "Simple clean educational documentary illustration, one single flat 2D image, 16:9 landscape, natural colors, soft even lighting, real animal anatomy, no text, no watermark, no borders.";
+
+const NATURE_STYLE_LOCK =
+  "Educational nature-documentary illustration style: clean line work, natural color palette (blues, whites, greens, browns as fits the scene), soft even lighting, believable animal anatomy, real natural environment fully filling the background, no plain white voids, no cartoon mascots, no stickmen, no anime, no chibi.";
+
+const NATURE_NEGATIVE_PROMPT =
+  "Negative prompt: stickman, stick figure, stick-figure, alien, bean body, cartoon mascot, Cyanide and Happiness, Explosm, oval alien head, round mascot body, MS Paint, crude scribble, chibi, anime, manga, human character, person, humanoid, empty white background, blank background, watermark, signature, gibberish text, extra limbs, deformed anatomy.";
+
+function pickPrefix(d: DetectedContent): string {
+  if (d.mode === "animal-documentary") return NATURE_FRAME_PREFIX;
+  if (d.mode === "infographic")
+    return "Clean single-frame educational infographic illustration, 16:9 landscape, flat colors, minimal shapes, no text unless requested.";
+  if (d.mode === "general-documentary") return NATURE_FRAME_PREFIX;
+  return SINGLE_FRAME_PREFIX;
+}
+function pickStyle(d: DetectedContent): string {
+  if (d.mode === "animal-documentary" || d.mode === "general-documentary") return NATURE_STYLE_LOCK;
+  return GLOBAL_STYLE_LOCK;
+}
+function pickNegative(d: DetectedContent): string {
+  if (d.mode === "animal-documentary" || d.mode === "general-documentary") return NATURE_NEGATIVE_PROMPT;
+  return NEGATIVE_PROMPT;
+}
 
 /** Mandatory prefix prepended to EVERY image prompt. Forces one very simple
  *  MS Paint-style full-frame image with stick-figure humans only. */
@@ -72,8 +107,12 @@ const SUBJECT_REWRITES: Array<[RegExp, string]> = [
 
 /** Simplify a scene fragment: replace polished/cinematic subject wording with
  *  crude MS-Paint stick-figure equivalents (Section D). */
-export function simplifyFragment(text: string): string {
+export function simplifyFragment(text: string, mode?: DetectedContent["mode"]): string {
   let out = text || "";
+  // Nature/general documentary content must NEVER be rewritten into stick figures.
+  if (mode === "animal-documentary" || mode === "general-documentary") {
+    return out.replace(/\s{2,}/g, " ").trim();
+  }
   for (const [re, rep] of SUBJECT_REWRITES) out = out.replace(re, rep);
   return out.replace(/\s{2,}/g, " ").trim();
 }
@@ -116,37 +155,58 @@ export function buildScenePrompt(
   instructions: string,
   hasCharacterRef: boolean,
 ): string {
+  const detected = detectContentMode();
+  const isAnimal = detected.mode === "animal-documentary";
+  const isNature = isAnimal || detected.mode === "general-documentary";
+  const framePrefix = pickPrefix(detected);
+  const styleLock = pickStyle(detected);
+  const negative = pickNegative(detected);
+  const subjectLock = primarySubjectLock(detected);
+
   const showsCharacter =
+    !isNature && (
     scene.sceneType === "character" ||
     /stickman|character|person|man|woman|figure|narrator|people/i.test(
       `${scene.mainSubject} ${scene.visualDescription}`,
-    );
+    ));
 
-  const subject = simplifyFragment(sanitizeFragment(scene.visualDescription));
-  const main = simplifyFragment(sanitizeFragment(scene.mainSubject));
-  const location = simplifyFragment(sanitizeFragment(scene.background));
+  const subject = simplifyFragment(sanitizeFragment(scene.visualDescription), detected.mode);
+  const main = simplifyFragment(sanitizeFragment(scene.mainSubject), detected.mode);
+  const location = simplifyFragment(sanitizeFragment(scene.background), detected.mode);
   const camera = resolveCamera(scene);
   const mood = sanitizeFragment(scene.emotion);
-  const artDir = simplifyFragment(sanitizeFragment(instructions));
+  const artDir = simplifyFragment(sanitizeFragment(instructions), detected.mode);
 
   const parts = [
-    SINGLE_FRAME_PREFIX,
+    framePrefix,
     `SCENE: ${subject || main || "a single clear documentary moment"}.`,
-    showsCharacter && main ? `MAIN CHARACTER: ${main}. ${CHARACTER_STYLE_LOCK}` : main ? `MAIN SUBJECT: ${main}.` : "",
+    isAnimal && subjectLock
+      ? `PRIMARY SUBJECT (locked, must appear): ${subjectLock}. ${main ? `Context: ${main}.` : ""}`
+      : showsCharacter && main
+        ? `MAIN CHARACTER: ${main}. ${CHARACTER_STYLE_LOCK}`
+        : main
+          ? `MAIN SUBJECT: ${main}.`
+          : "",
     `ACTION: one single clear visible action only.`,
-    location ? `LOCATION: ${location}, one clear environment only.` : "",
+    location
+      ? `LOCATION: ${location}, one clear environment only, full natural background — do NOT leave the background empty or plain white.`
+      : isNature
+        ? `LOCATION: fully rendered natural environment consistent with the subject, do NOT leave the background empty.`
+        : "",
     `CAMERA: ${camera}, one camera view only.`,
     `COMPOSITION: single full-frame composition, subject clearly placed in frame, no borders.`,
     mood ? `MOOD: ${mood}.` : "",
     `LIGHTING: simple flat lighting relevant to the scene.`,
-    `STYLE: ${GLOBAL_STYLE_LOCK}`,
-    hasCharacterRef ? "Match the provided reference images exactly for character, style, colors and line work." : "",
+    `STYLE: ${styleLock}`,
+    hasCharacterRef && !isNature
+      ? "Match the provided reference images exactly for character, style, colors and line work."
+      : "",
     artDir ? `Extra art direction: ${artDir}.` : "",
     `FORMAT: 16:9 landscape, one single full-frame illustration.`,
-    NEGATIVE_PROMPT,
+    negative,
   ];
 
-  return validatePrompt(parts.filter(Boolean).join(" "));
+  return validatePrompt(parts.filter(Boolean).join(" "), detected);
 }
 
 /** Build a single full-frame thumbnail prompt (16:9). */
@@ -178,10 +238,13 @@ export function buildThumbnailPrompt(idea: ThumbnailIdea, instructions: string):
 
 /** Final safety pass: guarantee the prefix and negative are present and no
  *  forbidden multi-panel wording leaked into the descriptive portion. */
-export function validatePrompt(prompt: string): string {
+export function validatePrompt(prompt: string, detected?: DetectedContent): string {
+  const d = detected ?? detectContentMode();
+  const prefix = pickPrefix(d);
+  const negative = pickNegative(d);
   let out = prompt;
-  if (!out.startsWith(SINGLE_FRAME_PREFIX)) out = `${SINGLE_FRAME_PREFIX} ${out}`;
-  if (!out.includes(NEGATIVE_PROMPT)) out = `${out} ${NEGATIVE_PROMPT}`;
+  if (!out.startsWith(prefix)) out = `${prefix} ${out}`;
+  if (!out.includes(negative)) out = `${out} ${negative}`;
   return out;
 }
 
@@ -211,9 +274,28 @@ export const THUMBNAIL_NEGATIVE =
 
 /** Build the illustration-only prompt for a normalized thumbnail concept. */
 export function buildThumbnailIllustrationPrompt(concept: ThumbnailConcept, instructions = ""): string {
-  const visual = simplifyFragment(sanitizeFragment(concept.mainVisual || "one large simple object"));
+  const detected = detectContentMode();
+  const isNature = detected.mode === "animal-documentary" || detected.mode === "general-documentary";
+  const subjectLock = primarySubjectLock(detected);
+  const visual = simplifyFragment(sanitizeFragment(concept.mainVisual || "one large simple object"), detected.mode);
   const bg = BACKGROUND_PROMPT[concept.backgroundType] ?? BACKGROUND_PROMPT["plain white"];
-  const artDir = simplifyFragment(sanitizeFragment(instructions));
+  const artDir = simplifyFragment(sanitizeFragment(instructions), detected.mode);
+
+  if (isNature) {
+    const parts = [
+      NATURE_FRAME_PREFIX,
+      "A bold single-frame YouTube documentary thumbnail illustration.",
+      subjectLock ? `PRIMARY SUBJECT (locked, must appear): ${subjectLock}.` : "",
+      `MAIN VISUAL: ${visual}. Draw the animal large, clearly the focal point, with natural anatomy and clean line work.`,
+      "BACKGROUND: fully rendered natural environment matching the subject — never plain white.",
+      "COMPOSITION: one single strong visual idea, single full-frame, generous margins for a headline, no borders, no panels.",
+      `STYLE: ${NATURE_STYLE_LOCK}`,
+      artDir ? `Extra art direction: ${artDir}.` : "",
+      "FORMAT: 16:9 landscape, one single full-frame illustration.",
+      NATURE_NEGATIVE_PROMPT,
+    ];
+    return parts.filter(Boolean).join(" ");
+  }
 
   let people: string;
   if (concept.characterCount === 0) {

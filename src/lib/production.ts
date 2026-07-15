@@ -70,7 +70,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   // similar to modern YouTube creators. Never deep/bass.
   profile: "calm",
   voiceName: "Natural Narrator",
-  speed: 1,
+  speed: 1.06,
   stability: 0.6,
   emotion: 0.4,
   pauseStrength: 0.5,
@@ -80,6 +80,9 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   style: "documentary",
   similarityTarget: 0.9,
   dictionary: [],
+  voicePresetId: "young-confident-male",
+  sentencePauseMs: 200,
+  paragraphPauseMs: 400,
 };
 
 // ---------------- Voice ----------------
