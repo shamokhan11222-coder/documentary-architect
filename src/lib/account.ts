@@ -68,7 +68,9 @@ export function hasUnlimitedAccess(): boolean {
 
 /** Reactive version of {@link hasUnlimitedAccess} for UI. */
 export function useHasUnlimitedAccess(): boolean {
-  return useIsAdmin() || useActiveProvider() !== null;
+  const admin = useIsAdmin();
+  const activeProvider = useActiveProvider();
+  return admin || activeProvider !== null;
 }
 
 /**
