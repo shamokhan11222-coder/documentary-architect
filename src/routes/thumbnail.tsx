@@ -126,8 +126,6 @@ function ThumbnailPage() {
   const firstImg = useImage(selected ? thumbImageId(selected.id, 0) : null);
   const hasImageUrl = !!firstImg;
   const thumbnailReady = hasImageUrl && !providerLimit;
-  const providersDown =
-    breaker.pollinations.pausedRemainingMs > 0 && breaker.puter.pausedRemainingMs > 0;
   const thumbnailStatus = providerLimit
     ? "rate_limited"
     : thumbnailReady
