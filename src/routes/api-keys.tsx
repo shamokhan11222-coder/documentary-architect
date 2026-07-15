@@ -7,7 +7,7 @@ import { KeyRound, CheckCircle2, XCircle, CircleDashed, Loader2, Zap, RefreshCw,
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { readLocal, writeLocal } from "@/lib/local";
-import { useImageProviderStatus, useProviderSettings, enforceZeroBudgetImageRouting } from "@/lib/provider";
+import { useImageProviderStatus, useProviderSettings, enforceZeroBudgetImageRouting, useImageMode, setImageMode, type ImageGenerationMode } from "@/lib/provider";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { QueuePanel } from "@/components/QueuePanel";
@@ -85,6 +85,7 @@ function ApiKeysPage() {
       </p>
 
       <OpenRouterCard />
+      <ImageGenerationModeCard />
       <DebugStatus />
       <QueuePanel />
 
@@ -98,6 +99,62 @@ function ApiKeysPage() {
 // -----------------------------------------------------------------------------
 // OpenRouter — the ONLY selectable text provider.
 // -----------------------------------------------------------------------------
+function ImageGenerationModeCard() {
+  const mode = useImageMode();
+  function pick(next: ImageGenerationMode) {
+    if (next === "premium") {
+      const ok = window.confirm(
+        "Premium image generation uses Lovable workspace AI credits.\n\nContinue?",
+      );
+      if (!ok) return;
+    }
+    setImageMode(next);
+  }
+  return (
+    <div className="mt-6 rounded-lg border border-border bg-card p-4">
+      <div className="text-sm font-semibold">Image Generation Mode</div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Choose how storyboard and thumbnail images are generated. Free Mode is the default and
+        requires no workspace credits.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <button
+          onClick={() => pick("free")}
+          className={`rounded-md border p-3 text-left text-xs transition ${
+            mode === "free" ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
+          }`}
+        >
+          <div className="text-sm font-semibold">Free Mode {mode === "free" && "· active"}</div>
+          <div className="mt-1">Pollinations → Puter</div>
+          <div className="text-muted-foreground">No workspace credits required.</div>
+        </button>
+        <button
+          onClick={() => pick("premium")}
+          className={`rounded-md border p-3 text-left text-xs transition ${
+            mode === "premium" ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
+          }`}
+        >
+          <div className="text-sm font-semibold">Premium Mode {mode === "premium" && "· active"}</div>
+          <div className="mt-1">Lovable AI Gateway</div>
+          <div className="text-muted-foreground">Uses workspace AI credits.</div>
+        </button>
+      </div>
+      {mode === "premium" && (
+        <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          Premium image generation uses Lovable workspace AI credits. Every scene and thumbnail
+          bills against your workspace balance.
+        </p>
+      )}
+      {mode === "free" && (
+        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Free providers do not support uploaded reference-image conditioning. Character and style
+          consistency rely on prompts, seeds and style locks.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function OpenRouterCard() {
   const settings = useOpenRouterSettings();
   const [primary, setPrimary] = useState(settings.primary);

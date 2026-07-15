@@ -20,6 +20,8 @@ import { usePollinationsStatus } from "@/lib/pollinations-image";
 import { generateTestImage, type ImageSanityResult } from "@/lib/generate-image";
 import { useLovableGatewayStatus, useLovableGatewayModel } from "@/lib/lovable-gateway-image";
 import { buildDebugReport } from "@/lib/image-pipeline";
+import { useImageMode, setImageMode, type ImageGenerationMode } from "@/lib/provider";
+import { useTelemetry } from "@/lib/provider-telemetry";
 import {
   CREDIT_SAVER_TIERS,
   CREDIT_POOL_NOTE,
@@ -53,6 +55,8 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
   const puter = usePuterStatus();
   const pollinations = usePollinationsStatus();
   useNow(q.state === "cooling" || q.state === "running");
+  const imageMode = useImageMode();
+  const telemetry = useTelemetry();
 
   const [testing, setTesting] = useState<null | "puter" | "pollinations" | "lovable-gateway">(null);
   const [testImg, setTestImg] = useState<string | null>(null);
@@ -64,6 +68,19 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
   const saverTier = useCreditSaverTier();
 
   const running = q.state === "running" || q.state === "cooling";
+
+  function switchMode(next: ImageGenerationMode) {
+    if (next === "premium") {
+      const ok = typeof window === "undefined"
+        ? true
+        : window.confirm(
+            "Premium image generation uses Lovable workspace AI credits.\n\n" +
+              "Every scene and thumbnail will bill against your workspace balance.\n\nContinue?",
+          );
+      if (!ok) return;
+    }
+    setImageMode(next);
+  }
 
   async function runTest(only: "puter" | "pollinations" | "lovable-gateway") {
     if (only === "lovable-gateway") {
@@ -102,8 +119,54 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-card p-4">
+      {/* IMAGE GENERATION MODE */}
+      <div className="mb-4 rounded-md border border-border bg-muted/30 p-3">
+        <div className="text-sm font-medium">Image Generation Mode</div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Free Mode runs every scene through Pollinations, then Puter as a one-shot fallback — zero
+          workspace credits. Premium Mode uses Lovable AI Gateway and spends workspace AI credits.
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <button
+            onClick={() => switchMode("free")}
+            className={`rounded-md border p-2 text-left text-xs transition ${
+              imageMode === "free" ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
+            }`}
+          >
+            <div className="font-semibold">Free Mode {imageMode === "free" && "· active"}</div>
+            <div className="text-[11px] text-muted-foreground">
+              Pollinations → Puter. No workspace credits required.
+            </div>
+          </button>
+          <button
+            onClick={() => switchMode("premium")}
+            className={`rounded-md border p-2 text-left text-xs transition ${
+              imageMode === "premium" ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
+            }`}
+          >
+            <div className="font-semibold">Premium Mode {imageMode === "premium" && "· active"}</div>
+            <div className="text-[11px] text-muted-foreground">
+              Lovable AI Gateway. Uses workspace AI credits.
+            </div>
+          </button>
+        </div>
+        {imageMode === "free" && (
+          <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-[11px] text-muted-foreground">
+            Free providers do not support uploaded reference-image conditioning. Character and style
+            consistency rely on prompts, seeds and style locks.
+          </p>
+        )}
+        {imageMode === "premium" && (
+          <p className="mt-2 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+            Premium image generation uses Lovable workspace AI credits.
+          </p>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm font-medium">Image Queue · Lovable AI Gateway ({gatewayModel})</div>
+        <div className="text-sm font-medium">
+          Image Queue · {imageMode === "premium" ? `Lovable AI Gateway (${gatewayModel})` : "Free Mode (Pollinations → Puter)"}
+        </div>
 
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input
@@ -115,7 +178,7 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
         </label>
 
         <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" onClick={onStart} disabled={running || !testedOk}>
+          <Button size="sm" variant="outline" onClick={onStart} disabled={running || (imageMode === "premium" && !testedOk)}>
             <Play className="mr-1 h-4 w-4" /> Start Queue
           </Button>
           {running ? (
@@ -165,12 +228,24 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
 
       {/* Provider status + sanity test */}
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <Stat label="Lovable Gateway (primary)" value={gatewayStatus} />
-        <Stat label="Puter AI (legacy)" value={puter} />
-        <Stat label="Pollinations (legacy)" value={pollinations} />
+        <Stat label={imageMode === "free" ? "Pollinations (primary)" : "Pollinations"} value={pollinations} />
+        <Stat label={imageMode === "free" ? "Puter (fallback)" : "Puter"} value={puter} />
+        <Stat label={imageMode === "premium" ? "Lovable Gateway (primary)" : "Lovable Gateway (off)"} value={gatewayStatus} />
       </div>
 
-      {!testedOk && (
+      {/* Developer telemetry */}
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+        <Stat label="Selected Mode" value={imageMode} />
+        <Stat label="Provider Used" value={telemetry.lastProvider ?? "—"} />
+        <Stat label="Model" value={telemetry.lastModel ?? "—"} />
+        <Stat label="Scene" value={telemetry.lastScene != null ? `#${telemetry.lastScene}` : "—"} />
+        <Stat label="Fallback Used" value={telemetry.lastFallbackUsed ? "yes" : "no"} />
+        <Stat label="Response ms" value={telemetry.lastResponseMs != null ? String(telemetry.lastResponseMs) : "—"} />
+        <Stat label="Status" value={telemetry.lastStatus ?? "—"} cls={telemetry.lastStatus === "error" ? "text-red-600" : undefined} />
+        <Stat label="Error" value={telemetry.lastError ? telemetry.lastError.slice(0, 40) : "—"} />
+      </div>
+
+      {imageMode === "premium" && !testedOk && (
         <div className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
           Generate at least one test image below before the full queue unlocks.
         </div>

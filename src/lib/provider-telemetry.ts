@@ -10,6 +10,11 @@ export interface ProviderTelemetry {
   lastStatus: "success" | "error" | null;
   lastError: string | null;
   at: number | null;
+  lastMode?: "free" | "premium" | null;
+  lastModel?: string | null;
+  lastScene?: number | null;
+  lastFallbackUsed?: boolean;
+  lastResponseMs?: number | null;
 }
 
 const EMPTY: ProviderTelemetry = {
@@ -17,6 +22,11 @@ const EMPTY: ProviderTelemetry = {
   lastStatus: null,
   lastError: null,
   at: null,
+  lastMode: null,
+  lastModel: null,
+  lastScene: null,
+  lastFallbackUsed: false,
+  lastResponseMs: null,
 };
 
 export function recordTelemetry(patch: Partial<ProviderTelemetry>) {
