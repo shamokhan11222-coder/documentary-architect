@@ -17,6 +17,7 @@ import { Route as UnlockRouteImport } from './routes/unlock'
 import { Route as TopicsRouteImport } from './routes/topics'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as ThumbnailRouteImport } from './routes/thumbnail'
+import { Route as SystemHealthRouteImport } from './routes/system-health'
 import { Route as SubtitlesRouteImport } from './routes/subtitles'
 import { Route as StoryRouteImport } from './routes/story'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -90,6 +91,11 @@ const TimelineRoute = TimelineRouteImport.update({
 const ThumbnailRoute = ThumbnailRouteImport.update({
   id: '/thumbnail',
   path: '/thumbnail',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemHealthRoute = SystemHealthRouteImport.update({
+  id: '/system-health',
+  path: '/system-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubtitlesRoute = SubtitlesRouteImport.update({
@@ -295,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
+  '/system-health': typeof SystemHealthRoute
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
@@ -339,6 +346,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
+  '/system-health': typeof SystemHealthRoute
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
@@ -384,6 +392,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/story': typeof StoryRoute
   '/subtitles': typeof SubtitlesRoute
+  '/system-health': typeof SystemHealthRoute
   '/thumbnail': typeof ThumbnailRoute
   '/timeline': typeof TimelineRoute
   '/topics': typeof TopicsRoute
@@ -430,6 +439,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/story'
     | '/subtitles'
+    | '/system-health'
     | '/thumbnail'
     | '/timeline'
     | '/topics'
@@ -474,6 +484,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/story'
     | '/subtitles'
+    | '/system-health'
     | '/thumbnail'
     | '/timeline'
     | '/topics'
@@ -518,6 +529,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/story'
     | '/subtitles'
+    | '/system-health'
     | '/thumbnail'
     | '/timeline'
     | '/topics'
@@ -563,6 +575,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   StoryRoute: typeof StoryRoute
   SubtitlesRoute: typeof SubtitlesRoute
+  SystemHealthRoute: typeof SystemHealthRoute
   ThumbnailRoute: typeof ThumbnailRoute
   TimelineRoute: typeof TimelineRoute
   TopicsRoute: typeof TopicsRoute
@@ -632,6 +645,13 @@ declare module '@tanstack/react-router' {
       path: '/thumbnail'
       fullPath: '/thumbnail'
       preLoaderRoute: typeof ThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system-health': {
+      id: '/system-health'
+      path: '/system-health'
+      fullPath: '/system-health'
+      preLoaderRoute: typeof SystemHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subtitles': {
@@ -907,6 +927,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   StoryRoute: StoryRoute,
   SubtitlesRoute: SubtitlesRoute,
+  SystemHealthRoute: SystemHealthRoute,
   ThumbnailRoute: ThumbnailRoute,
   TimelineRoute: TimelineRoute,
   TopicsRoute: TopicsRoute,
