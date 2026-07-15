@@ -291,6 +291,10 @@ export async function callAiJson<T = unknown>(
 }
 
 export async function callAiText(system: string, user: string): Promise<string> {
+  if (openrouterEnabled()) {
+    console.log("[AI] provider=openrouter task=text request started");
+    return await openrouterGenerate(system, user, false);
+  }
   if (groqEnabled()) {
     console.log("[AI] provider=groq task=text request started");
     return await groqGenerate(system, user, false);
