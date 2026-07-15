@@ -107,6 +107,10 @@ function ThumbnailPage() {
   const [conceptPending, setConceptPending] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
   const [conceptProvider, setConceptProvider] = useState<string | null>(null);
+  const breaker = useBreaker();
+  const retryJob = useThumbRetry(selectedId ?? null);
+  const visual = useVisualMap(selectedId ?? null);
+  const [showScenePicker, setShowScenePicker] = useState(false);
   const telemetry = useTelemetry();
   const pixelProvider =
     telemetry.lastProvider === "pollinations"
@@ -122,13 +126,29 @@ function ThumbnailPage() {
   const firstImg = useImage(selected ? thumbImageId(selected.id, 0) : null);
   const hasImageUrl = !!firstImg;
   const thumbnailReady = hasImageUrl && !providerLimit;
+  const providersDown =
+    breaker.pollinations.pausedRemainingMs > 0 && breaker.puter.pausedRemainingMs > 0;
   const thumbnailStatus = providerLimit
     ? "rate_limited"
     : thumbnailReady
       ? "completed"
-      : pack
-        ? "concept_only"
-        : "none";
+      : retryJob?.status === "unavailable"
+        ? "provider_unavailable"
+        : retryJob?.status === "waiting"
+          ? "retry_waiting"
+          : pack
+            ? "concept_only"
+            : "none";
+
+  // Auto-clear the retry job when a stored image appears (success from any path).
+  useEffect(() => {
+    if (hasImageUrl && selected && retryJob) clearThumbRetry(selected.id);
+  }, [hasImageUrl, selected, retryJob]);
+
+  // Sequential 10s gap when the user asks for more variants.
+  async function sleep(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
 
   function handleReview() {
     if (!selected || !pack) return;
