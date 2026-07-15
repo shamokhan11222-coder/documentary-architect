@@ -601,8 +601,10 @@ const STUDIO_TOP_NAV: NavLink[] = [
   { to: "/voice", label: "Voice", icon: Mic },
   { to: "/thumbnail", label: "Thumbnail", icon: ImagePlus },
   { to: "/seo", label: "SEO", icon: BarChart3 },
-  { to: "/community", label: "Community", icon: Sparkles },
-  { to: "/pricing", label: "Pricing", icon: CreditCard },
+  { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
+  { to: "/assets", label: "Assets Library", icon: Library },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/system-health", label: "Owner", icon: Wrench },
 ];
 
 // Secondary navigation — lives in the collapsible left sidebar, grouped into
