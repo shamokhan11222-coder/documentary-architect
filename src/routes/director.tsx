@@ -52,7 +52,7 @@ export const Route = createFileRoute("/director")({
 });
 
 function DirectorPage() {
-  const projectId = useSelectedProject();
+  const { selectedId: projectId } = useSelectedProject();
   const story = useStory(projectId);
 
   const scenes = useMemo(() => {
