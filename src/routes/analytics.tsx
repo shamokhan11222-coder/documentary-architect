@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { BarChart3, Film, Image as ImageIcon, Mic, Clock, Download as DownloadIcon, Palette, FolderKanban } from "lucide-react";
 
-import { StageShell } from "@/components/StageShell";
 import { useTopics, useAllStories, useAllVisuals } from "@/lib/store";
 import { readLocal } from "@/lib/local";
 import type { VoiceProject, VisualScene } from "@/lib/types";
@@ -95,7 +94,7 @@ function AnalyticsPage() {
   };
 
   return (
-    <StageShell stage="topics" maxWidth="max-w-5xl">
+    <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="flex items-center gap-2">
         <BarChart3 className="h-5 w-5" />
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Project Analytics</h1>
@@ -143,6 +142,6 @@ function AnalyticsPage() {
       <p className="mt-6 text-xs text-muted-foreground">
         Provider usage, storage, and export counters wire up once the queue and export pipeline start emitting telemetry — placeholders shown until then, never fake numbers.
       </p>
-    </StageShell>
+    </div>
   );
 }
