@@ -1,6 +1,7 @@
 import { readProviderFromHeaders, geminiGenerateText, openaiGenerateText } from "./provider.server";
 import { makeProviderError } from "./provider-error";
 import { groqEnabled, groqGenerate } from "./groq.server";
+import { openrouterEnabled, openrouterGenerate } from "./openrouter.server";
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3-flash-preview";
@@ -82,6 +83,17 @@ export async function callAiJsonGateway<T = unknown>(
   // Groq is the permanent text provider. Bypass the Lovable AI Gateway when
   // GROQ_API_KEY is configured — even for callers that historically forced
   // the built-in gateway (e.g. thumbnail concept text).
+  if (openrouterEnabled()) {
+    const content = await openrouterGenerate(fullSystem, user, true);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
+    }
+  }
   if (groqEnabled()) {
     const content = await groqGenerate(fullSystem, user, true);
     try {
@@ -161,8 +173,22 @@ export async function callAiJson<T = unknown>(
 ): Promise<T> {
   const fullSystem = `${system}\n\nCRITICAL OUTPUT RULES: Respond with a single valid JSON value ONLY. No markdown, no code fences, no commentary before or after the JSON. Do not truncate. Ensure every brace and bracket is closed.`;
 
-  // Groq wins over everything else when configured — never touches Lovable AI
-  // credits nor the user's Gemini key.
+  // OpenRouter wins over everything else when configured — never touches
+  // Lovable AI credits nor the user's Gemini key. Groq stays as a legacy
+  // secondary path only if OpenRouter is not set.
+  if (openrouterEnabled()) {
+    console.log("[AI] provider=openrouter task=json request started");
+    const content = await openrouterGenerate(fullSystem, user, true);
+    try {
+      return extractJson<T>(content);
+    } catch {
+      console.error("[AI] openrouter JSON parse failed");
+      const err = new Error("AI returned unparseable output.") as Error & { code?: string; raw?: string };
+      err.code = "JSON_PARSE_FAILED";
+      err.raw = content.slice(0, 20000);
+      throw err;
+    }
+  }
   if (groqEnabled()) {
     console.log("[AI] provider=groq task=json request started");
     const content = await groqGenerate(fullSystem, user, true);
@@ -265,6 +291,10 @@ export async function callAiJson<T = unknown>(
 }
 
 export async function callAiText(system: string, user: string): Promise<string> {
+  if (openrouterEnabled()) {
+    console.log("[AI] provider=openrouter task=text request started");
+    return await openrouterGenerate(system, user, false);
+  }
   if (groqEnabled()) {
     console.log("[AI] provider=groq task=text request started");
     return await groqGenerate(system, user, false);
