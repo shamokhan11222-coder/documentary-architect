@@ -274,9 +274,28 @@ export const THUMBNAIL_NEGATIVE =
 
 /** Build the illustration-only prompt for a normalized thumbnail concept. */
 export function buildThumbnailIllustrationPrompt(concept: ThumbnailConcept, instructions = ""): string {
-  const visual = simplifyFragment(sanitizeFragment(concept.mainVisual || "one large simple object"));
+  const detected = detectContentMode();
+  const isNature = detected.mode === "animal-documentary" || detected.mode === "general-documentary";
+  const subjectLock = primarySubjectLock(detected);
+  const visual = simplifyFragment(sanitizeFragment(concept.mainVisual || "one large simple object"), detected.mode);
   const bg = BACKGROUND_PROMPT[concept.backgroundType] ?? BACKGROUND_PROMPT["plain white"];
-  const artDir = simplifyFragment(sanitizeFragment(instructions));
+  const artDir = simplifyFragment(sanitizeFragment(instructions), detected.mode);
+
+  if (isNature) {
+    const parts = [
+      NATURE_FRAME_PREFIX,
+      "A bold single-frame YouTube documentary thumbnail illustration.",
+      subjectLock ? `PRIMARY SUBJECT (locked, must appear): ${subjectLock}.` : "",
+      `MAIN VISUAL: ${visual}. Draw the animal large, clearly the focal point, with natural anatomy and clean line work.`,
+      "BACKGROUND: fully rendered natural environment matching the subject — never plain white.",
+      "COMPOSITION: one single strong visual idea, single full-frame, generous margins for a headline, no borders, no panels.",
+      `STYLE: ${NATURE_STYLE_LOCK}`,
+      artDir ? `Extra art direction: ${artDir}.` : "",
+      "FORMAT: 16:9 landscape, one single full-frame illustration.",
+      NATURE_NEGATIVE_PROMPT,
+    ];
+    return parts.filter(Boolean).join(" ");
+  }
 
   let people: string;
   if (concept.characterCount === 0) {
