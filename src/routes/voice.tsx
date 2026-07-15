@@ -19,7 +19,12 @@ import {
   fmtClock,
 } from "@/lib/production";
 import { useImage } from "@/lib/images";
-import { generateVoiceBlock, voiceBlockId } from "@/lib/generate-voice";
+import {
+  generateVoiceBlock,
+  voiceBlockId,
+  VOICE_GENERATION_ENABLED,
+  VOICE_DISABLED_MESSAGE,
+} from "@/lib/generate-voice";
 import type { NarratorProfile, VoiceBlock, VoiceSettings } from "@/lib/types";
 import { pitchSimilarity, measurePitchHz } from "@/lib/voice-analysis";
 import { CustomVoice } from "@/components/CustomVoice";
@@ -349,7 +354,12 @@ function VoicePage() {
               <Mic className="mr-2 h-4 w-4" /> {voice?.blocks.length ? "Rebuild Blocks" : "Build Voice Blocks"}
             </Button>
             {selectedProfile && (
-              <Button variant="outline" onClick={previewClone} disabled={!!busy}>
+              <Button
+                variant="outline"
+                onClick={previewClone}
+                disabled={!!busy || !VOICE_GENERATION_ENABLED}
+                title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
+              >
                 {busy === "preview" ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -359,12 +369,23 @@ function VoicePage() {
               </Button>
             )}
             {voice?.blocks.length ? (
-              <Button variant="secondary" onClick={genAll} disabled={!!busy}>
+              <Button
+                variant="secondary"
+                onClick={genAll}
+                disabled={!!busy || !VOICE_GENERATION_ENABLED}
+                title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
+              >
                 {busy === "all" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Generate Remaining
               </Button>
             ) : null}
           </div>
+
+          {!VOICE_GENERATION_ENABLED && (
+            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              {VOICE_DISABLED_MESSAGE} Existing narrated blocks below remain playable.
+            </p>
+          )}
 
           {profiles.length > 0 && !settings.clonedProfileId && (
             <p className="mt-2 text-xs text-amber-600">Select a voice profile first.</p>
@@ -590,7 +611,12 @@ function VoiceBlockCard({
         onChange={(e) => onEdit(e.target.value)}
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={onGen} disabled={busy}>
+        <Button
+          size="sm"
+          onClick={onGen}
+          disabled={busy || !VOICE_GENERATION_ENABLED}
+          title={!VOICE_GENERATION_ENABLED ? VOICE_DISABLED_MESSAGE : undefined}
+        >
           {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
           {audio ? "Regenerate" : "Generate"}
         </Button>
