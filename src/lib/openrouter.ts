@@ -3,7 +3,14 @@
 // by the middleware in src/start.ts. The OPENROUTER_API_KEY itself is a
 // server-only secret and is never stored in the browser.
 import { readLocal, writeLocal, useLocal } from "./local";
-import { OPENROUTER_DEFAULT_MODELS } from "./openrouter.server";
+
+// Kept in sync with OPENROUTER_DEFAULT_MODELS in openrouter.server.ts.
+// Duplicated intentionally so this module stays client-safe (no .server import).
+export const OPENROUTER_DEFAULT_MODELS = [
+  "deepseek/deepseek-chat-v3-0324:free",
+  "qwen/qwen3-32b:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+] as const;
 
 export interface OpenRouterSettings {
   primary: string;
