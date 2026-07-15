@@ -654,6 +654,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/assets", label: "Assets Library", icon: Library },
       { to: "/knowledge", label: "Knowledge Base", icon: BookOpen },
       { to: "/visual-dna", label: "Visual DNA", icon: Dna },
+      { to: "/analytics", label: "Project Analytics", icon: BarChart3 },
     ],
   },
   {
@@ -663,6 +664,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/visual-instructions", label: "Visual Instructions", icon: PenLine },
       { to: "/api-keys", label: "API Settings", icon: KeyRound },
       { to: "/settings", label: "Settings", icon: Settings },
+      { to: "/system-health", label: "System Health", icon: Wrench },
     ],
   },
 ];
