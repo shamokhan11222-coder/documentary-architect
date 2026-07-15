@@ -363,7 +363,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     let prev: ReturnType<typeof pickMotion> | undefined;
     for (let i = 0; i < scenes.length; i++) {
       const s = scenes[i];
-      const text = `${s.title ?? ""} ${s.description ?? ""} ${s.prompt ?? ""}`;
+      const text = `${s.voiceoverLine} ${s.visualDescription} ${s.background} ${s.cameraShot} ${s.emotion}`;
       const preset = pickMotion(text, i, prev);
       presets[String(s.sceneNumber)] = preset;
       prev = preset;
@@ -378,7 +378,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     patchStage("subtitle-timing", { status: "running", progress: 0.4 });
     const paras = scriptToParagraphs(story.script);
     const cues = buildSubtitles(paras);
-    saveSubtitles({ topicId: id, cues, updatedAt: Date.now() });
+    saveSubtitles({ topicId: id, cues, generatedAt: Date.now() });
     patchStage("subtitle-timing", { status: "done", progress: 1, total: cues.length });
   }
 
@@ -406,7 +406,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     const cues: Record<string, string[]> = { ...projectRef.current!.sfxCues };
     for (let i = 0; i < scenes.length; i++) {
       const s = scenes[i];
-      const text = `${s.title ?? ""} ${s.description ?? ""}`;
+      const text = `${s.voiceoverLine} ${s.visualDescription} ${s.background} ${s.emotion} ${s.notes}`;
       cues[String(s.sceneNumber)] = detectSfx(text);
     }
     commit({ ...projectRef.current!, sfxCues: cues });
