@@ -1,229 +1,78 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Trash2, KeyRound, Plug, CheckCircle2, XCircle, CircleDashed, Loader2 } from "lucide-react";
+import { KeyRound, CheckCircle2, XCircle, CircleDashed, Loader2, Zap, RefreshCw, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  API_PROVIDERS,
-  useApiKeys,
-  saveApiKey,
-  deleteApiKey,
-  markTested,
-} from "@/lib/apikeys";
-import { readLocal } from "@/lib/local";
-import type { ApiKeyEntry } from "@/lib/types";
-import {
-  useActiveProvider,
-  useImageProviderStatus,
-  GEMINI_SUPPORTS,
-  useProviderSettings,
-  enforceZeroBudgetImageRouting,
-  saveProviderSettings,
-  useActiveImageProvider,
-  useActiveTextProvider,
-  IMAGE_PROVIDER_TEST_PASSED,
-  type ProviderChoice,
-} from "@/lib/provider";
-import { testProvider } from "@/lib/ai.functions";
-import {
-  testImageProvider,
-  imageErrorMessage,
-} from "@/lib/generate-image";
-import type { ApiProvider } from "@/lib/types";
+import { readLocal, writeLocal } from "@/lib/local";
+import { useImageProviderStatus, useProviderSettings, enforceZeroBudgetImageRouting } from "@/lib/provider";
 import { useHasUnlimitedAccess, useIsAdmin, useCanGenerate } from "@/lib/account";
 import { useTelemetry } from "@/lib/provider-telemetry";
 import { QueuePanel } from "@/components/QueuePanel";
 import { GeminiImageKeys } from "@/components/GeminiImageKeys";
+import {
+  useOpenRouterSettings,
+  saveOpenRouterSettings,
+  resetOpenRouterSettings,
+  OPENROUTER_FREE_PRESETS,
+  DEFAULT_OPENROUTER_SETTINGS,
+} from "@/lib/openrouter";
+import { listOpenRouterModels, testOpenRouterConnection, type OpenRouterModel } from "@/lib/openrouter.functions";
 
 export const Route = createFileRoute("/api-keys")({
   head: () => ({ meta: [{ title: "API Settings — Stickmax Studio" }] }),
   component: ApiKeysPage,
 });
 
-function ApiKeysPage() {
-  const keys = useApiKeys();
-  const active = useActiveProvider();
-  const settings = useProviderSettings();
-  const runTest = useServerFn(testProvider);
-  const [provider, setProvider] = useState<ApiProvider>("OpenAI");
-  const [apiKey, setApiKey] = useState("");
-  const [purpose, setPurpose] = useState("");
-  const [modelName, setModelName] = useState("");
-  const [status, setStatus] = useState<
-    "idle" | "testing" | "connected" | "failed" | "invalid"
-  >("idle");
-  const [statusMsg, setStatusMsg] = useState<string>("");
-  const [formTesting, setFormTesting] = useState(false);
-
-  // Selecting a provider pre-fills its required fields so Test Connection enables.
-  function onProviderChange(next: ApiProvider) {
-    setProvider(next);
-    if (next === "Recraft") {
-      if (!modelName.trim()) setModelName("recraft-v4.1-utility-pro");
-      if (!purpose.trim()) setPurpose("images,thumbnail");
-    } else if (next === "OpenAI") {
-      if (!modelName.trim()) setModelName("gpt-4o-mini");
-      if (!purpose.trim()) setPurpose("text");
-    } else if (next === "Google Gemini") {
-      // Gemini serves BOTH text and image via separate models. Prefill the text
-      // model; the image model is forced server-side to the image endpoint.
-      if (!modelName.trim()) setModelName("gemini-2.5-flash");
-      if (!purpose.trim()) setPurpose("text,images");
-    }
-  }
-
-  // Providers whose connection we can validate directly from the form.
-  const canTestForm =
-    (provider === "Recraft" || provider === "OpenAI") &&
-    apiKey.trim().length > 0 &&
-    modelName.trim().length > 0;
-
-  // Applies routing based on the free-text Purpose field (text/images/thumbnail/all).
-  function applyPurposeRouting(prov: "openai" | "recraft", raw: string) {
-    const p = raw.toLowerCase();
-    const all = p.includes("all");
-    const patch: Record<string, "openai" | "recraft"> = {};
-    if (prov === "openai" && (all || p.includes("text"))) patch.text = "openai";
-    if (Object.keys(patch).length) saveProviderSettings(patch as never);
-    enforceZeroBudgetImageRouting();
-  }
-
-  // Test the connection using current form values (no save required). On success,
-  // save the key and route the selected tasks to this provider.
-  async function testFormConnection() {
-    if (!canTestForm) return;
-    setFormTesting(true);
+/** One-time cleanup on mount: purge any stale Gemini/Groq/OpenAI text provider
+ *  configuration from localStorage so no text call can leak to those providers.
+ *  Only touches provider-routing settings — NEVER project data, research,
+ *  stories, scenes, images, thumbnails or voice files. */
+function useCleanupLegacyTextProviders() {
+  useEffect(() => {
     try {
-      const isOpenAI = provider === "OpenAI";
-      await testImageProvider({ name: "puter", fallback: false });
-      const purposeVal = purpose.trim() || (isOpenAI ? "text" : "images,thumbnail");
-      saveApiKey({ provider, apiKey: apiKey.trim(), purpose: purposeVal, modelName: modelName.trim() });
-      applyPurposeRouting(isOpenAI ? "openai" : "recraft", purposeVal);
-      const saved = readLocal<ApiKeyEntry[]>("docos.apikeys", []).find(
-        (k) => k.provider === provider && k.apiKey === apiKey.trim(),
-      );
-      if (saved) markTested(saved.id, IMAGE_PROVIDER_TEST_PASSED);
-      setApiKey("");
-      toast.success(
-        isOpenAI ? "OpenAI connected — text routing updated" : "Recraft saved for future image support; active images remain Puter → Pollinations",
-      );
-    } catch (e) {
-      toast.error(imageErrorMessage(e, `${provider} connection failed`));
-    } finally {
-      setFormTesting(false);
-    }
-  }
-
-  function save() {
-    if (!apiKey.trim()) {
-      toast.error("Enter an API key");
-      return;
-    }
-    saveApiKey({ provider, apiKey: apiKey.trim(), purpose: purpose.trim(), modelName: modelName.trim() });
-    // Saving a key immediately activates that provider by pointing the relevant
-    // routing at it. No Gemini requirement — any supported provider activates.
-    if (provider === "Google Gemini") {
-      saveProviderSettings({ text: "gemini" });
-    } else if (provider === "OpenAI") {
-      applyPurposeRouting("openai", purpose.trim() || "text");
-    } else if (provider === "Recraft") {
-      enforceZeroBudgetImageRouting();
-    }
-    setApiKey("");
-    setPurpose("");
-    setModelName("");
-    setStatus("idle");
-    toast.success(
-      provider === "Google Gemini" || provider === "OpenAI" || provider === "Recraft"
-        ? `${provider} saved — it is now active`
-        : "Saved locally",
-    );
-  }
-
-  async function testConnection() {
-    setStatus("testing");
-    setStatusMsg("");
-    try {
-      type Diag = {
-        requestUrl?: string;
-        apiVersion?: string;
-        modelId?: string;
-        authHeaderName?: string;
-        authMethod?: string;
-        authScheme?: string;
-        usesBearer?: boolean;
-        queryParameterUsage?: string;
-        requestHeaders?: Record<string, string>;
-        requestBody?: string;
-        imageModels?: string[];
-      };
-      const geminiForTest = keys.find((k) => k.provider === "Google Gemini" && k.apiKey.trim());
-      const r = (await runTest({ data: { apiKey: geminiForTest?.apiKey.trim() || "" } })) as
-        | ({ status: "connected"; model?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
-        | ({ status: "failed"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
-        | ({ status: "invalid"; message?: string; httpStatus?: number; endpoint?: string; rawResponse?: string } & Diag)
-        | { status: "lovable" };
-      const diagBlock = (d: Diag) =>
-        [
-          d.requestUrl ? `Full request URL: ${d.requestUrl}` : "",
-          d.apiVersion ? `API version: ${d.apiVersion}` : "",
-          d.modelId ? `Model ID: ${d.modelId}` : "",
-          d.authMethod ? `Authentication method used: ${d.authMethod}` : "",
-          d.authHeaderName ? `Auth header: ${d.authHeaderName}` : "",
-          d.authScheme ? `Auth scheme: ${d.authScheme}` : "",
-          typeof d.usesBearer === "boolean"
-            ? `Using Bearer: ${d.usesBearer ? "yes" : "no"}`
-            : "",
-          d.queryParameterUsage ? `Query parameter usage: ${d.queryParameterUsage}` : "",
-          d.requestHeaders ? `Header names: ${Object.keys(d.requestHeaders).join(", ")}` : "",
-          d.requestBody ? `Request body:\n${d.requestBody}` : "",
-          d.imageModels ? `Image-capable models returned by Google:\n${d.imageModels.join("\n") || "(none returned)"}` : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
-      if (r.status === "connected") {
-        setStatus("connected");
-        setStatusMsg(
-          `Connected to ${r.model ?? "Gemini"} (HTTP ${r.httpStatus ?? 200}).` +
-            `\n\n${diagBlock(r)}` +
-            (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
-        );
-        const g = keys.find((k) => k.provider === "Google Gemini");
-        if (g) markTested(g.id, "Connected");
-        toast.success("Gemini connection successful");
-      } else if (r.status === "invalid") {
-        setStatus("failed");
-        setStatusMsg(
-          `${r.message ?? `HTTP ${r.httpStatus ?? "?"} — see raw Google response below.`}` +
-            `\n\n${diagBlock(r)}` +
-            (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
-        );
-        const g = keys.find((k) => k.provider === "Google Gemini");
-        if (g) markTested(g.id, `HTTP ${r.httpStatus ?? "?"}`);
-        toast.error(`Gemini returned HTTP ${r.httpStatus ?? "?"}`);
-      } else if (r.status === "lovable") {
-        setStatus("idle");
-        setStatusMsg("No Gemini key configured — add a key to generate images.");
-      } else {
-        setStatus("failed");
-        setStatusMsg(
-          `${r.message ?? "Connection failed."}` +
-            `\n\n${diagBlock(r)}` +
-            (r.rawResponse ? `\n\nRaw Google response:\n${r.rawResponse}` : ""),
-        );
-        const g = keys.find((k) => k.provider === "Google Gemini");
-        if (g) markTested(g.id, "Failed");
-        toast.error(`Gemini returned HTTP ${r.httpStatus ?? "error"}`);
+      // 1) Coerce text-provider routing to "openrouter" and strip Gemini/Groq
+      //    text choices from any persisted provider settings.
+      const settings = readLocal<Record<string, unknown>>("docos.provider.settings", {});
+      if (settings && typeof settings === "object") {
+        const next = { ...settings, text: "openrouter" };
+        writeLocal("docos.provider.settings", next);
       }
-    } catch (e) {
-      setStatus("failed");
-      setStatusMsg(e instanceof Error ? e.message : "Connection failed.");
+      // 2) Purge Gemini + OpenAI text-purpose API key entries. Image-only
+      //    keys (Recraft / Fal / Replicate / HuggingFace / ElevenLabs) are
+      //    preserved. Keys whose purpose is exactly "text" for Gemini/OpenAI
+      //    are removed; combined "text,images" is rewritten to drop text.
+      type Entry = { id: string; provider: string; purpose?: string };
+      const list = readLocal<Entry[]>("docos.apikeys", []);
+      if (Array.isArray(list)) {
+        const cleaned = list
+          .map((k) => {
+            if (k.provider !== "Google Gemini" && k.provider !== "OpenAI") return k;
+            const purpose = (k.purpose ?? "").toLowerCase();
+            if (!purpose.includes("text")) return k;
+            const withoutText = purpose
+              .split(",")
+              .map((p) => p.trim())
+              .filter((p) => p && p !== "text" && p !== "all")
+              .join(",");
+            return withoutText ? { ...k, purpose: withoutText } : null;
+          })
+          .filter(Boolean) as Entry[];
+        writeLocal("docos.apikeys", cleaned);
+      }
+      // 3) Old Groq telemetry cache — clear if present.
+      writeLocal("docos.groq.settings", null);
+    } catch {
+      /* ignore cleanup failures */
     }
-  }
+  }, []);
+}
 
+function ApiKeysPage() {
+function ApiKeysPage() {
+  useCleanupLegacyTextProviders();
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <div className="flex items-center gap-2">
@@ -231,154 +80,368 @@ function ApiKeysPage() {
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">API Settings</h1>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Add an API key for Gemini, OpenAI or Recraft and it activates immediately.
-        With no external provider connected, the studio uses its built-in AI.
+        Text generation runs through OpenRouter with automatic free-model
+        fallback. Images use the built-in Puter → Pollinations pipeline. No
+        Lovable or Gemini text calls are made when OpenRouter is connected.
       </p>
 
-      <ActiveProviderStatus
-        keys={keys}
-        geminiMessage={statusMsg}
-        onTestGemini={testConnection}
-        geminiTesting={status === "testing"}
-        geminiState={status}
-      />
-
+      <OpenRouterCard />
       <DebugStatus />
-
       <QueuePanel />
-
-      <div className="mt-6 rounded-lg border border-border bg-card p-4">
-        <div className="text-sm font-medium">Add provider</div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={provider}
-            onChange={(e) => onProviderChange(e.target.value as ApiProvider)}
-          >
-            {API_PROVIDERS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-          <Input placeholder="Model name (e.g. gemini-2.5-flash)" value={modelName} onChange={(e) => setModelName(e.target.value)} className="h-9" />
-          <Input placeholder="API key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="h-9" />
-          <Input placeholder="Purpose (e.g. voice, images)" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="h-9" />
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <Button size="sm" onClick={save}>
-            <Plug className="mr-1 h-4 w-4" /> Save
-          </Button>
-          {(provider === "Recraft" || provider === "OpenAI") && (
-            <Button size="sm" variant="outline" onClick={testFormConnection} disabled={!canTestForm || formTesting}>
-              {formTesting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-              Test Connection
-            </Button>
-          )}
-        </div>
-      </div>
 
       <div className="mt-4">
         <GeminiImageKeys />
-      </div>
-
-      {(active || keys.length > 0) && (
-        <div className="mt-4 rounded-lg border border-border bg-card p-4">
-          <div className="text-sm font-medium">Provider routing</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Choose which provider handles each task. Images and thumbnails use your connected Gemini image key by default; built-in image generation is disabled.
-          </p>
-          <div className="mt-3 space-y-3">
-            <TextRouteRow
-              label="Text Provider"
-              hint="Topics, research, story, storyboard, SEO, rating, script analyzer"
-              value={settings.text}
-              onChange={(v) => saveProviderSettings({ text: v })}
-            />
-            <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm opacity-75">
-              <span className="min-w-0">
-                <span className="block font-medium">Use Gemini for images + thumbnails</span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  Disabled — Zero-Budget Mode uses Puter AI with Pollinations fallback
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                className="h-4 w-4 shrink-0"
-                checked={false}
-                disabled
-                onChange={() => enforceZeroBudgetImageRouting()}
-              />
-            </label>
-            <ImageRouteRow
-              label="Image Provider"
-              hint="Storyboard images"
-              value={settings.image}
-              onChange={(v) => saveProviderSettings({ image: v })}
-            />
-            <GeminiImageTest keys={keys} />
-            <GeminiModelDiagnostic keys={keys} />
-            <RecraftTest keys={keys} />
-            <ImageRouteRow
-              label="Thumbnail Provider"
-              hint="Thumbnail images"
-              value={settings.thumbnail}
-              onChange={(v) => saveProviderSettings({ thumbnail: v })}
-            />
-            {active && (
-              <RouteRow
-                label="Voice Provider"
-                hint={`Voiceover · ${active.ttsModel}`}
-                supported={GEMINI_SUPPORTS.tts}
-                value={settings.voice}
-                onChange={(v) => saveProviderSettings({ voice: v })}
-              />
-            )}
-          </div>
-          <label className="mt-4 flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={settings.fallback}
-              onChange={(e) => saveProviderSettings({ fallback: e.target.checked })}
-            />
-            Allow provider fallback where available
-          </label>
-        </div>
-      )}
-
-      <div className="mt-4 space-y-2">
-        {keys.length === 0 && (
-          <p className="text-sm text-muted-foreground">No providers configured yet.</p>
-        )}
-        {keys.map((k) => (
-          <div key={k.id} className="rounded-lg border border-border bg-card p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-sm font-medium">{k.provider}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {k.modelName || "—"} · {k.purpose || "no purpose set"}
-                </div>
-                <div className="mt-0.5 font-mono text-xs text-muted-foreground">
-                  {k.apiKey.slice(0, 3)}••••••••{k.apiKey.slice(-2)}
-                </div>
-                {k.testResult && (
-                  <div className="mt-1 text-[11px] text-amber-600">{k.testResult}</div>
-                )}
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <Button size="icon" variant="ghost" onClick={() => deleteApiKey(k.id)} aria-label="Delete">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
 
+// -----------------------------------------------------------------------------
+// OpenRouter — the ONLY selectable text provider.
+// -----------------------------------------------------------------------------
+function OpenRouterCard() {
+  const settings = useOpenRouterSettings();
+  const [primary, setPrimary] = useState(settings.primary);
+  const [fallback, setFallback] = useState(settings.fallback);
+  const [models, setModels] = useState<OpenRouterModel[] | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<null | {
+    ok: boolean;
+    provider: string;
+    model: string | null;
+    endpoint: string;
+    httpStatus: number | null;
+    responseTimeMs?: number;
+    fallbackUsed?: boolean;
+    message: string;
+  }>(null);
+
+  const runList = useServerFn(listOpenRouterModels);
+  const runTest = useServerFn(testOpenRouterConnection);
+
+  // Sync local inputs when the persisted settings change (e.g. on reset).
+  useEffect(() => {
+    setPrimary(settings.primary);
+    setFallback(settings.fallback);
+  }, [settings.primary, settings.fallback]);
+
+  async function loadModels() {
+    setLoadingModels(true);
+    try {
+      const r = await runList();
+      if (r.ok) {
+        setModels(r.models);
+      } else {
+        toast.error(r.message);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to list OpenRouter models.");
+    } finally {
+      setLoadingModels(false);
+    }
+  }
+
+  function save() {
+    saveOpenRouterSettings({ primary: primary.trim(), fallback: fallback.trim() });
+    toast.success("OpenRouter model preferences saved.");
+  }
+
+  async function testConnection() {
+    setTesting(true);
+    setTestResult(null);
+    // Persist the current selection before testing so the middleware attaches it.
+    saveOpenRouterSettings({ primary: primary.trim(), fallback: fallback.trim() });
+    try {
+      const r = await runTest({ data: { primary: primary.trim(), fallback: fallback.trim() } });
+      if (r.ok) {
+        const reply = r.reply || "";
+        const passed = /openrouter\s+connected/i.test(reply);
+        setTestResult({
+          ok: passed,
+          provider: r.provider,
+          model: r.model,
+          endpoint: r.endpoint,
+          httpStatus: r.httpStatus,
+          responseTimeMs: r.responseTimeMs,
+          fallbackUsed: r.fallbackUsed,
+          message: passed
+            ? `OpenRouter connected · ${r.model} · ${r.responseTimeMs}ms`
+            : `Unexpected reply: ${reply.slice(0, 200)}`,
+        });
+        if (passed) toast.success("OpenRouter connection successful");
+        else toast.error("OpenRouter responded but reply did not match.");
+      } else {
+        const humanMsg = humanizeOpenRouterError(r.httpStatus, r.message);
+        setTestResult({
+          ok: false,
+          provider: r.provider,
+          model: r.model,
+          endpoint: r.endpoint,
+          httpStatus: r.httpStatus,
+          message: humanMsg,
+        });
+        toast.error(humanMsg);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "OpenRouter test failed.";
+      setTestResult({
+        ok: false,
+        provider: "OpenRouter",
+        model: primary,
+        endpoint: "https://openrouter.ai/api/v1/chat/completions",
+        httpStatus: null,
+        message: msg,
+      });
+      toast.error(msg);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  function disconnect() {
+    // The OPENROUTER_API_KEY is a server-side secret managed at the workspace
+    // level and is intentionally NOT removed here. Disconnect only resets the
+    // client-side model preferences.
+    resetOpenRouterSettings();
+    setPrimary(DEFAULT_OPENROUTER_SETTINGS.primary);
+    setFallback(DEFAULT_OPENROUTER_SETTINGS.fallback);
+    setTestResult(null);
+    toast.success("OpenRouter model preferences reset to defaults.");
+  }
+
+  const modelOptions = useMemo(() => {
+    // Union of live models + built-in free presets, preserving free-first order.
+    const seen = new Set<string>();
+    const opts: Array<{ id: string; label: string; free: boolean }> = [];
+    for (const p of OPENROUTER_FREE_PRESETS) {
+      if (!seen.has(p.id)) {
+        opts.push({ id: p.id, label: p.label, free: true });
+        seen.add(p.id);
+      }
+    }
+    if (models) {
+      for (const m of models.filter((m) => m.free)) {
+        if (!seen.has(m.id)) {
+          opts.push({ id: m.id, label: m.name, free: true });
+          seen.add(m.id);
+        }
+      }
+      for (const m of models.filter((m) => !m.free)) {
+        if (!seen.has(m.id)) {
+          opts.push({ id: m.id, label: `${m.name} (paid)`, free: false });
+          seen.add(m.id);
+        }
+      }
+    }
+    return opts;
+  }, [models]);
+
+  const primaryIsPaid = modelOptions.find((o) => o.id === primary)?.free === false;
+  const fallbackIsPaid = modelOptions.find((o) => o.id === fallback)?.free === false;
+
+  return (
+    <div className="mt-6 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Zap className="h-5 w-5 text-green-600" />
+          <div>
+            <div className="text-sm font-semibold">OpenRouter</div>
+            <div className="text-xs text-muted-foreground">
+              Free and paid text models for research, stories, SEO and scene planning.
+            </div>
+          </div>
+        </div>
+        <span className="rounded-full border border-green-600/40 bg-green-600/10 px-2 py-0.5 text-[11px] font-medium text-green-700">
+          Server key connected
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        <ModelPicker
+          label="Primary Model"
+          value={primary}
+          onChange={setPrimary}
+          options={modelOptions}
+          isPaid={primaryIsPaid}
+        />
+        <ModelPicker
+          label="Fallback Model"
+          value={fallback}
+          onChange={setFallback}
+          options={modelOptions}
+          isPaid={fallbackIsPaid}
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={save}>Save</Button>
+          <Button size="sm" variant="outline" onClick={testConnection} disabled={testing}>
+            {testing && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+            Test Connection
+          </Button>
+          <Button size="sm" variant="outline" onClick={loadModels} disabled={loadingModels}>
+            {loadingModels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}
+            Refresh Models
+          </Button>
+          <Button size="sm" variant="ghost" onClick={disconnect}>
+            <RotateCcw className="mr-1 h-4 w-4" /> Disconnect
+          </Button>
+        </div>
+
+        {(primaryIsPaid || fallbackIsPaid) && (
+          <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+            Warning: at least one selected model is <strong>paid</strong>. Save
+            only if you intend to be billed by OpenRouter for those requests.
+          </p>
+        )}
+
+        {testResult && (
+          <div
+            className={`rounded-md border px-3 py-2 text-xs ${
+              testResult.ok
+                ? "border-green-600/40 bg-green-600/10 text-green-800"
+                : "border-red-500/40 bg-red-500/10 text-red-800"
+            }`}
+          >
+            <div className="font-medium">
+              {testResult.ok ? "Test passed" : "Test failed"}
+            </div>
+            <div className="mt-1 space-y-0.5 font-mono">
+              <div>Provider: {testResult.provider}</div>
+              <div>Model: {testResult.model ?? "—"}</div>
+              <div>Endpoint: {testResult.endpoint}</div>
+              <div>HTTP status: {testResult.httpStatus ?? "—"}</div>
+              {typeof testResult.responseTimeMs === "number" && (
+                <div>Response time: {testResult.responseTimeMs}ms</div>
+              )}
+              {typeof testResult.fallbackUsed === "boolean" && (
+                <div>Fallback used: {testResult.fallbackUsed ? "yes" : "no"}</div>
+              )}
+              <div className="mt-1 whitespace-pre-wrap break-words">{testResult.message}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModelPicker({
+  label,
+  value,
+  onChange,
+  options,
+  isPaid,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ id: string; label: string; free: boolean }>;
+  isPaid: boolean;
+}) {
+  // Ensure the current value is always represented in the dropdown even if
+  // it is not part of the live list (custom / cached choice).
+  const hasCurrent = options.some((o) => o.id === value);
+  return (
+    <div className="grid gap-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <div className="flex gap-2">
+        <select
+          className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {!hasCurrent && value && (
+            <option value={value}>{value} (current)</option>
+          )}
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.free ? "★ " : ""}
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="or type model id"
+          className="h-9 w-56"
+        />
+      </div>
+      {isPaid && (
+        <span className="text-[11px] text-amber-700">Selected model is paid.</span>
+      )}
+    </div>
+  );
+}
+
+function humanizeOpenRouterError(status: number | null, msg: string): string {
+  const s = status ?? 0;
+  if (s === 401 || /invalid/i.test(msg) || /unauthor/i.test(msg))
+    return "OpenRouter API key is invalid.";
+  if (s === 429 || /rate limit|too many/i.test(msg))
+    return "The selected OpenRouter model is temporarily rate limited. Trying the fallback model.";
+  if (s === 402 || /credit|quota/i.test(msg))
+    return "No free OpenRouter model is currently available. Select another free model or try again later.";
+  return msg || `OpenRouter request failed (${status ?? "network"}).`;
+}
+
+// -----------------------------------------------------------------------------
+// Diagnostics — OpenRouter-focused (Gemini/Groq references removed).
+// -----------------------------------------------------------------------------
+function DebugStatus() {
+  const settings = useProviderSettings();
+  const imageStatus = useImageProviderStatus();
+  const or = useOpenRouterSettings();
+  const admin = useIsAdmin();
+  const unlimited = useHasUnlimitedAccess();
+  const allowed = useCanGenerate();
+  const tele = useTelemetry();
+
+  // Enforce zero-budget image routing on view, guarding against stale saved state.
+  useEffect(() => {
+    try {
+      enforceZeroBudgetImageRouting();
+    } catch {
+      /* SSR / storage unavailable */
+    }
+  }, []);
+
+  const creditMode = admin
+    ? "Developer Unlimited"
+    : unlimited
+      ? "Provider Unlimited"
+      : "Customer Credits";
+
+  const lastProvider = tele.lastProvider ? String(tele.lastProvider) : "—";
+  const lastStatus =
+    tele.lastStatus === "success" ? "Success" : tele.lastStatus === "error" ? "Error" : "—";
+
+  return (
+    <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs">
+      <div className="mb-2 font-sans text-sm font-medium">Developer Mode</div>
+      <div className="grid gap-1">
+        <div>Provider: OpenRouter</div>
+        <div>Primary Model: {or.primary}</div>
+        <div>Fallback Model: {or.fallback}</div>
+        <div>Endpoint: https://openrouter.ai/api/v1/chat/completions</div>
+        <div>Active Image Provider: {imageStatus.connected ? imageStatus.label : "Built-in AI disabled"}</div>
+        <div>Image Route: Puter AI primary → Pollinations fallback</div>
+        <div>Active Thumbnail Provider: {settings.thumbnail}</div>
+        <div>Active Voice Provider: Built-in TTS</div>
+        <div>Credit Mode: {creditMode}</div>
+        <div>Generation Allowed: {allowed ? "Yes" : "No"}</div>
+        <div>Last Request Provider: {lastProvider}</div>
+        <div>Last Request Status: {lastStatus}</div>
+        <div>Last Error Message: {tele.lastError ?? "—"}</div>
+      </div>
+    </div>
+  );
+}
+
+// Icons kept for future status pill use; export to silence unused warnings when
+// the tree-shaker keeps them for chunk boundaries.
+export const _statusIcons = { CheckCircle2, XCircle, CircleDashed };
 /**
  * Diagnostic panel — shows the resolved provider + credit mode + whether
  * generation is allowed, so it's obvious why generation is (or isn't) blocked.
