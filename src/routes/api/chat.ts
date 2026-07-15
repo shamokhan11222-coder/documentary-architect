@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-3-flash-preview";
+import { OPENROUTER_ENDPOINT, OPENROUTER_MODELS } from "@/lib/openrouter.server";
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
 type Body = { messages?: Msg[]; context?: string };
@@ -20,33 +18,42 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const { messages, context } = (await request.json()) as Body;
         if (!Array.isArray(messages)) return new Response("Missing messages", { status: 400 });
-        const key = process.env.LOVABLE_API_KEY;
-        if (!key) return new Response("Missing LOVABLE_API_KEY", { status: 500 });
+        const key = process.env.OPENROUTER_API_KEY;
+        if (!key) return new Response("Missing OPENROUTER_API_KEY", { status: 500 });
 
         const sys = context ? `${SYSTEM}\n\nCURRENT PROJECT CONTEXT:\n${context.slice(0, 6000)}` : SYSTEM;
 
-        const res = await fetch(GATEWAY, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: MODEL,
-            messages: [{ role: "system", content: sys }, ...messages.slice(-20)],
-          }),
-        });
-        if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          const status = res.status;
-          const msg =
-            status === 429
-              ? "I'm being rate limited — give me a sec and try again 🙏"
-              : status === 402
-                ? "Out of AI credits — top up in workspace settings."
-                : `Chat failed (${status}): ${text.slice(0, 160)}`;
-          return Response.json({ reply: msg }, { status: 200 });
+        let lastStatus = 0;
+        let lastText = "";
+        for (const model of OPENROUTER_MODELS) {
+          const res = await fetch(OPENROUTER_ENDPOINT, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${key}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://stickmax.studio",
+              "X-Title": "Stickmax Studio",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "system", content: sys }, ...messages.slice(-20)],
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const reply = data?.choices?.[0]?.message?.content ?? "Hmm, I didn't catch that.";
+            return Response.json({ reply });
+          }
+          lastStatus = res.status;
+          lastText = await res.text().catch(() => "");
+          // Only stop on non-retryable errors
+          if (res.status !== 429 && res.status !== 402 && res.status < 500 && res.status !== 404 && res.status !== 400) break;
         }
-        const data = await res.json();
-        const reply = data?.choices?.[0]?.message?.content ?? "Hmm, I didn't catch that.";
-        return Response.json({ reply });
+        const msg =
+          lastStatus === 429
+            ? "All free models are rate limited — try again in a bit 🙏"
+            : `Chat failed (${lastStatus}): ${lastText.slice(0, 160)}`;
+        return Response.json({ reply: msg }, { status: 200 });
       },
     },
   },
