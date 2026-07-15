@@ -49,8 +49,24 @@ export const Route = createFileRoute("/thumbnail")({
 });
 
 const thumbImageId = (topicId: string, i: number) => `thumb:${topicId}:${i}`;
+const sceneImageId = (topicId: string, n: number) => `scene:${topicId}:${n}`;
 
 const CONCEPT_ONLY_MESSAGE = "Concept ready, image pending.";
+
+const PROVIDERS_UNAVAILABLE_MESSAGE =
+  "Both free image providers are temporarily unavailable. Your thumbnail concept is saved. Retry later, use an existing scene image, or create a local thumbnail draft.";
+
+function isProvidersUnavailableError(e: unknown): boolean {
+  return e instanceof Error && (e as Error & { code?: string }).code === "PROVIDERS_UNAVAILABLE";
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const s = Math.ceil(ms / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
 
 /** Normal-user friendly image error. Images run on the built-in Lovable AI, so
  *  the common failure is running out of Lovable credits (HTTP 402). Surface a
