@@ -258,7 +258,7 @@ export async function openrouterGenerate(
   if (chain.length === 0) {
     throw makeProviderError({
       provider: "openrouter",
-      model: null,
+      model: "",
       endpoint: OPENROUTER_ENDPOINT,
       httpStatus: 503,
       requestId: null,
