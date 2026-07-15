@@ -36,6 +36,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as KnowledgeRouteImport } from './routes/knowledge'
 import { Route as InstructionsRouteImport } from './routes/instructions'
+import { Route as ImageStudioRouteImport } from './routes/image-studio'
 import { Route as GeminiImageDiagnosticsRouteImport } from './routes/gemini-image-diagnostics'
 import { Route as GeminiDiagnosticsRouteImport } from './routes/gemini-diagnostics'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -189,6 +190,11 @@ const InstructionsRoute = InstructionsRouteImport.update({
   path: '/instructions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ImageStudioRoute = ImageStudioRouteImport.update({
+  id: '/image-studio',
+  path: '/image-studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GeminiImageDiagnosticsRoute = GeminiImageDiagnosticsRouteImport.update({
   id: '/gemini-image-diagnostics',
   path: '/gemini-image-diagnostics',
@@ -290,6 +296,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
   '/gemini-image-diagnostics': typeof GeminiImageDiagnosticsRoute
+  '/image-studio': typeof ImageStudioRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -336,6 +343,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
   '/gemini-image-diagnostics': typeof GeminiImageDiagnosticsRoute
+  '/image-studio': typeof ImageStudioRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -383,6 +391,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/gemini-diagnostics': typeof GeminiDiagnosticsRoute
   '/gemini-image-diagnostics': typeof GeminiImageDiagnosticsRoute
+  '/image-studio': typeof ImageStudioRoute
   '/instructions': typeof InstructionsRoute
   '/knowledge': typeof KnowledgeRoute
   '/landing': typeof LandingRoute
@@ -431,6 +440,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/gemini-diagnostics'
     | '/gemini-image-diagnostics'
+    | '/image-studio'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -477,6 +487,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/gemini-diagnostics'
     | '/gemini-image-diagnostics'
+    | '/image-studio'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -523,6 +534,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/gemini-diagnostics'
     | '/gemini-image-diagnostics'
+    | '/image-studio'
     | '/instructions'
     | '/knowledge'
     | '/landing'
@@ -570,6 +582,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   GeminiDiagnosticsRoute: typeof GeminiDiagnosticsRoute
   GeminiImageDiagnosticsRoute: typeof GeminiImageDiagnosticsRoute
+  ImageStudioRoute: typeof ImageStudioRoute
   InstructionsRoute: typeof InstructionsRoute
   KnowledgeRoute: typeof KnowledgeRoute
   LandingRoute: typeof LandingRoute
@@ -793,6 +806,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InstructionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/image-studio': {
+      id: '/image-studio'
+      path: '/image-studio'
+      fullPath: '/image-studio'
+      preLoaderRoute: typeof ImageStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gemini-image-diagnostics': {
       id: '/gemini-image-diagnostics'
       path: '/gemini-image-diagnostics'
@@ -930,6 +950,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   GeminiDiagnosticsRoute: GeminiDiagnosticsRoute,
   GeminiImageDiagnosticsRoute: GeminiImageDiagnosticsRoute,
+  ImageStudioRoute: ImageStudioRoute,
   InstructionsRoute: InstructionsRoute,
   KnowledgeRoute: KnowledgeRoute,
   LandingRoute: LandingRoute,
