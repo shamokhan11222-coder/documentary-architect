@@ -168,6 +168,32 @@ function VisualPage() {
     enforceZeroBudgetImageRouting();
   }, []);
 
+  // ---- Scene plan estimate (pure — never triggers AI) ----
+  const wpm = speechRate === "custom" ? customWpm : WPM_PRESETS[speechRate];
+  const voiceRealSeconds = useMemo(() => {
+    if (!voice?.blocks?.length) return null;
+    const total = voice.blocks.reduce((a, b) => a + (b.realSeconds ?? 0), 0);
+    return total > 5 ? total : null;
+  }, [voice]);
+  const duration = useMemo(
+    () =>
+      resolveScriptDuration({
+        script: scriptText,
+        wpm,
+        voiceRealSeconds,
+        manualMinutes: manualMinutes ? parseFloat(manualMinutes) : null,
+      }),
+    [scriptText, wpm, voiceRealSeconds, manualMinutes],
+  );
+  const avgSceneSeconds = pacing === "custom"
+    ? customSeconds
+    : PACING_PRESETS.find((p) => p.id === pacing)?.seconds ?? 3;
+  const estimatedSceneCount = computeTargetSceneCount(duration.seconds, avgSceneSeconds);
+  const manualCountValue = manualSceneCount ? parseInt(manualSceneCount, 10) : NaN;
+  const targetSceneCount = Number.isFinite(manualCountValue)
+    ? Math.max(MIN_SCENE_COUNT, Math.min(MAX_SCENE_COUNT, manualCountValue))
+    : estimatedSceneCount;
+
   const refreshHave = useCallback(async () => {
     if (!selected || !map || !Array.isArray(map.scenes)) {
       setHave(new Set());
