@@ -71,6 +71,7 @@ import { STAGES, type DirectorProject, type StageId, type Mode } from "./types";
 import { pickMotion } from "./motion";
 import { suggestMood } from "./music";
 import { detectSfx } from "./sfx";
+import { computeStageStates } from "./artifacts";
 
 // Which existing localStorage bucket to read for each stage. Mirrors
 // manager.tsx's readLS but scoped to the director's needs.
@@ -124,27 +125,20 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
  */
 function hydrateFromArtifacts(project: DirectorProject): DirectorProject {
   const id = project.projectId;
-  const next = { ...project, stages: { ...project.stages } };
-
-  // Topic is done as soon as there IS a project.
-  next.stages.topic = { ...next.stages.topic, status: "done", progress: 1 };
-
-  const pipeStages: Array<[StageId, string]> = [
-    ["research", "research"],
-    ["story", "story"],
-    ["scene-planner", "storyboard"],
-    ["images", "images"],
-    ["voice", "voice"],
-    ["thumbnail", "thumbnail"],
-    ["seo", "seo"],
-  ];
-  for (const [dir, pipe] of pipeStages) {
-    if (pipelineStageDone(id, pipe as never)) {
-      next.stages[dir] = { ...next.stages[dir], status: "done", progress: 1 };
-    }
-  }
-  if (readSyncTimeline(id)) {
-    next.stages["voice-sync"] = { ...next.stages["voice-sync"], status: "done", progress: 1 };
+  const next: DirectorProject = { ...project, stages: { ...project.stages } };
+  const states = computeStageStates(id, project);
+  for (const s of STAGES) {
+    const cur = next.stages[s.id];
+    const real = states[s.id];
+    next.stages[s.id] = {
+      ...cur,
+      status: real.status,
+      progress: real.progress,
+      current: real.current,
+      total: real.total,
+      error: real.status === "done" ? undefined : (real.error ?? cur.error),
+      warnings: real.warnings ?? cur.warnings,
+    };
   }
   return next;
 }
