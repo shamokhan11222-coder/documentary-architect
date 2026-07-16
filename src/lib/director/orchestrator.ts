@@ -158,6 +158,9 @@ export interface DirectorApi {
   toggleLock: (kind: "character") => void;
   warnings: string[];
   suggestions: string[];
+  starting: boolean;
+  startError: string | null;
+  resetLock: () => void;
 }
 
 /**
@@ -167,6 +170,8 @@ export interface DirectorApi {
 export function useDirectorOrchestrator(topicId: string | null, topic?: string, explanation?: string): DirectorApi {
   const [project, setProject] = useState<DirectorProject | null>(null);
   const [running, setRunning] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const cancelled = useRef(false);
   const projectRef = useRef<DirectorProject | null>(null);
 
@@ -564,21 +569,63 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
 
   const start = useCallback(async () => {
     const p = projectRef.current;
-    if (!p || !topicId) return;
-    if (running) return;
+    // Developer-visible click trace
+    // eslint-disable-next-line no-console
+    console.log("[Director] start clicked", {
+      clickReceived: true,
+      projectId: topicId,
+      topicTitle: topic,
+      hasProject: !!p,
+      isStarting: starting,
+      isRunning: running,
+      handlerEntered: true,
+    });
+    setStartError(null);
+    if (starting) {
+      setStartError("Director is already starting — please wait.");
+      return;
+    }
+    if (running) {
+      setStartError("Production already running.");
+      return;
+    }
+    if (!topicId) { setStartError("No active project selected."); toast.error("No active project selected."); return; }
+    if (!p) { setStartError("Director state not loaded yet — try again in a moment."); toast.error("Director state not loaded."); return; }
+    if (!topic) { setStartError("Project topic missing — reselect the project."); toast.error("Project topic missing."); return; }
+    setStarting(true);
     cancelled.current = false;
-    setRunning(true);
-    setPipelineRunning(topicId, true);
-    logActivity(topicId, "AI Director started", "info");
-
     try {
+      setRunning(true);
+      setPipelineRunning(topicId, true);
+      logActivity(topicId, "AI Director started", "info");
+      // eslint-disable-next-line no-console
+      console.log("[Director] orchestrator invoked", { projectId: topicId });
       await runScheduler(topicId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStartError(msg);
+      logActivity(topicId, `Director start failed: ${msg}`, "error");
+      toast.error(`Director start failed: ${msg}`);
+      // eslint-disable-next-line no-console
+      console.error("[Director] start error", err);
     } finally {
       setRunning(false);
+      setStarting(false);
       setPipelineRunning(topicId, false);
-      commit({ ...projectRef.current!, currentStage: null });
+      if (projectRef.current) commit({ ...projectRef.current, currentStage: null });
     }
-  }, [topicId, running, commit, patchStage]);
+  }, [topicId, topic, running, starting, commit, patchStage]);
+
+  // Clear stale start/run locks without touching artifacts.
+  const resetLock = useCallback(() => {
+    cancelled.current = true;
+    setRunning(false);
+    setStarting(false);
+    setStartError(null);
+    if (topicId) setPipelineRunning(topicId, false);
+    if (projectRef.current) commit({ ...projectRef.current, paused: false, currentStage: null });
+    toast.success("Director lock cleared.");
+  }, [topicId, commit]);
 
   // ----------------------- Parallel dependency scheduler -----------------------
   //
@@ -803,5 +850,8 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     toggleLock,
     warnings,
     suggestions,
+    starting,
+    startError,
+    resetLock,
   };
 }
