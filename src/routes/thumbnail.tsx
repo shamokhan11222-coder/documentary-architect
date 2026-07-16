@@ -121,6 +121,36 @@ function ThumbnailPage() {
   const uploadIndexRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Hydration: on first render (SSR + before localStorage flushes) `topics`
+  // is [] and any `selectedId` won't resolve. We can't rely on `selected`
+  // alone to gate the button — flip a mount flag so we know the client-side
+  // store has been read at least once.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // Canonical active-topic resolver. Priority:
+  //   1. Selected id matches a normalized topic in the store  (route/store)
+  //   2. Persisted selectedTopicId points to a topic we can find (persisted)
+  //   3. Fallback to the first topic in the list (localStorage)
+  // Always returns a non-empty title — never sends whitespace to the server.
+  type ActiveTopicCtx = { topicId: string; title: string; projectId: string; source: "store" | "persisted" | "fallback" };
+  const activeCtx: ActiveTopicCtx | null = useMemo(() => {
+    const clean = (s: unknown) => (typeof s === "string" ? s.trim() : "");
+    const build = (t: (typeof topics)[number], source: ActiveTopicCtx["source"]): ActiveTopicCtx => ({
+      topicId: t.id,
+      projectId: t.id,
+      title: clean(t.topic) || clean(t.altTitle) || "Untitled project",
+      source,
+    });
+    if (selected) return build(selected, selectedId === selected.id ? "store" : "persisted");
+    const persisted = selectedId ? topics.find((t) => t.id === selectedId) : null;
+    if (persisted) return build(persisted, "persisted");
+    if (topics[0]) return build(topics[0], "fallback");
+    return null;
+  }, [selected, selectedId, topics]);
+
+  const topicReady = mounted && !!activeCtx;
+
   // Reactive truth for the FIRST thumbnail image. The "ready" state is derived
   // ONLY from an actually-stored image URL — never from concept-only data.
   const firstImg = useImage(selected ? thumbImageId(selected.id, 0) : null);
