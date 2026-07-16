@@ -20,6 +20,7 @@ export type StageStatus =
   | "done"
   | "failed"
   | "waiting"
+  | "blocked"
   | "skipped";
 
 export type Mode = "guided" | "auto" | "professional";

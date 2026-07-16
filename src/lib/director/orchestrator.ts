@@ -51,7 +51,6 @@ import {
   setTask,
   getPipeline,
 } from "@/lib/pipeline";
-import { stageDone as pipelineStageDone } from "@/lib/manager";
 import type {
   Research,
   Story,
@@ -71,6 +70,7 @@ import { STAGES, type DirectorProject, type StageId, type Mode } from "./types";
 import { pickMotion } from "./motion";
 import { suggestMood } from "./music";
 import { detectSfx } from "./sfx";
+import { computeStageStates } from "./artifacts";
 
 // Which existing localStorage bucket to read for each stage. Mirrors
 // manager.tsx's readLS but scoped to the director's needs.
@@ -124,27 +124,20 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
  */
 function hydrateFromArtifacts(project: DirectorProject): DirectorProject {
   const id = project.projectId;
-  const next = { ...project, stages: { ...project.stages } };
-
-  // Topic is done as soon as there IS a project.
-  next.stages.topic = { ...next.stages.topic, status: "done", progress: 1 };
-
-  const pipeStages: Array<[StageId, string]> = [
-    ["research", "research"],
-    ["story", "story"],
-    ["scene-planner", "storyboard"],
-    ["images", "images"],
-    ["voice", "voice"],
-    ["thumbnail", "thumbnail"],
-    ["seo", "seo"],
-  ];
-  for (const [dir, pipe] of pipeStages) {
-    if (pipelineStageDone(id, pipe as never)) {
-      next.stages[dir] = { ...next.stages[dir], status: "done", progress: 1 };
-    }
-  }
-  if (readSyncTimeline(id)) {
-    next.stages["voice-sync"] = { ...next.stages["voice-sync"], status: "done", progress: 1 };
+  const next: DirectorProject = { ...project, stages: { ...project.stages } };
+  const states = computeStageStates(id, project);
+  for (const s of STAGES) {
+    const cur = next.stages[s.id];
+    const real = states[s.id];
+    next.stages[s.id] = {
+      ...cur,
+      status: real.status,
+      progress: real.progress,
+      current: real.current,
+      total: real.total,
+      error: real.status === "done" ? undefined : (real.error ?? cur.error),
+      warnings: real.warnings ?? cur.warnings,
+    };
   }
   return next;
 }
@@ -156,6 +149,7 @@ export interface DirectorApi {
   pause: () => void;
   reset: () => void;
   resetStage: (id: StageId) => void;
+  recalculate: () => void;
   approveStage: (id: StageId, approved: boolean) => void;
   setMode: (m: Mode) => void;
   setCaptionPreset: (id: DirectorProject["captionPreset"]) => void;
@@ -344,16 +338,21 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     const voice = readLS<VoiceProject>("docos.voice", id);
     const scenes = visual?.scenes ?? [];
     if (!voice || !scenes.length) {
-      patchStage("voice-sync", { status: "skipped", progress: 1 });
+      if (!scenes.length) {
+        patchStage("voice-sync", { status: "blocked", progress: 0, error: "Scene Planner has no scenes yet." });
+      } else {
+        patchStage("voice-sync", { status: "waiting", waitingFor: "Voice", progress: 0, error: "Waiting for Voice" });
+      }
       return;
     }
     // Gate voice-sync on real completed audio, not on the voice stage flag.
     const missing = voice.blocks.filter((b) => !(b.realSeconds && b.realSeconds > 0)).length;
     if (missing > 0) {
       patchStage("voice-sync", {
-        status: "pending",
+        status: "waiting",
+        waitingFor: "Voice",
         progress: 0,
-        error: `Waiting for ${missing} voice block(s) before sync.`,
+        error: `Waiting for Voice — ${voice.blocks.length - missing}/${voice.blocks.length} blocks valid`,
       });
       return;
     }
@@ -396,8 +395,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
         await putImage(`scene:${id}:${scene.sceneNumber}`, url);
       } catch (e) {
         if (isRateLimitError(e)) {
-          // Provider quota hit — mark skipped, keep completed images, continue.
-          patchStage("images", { status: "skipped", warnings: ["Provider free-tier limit reached — completed images kept."] });
+          patchStage("images", { status: "failed", error: "Provider free-tier limit — retry when cooldown ends.", warnings: ["Completed images preserved."] });
           return;
         }
         // Single image failure is not fatal; log and move on.
@@ -411,7 +409,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
   async function runCameraMotion(id: string) {
     const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
     const scenes = visual?.scenes ?? [];
-    if (!scenes.length) { patchStage("camera-motion", { status: "skipped" }); return; }
+    if (!scenes.length) { patchStage("camera-motion", { status: "blocked", progress: 0, error: "Waiting for valid scenes" }); return; }
     patchStage("camera-motion", { status: "running", total: scenes.length, current: 0 });
     const presets: DirectorProject["motionPresets"] = { ...projectRef.current!.motionPresets };
     let prev: ReturnType<typeof pickMotion> | undefined;
@@ -428,7 +426,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
 
   async function runSubtitleTiming(id: string) {
     const story = readLS<Story>("docos.story", id);
-    if (!story) { patchStage("subtitle-timing", { status: "skipped" }); return; }
+    if (!story) { patchStage("subtitle-timing", { status: "blocked", progress: 0, error: "Waiting for Story" }); return; }
     patchStage("subtitle-timing", { status: "running", progress: 0.4 });
     const paras = scriptToParagraphs(story.script);
     const cues = buildSubtitles(paras);
@@ -438,7 +436,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
 
   async function runMusic(id: string) {
     const story = readLS<Story>("docos.story", id);
-    if (!story) { patchStage("music", { status: "skipped" }); return; }
+    if (!story) { patchStage("music", { status: "blocked", progress: 0, error: "Waiting for Story" }); return; }
     patchStage("music", { status: "running", progress: 0.5 });
     const mood = suggestMood(story.script);
     // Call the real audio suggester server function to get concrete cues.
@@ -455,7 +453,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
   async function runSfx(id: string) {
     const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
     const scenes = visual?.scenes ?? [];
-    if (!scenes.length) { patchStage("sfx", { status: "skipped" }); return; }
+    if (!scenes.length) { patchStage("sfx", { status: "blocked", progress: 0, error: "Waiting for valid scenes" }); return; }
     patchStage("sfx", { status: "running", total: scenes.length, current: 0 });
     const cues: Record<string, string[]> = { ...projectRef.current!.sfxCues };
     for (let i = 0; i < scenes.length; i++) {
@@ -490,7 +488,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
         await putImage(`thumb:${id}:${i}`, url);
       } catch (e) {
         if (isRateLimitError(e)) {
-          patchStage("thumbnail", { status: "skipped", warnings: ["Provider limit — thumbnail draft partially rendered."] });
+          patchStage("thumbnail", { status: "failed", error: "Provider limit — thumbnail draft partially rendered.", warnings: ["Retry when provider cools down."] });
           return;
         }
       }
@@ -510,12 +508,20 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
   }
 
   async function runExportQueue(id: string) {
-    patchStage("export-queue", { status: "running", progress: 0.5 });
-    // Export queue is a pointer, not a heavy job: mark ready when all
-    // deliverables the export step needs are on disk. Fires a browser event
-    // so the /export route can pick up the ready state without polling.
+    // Export is only "done" once a real playable artifact is on disk
+    // (stamped under `export:<projectId>:*`). Otherwise stay waiting.
+    const states = computeStageStates(id, projectRef.current!);
+    const st = states["export-queue"];
+    if (st.status === "done") {
+      patchStage("export-queue", { status: "done", progress: 1 });
+      return;
+    }
     window.dispatchEvent(new CustomEvent("director:export-ready", { detail: { projectId: id } }));
-    patchStage("export-queue", { status: "done", progress: 1 });
+    patchStage("export-queue", {
+      status: "waiting",
+      progress: 0,
+      error: st.error ?? "Waiting for a rendered export file.",
+    });
   }
 
   const runners: Record<StageId, (id: string) => Promise<void>> = {
@@ -633,7 +639,8 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
         if (st.status === "done" || st.status === "skipped" || st.status === "failed" || st.status === "running") continue;
         if (inFlight.has(s.id)) continue;
         if (blocked(s.id)) {
-          patchStage(s.id, { status: "skipped", warnings: ["Upstream stage failed — skipped."] });
+          const upstream = DEPS[s.id].filter((d) => projectRef.current!.stages[d].status === "failed").join(", ");
+          patchStage(s.id, { status: "blocked", error: `Blocked — upstream failed: ${upstream || "unknown"}. Retry that stage then Resume.` });
           continue;
         }
         if (!ready(s.id)) {
@@ -676,6 +683,11 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     if (!projectRef.current) return;
     patchStage(id, { status: "pending", progress: 0, current: 0, error: undefined, approved: undefined });
   }, [patchStage]);
+
+  const recalculate = useCallback(() => {
+    if (!projectRef.current) return;
+    commit(hydrateFromArtifacts(projectRef.current));
+  }, [commit]);
 
   const approveStage = useCallback((id: StageId, approved: boolean) => {
     patchStage(id, { approved });
@@ -733,6 +745,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     pause,
     reset,
     resetStage,
+    recalculate,
     approveStage,
     setMode,
     setCaptionPreset,
