@@ -102,6 +102,9 @@ function DirectorPage() {
             <Button size="lg" variant="ghost" onClick={api.reset}>
               <RotateCcw className="mr-2 h-4 w-4" /> Reset
             </Button>
+            <Button size="lg" variant="outline" onClick={api.recalculate} title="Rescan stored artifacts and fix any stale stage status">
+              <Wand2 className="mr-2 h-4 w-4" /> Recalculate Status
+            </Button>
           </div>
         </div>
 
@@ -224,6 +227,7 @@ function StageRow({
               {stage.status === "running" && stage.total ? `${stage.current ?? 0}/${stage.total}` : null}
               {stage.status === "running" && !stage.total ? `${pct}%` : null}
               {stage.status === "waiting" && (stage.waitingFor ? `Waiting for ${stage.waitingFor}` : "Waiting")}
+              {stage.status === "blocked" && "Blocked"}
               {stage.status === "pending" && "Ready"}
               {stage.status === "failed" && "Failed"}
               {stage.status === "skipped" && "Skipped"}
