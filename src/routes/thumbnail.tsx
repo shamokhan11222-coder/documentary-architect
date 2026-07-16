@@ -260,14 +260,19 @@ function ThumbnailPage() {
   // First click: create ideas and render only ONE thumbnail (or a few in Best
   // Quality mode). Cheapest path — no wall of 10 auto-generated thumbnails.
   function handleGenerate() {
-    if (!selected) return;
+    if (!selected || !activeCtx) {
+      if (mounted && !activeCtx) toast.error("No active topic found. Return to Projects and select a topic.");
+      return;
+    }
     return withBusy("gen", async () => {
       setProviderLimit(false);
       setConceptPending(false);
       setProviderError(null);
       const conceptResult = (await gen({
         data: {
-          topic: selected.topic,
+          topic: activeCtx.title,
+          topicId: activeCtx.topicId,
+          projectId: activeCtx.projectId,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
@@ -308,10 +313,10 @@ function ThumbnailPage() {
   }
 
   function handleRegen(index: number) {
-    if (!selected || !pack) return;
+    if (!selected || !pack || !activeCtx) return;
     return withBusy(`i-${index}`, async () => {
       setProviderLimit(false);
-      const updated = (await regen({ data: { topic: selected.topic, idea: pack.ideas[index] } })) as ThumbnailIdea;
+      const updated = (await regen({ data: { topic: activeCtx.title, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
       try {
@@ -337,12 +342,17 @@ function ThumbnailPage() {
   // Generate the concept now, render the image later — keeps the concept saved
   // without attempting (and possibly failing) image generation.
   function handleGenerateLater() {
-    if (!selected) return;
+    if (!selected || !activeCtx) {
+      if (mounted && !activeCtx) toast.error("No active topic found. Return to Projects and select a topic.");
+      return;
+    }
     return withBusy("later", async () => {
       setProviderLimit(false);
       const laterResult = (await gen({
         data: {
-          topic: selected.topic,
+          topic: activeCtx.title,
+          topicId: activeCtx.topicId,
+          projectId: activeCtx.projectId,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
