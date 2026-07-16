@@ -38,6 +38,10 @@ export interface SyncScene {
   sceneKind?: string;
   /** For children created by auto-repair splits: the original parent scene id. */
   derivedFromSceneId?: string;
+  /** Canonical parent scene id for duration-repair child scenes. */
+  parentSceneId?: string;
+  /** Unique timing/motion slot for downstream motion assignment. */
+  motionSlotId?: string;
 }
 
 export interface SyncTimeline {
@@ -65,9 +69,13 @@ export const MODE_TARGETS: Record<SyncMode, { target: number; min: number; max: 
   auto:     { target: 3.0, min: 1.8, max: 4.0 },
   fast:     { target: 2.25, min: 1.8, max: 3.0 },
   balanced: { target: 3.0, min: 2.0, max: 3.5 },
-  slow:     { target: 3.75, min: 3.0, max: 4.5 },
+  slow:     { target: 3.75, min: 3.0, max: 4.0 },
   custom:   { target: 3.0, min: 1.8, max: 4.0 },
 };
+
+const MIN_SCENE_SECONDS = 1.8;
+const MAX_SCENE_SECONDS = 4.0;
+const TIMING_EPSILON = 0.000001;
 
 // ---------------- Storage ----------------
 
@@ -166,7 +174,7 @@ export function buildSyncTimeline(input: BuildInput): { timeline: SyncTimeline; 
     ? Math.max(1.5, Math.min(6, options.customTarget))
     : cfg.target;
   const minSecs = options.minSecs ?? cfg.min;
-  const maxSecs = options.maxSecs ?? cfg.max;
+  const maxSecs = Math.min(options.maxSecs ?? cfg.max, MAX_SCENE_SECONDS);
 
   // 1. Build voice-block timeline from real durations.
   const sortedBlocks = [...voice.blocks].sort((a, b) => a.index - b.index);
@@ -357,10 +365,10 @@ export function validateTimeline(t: SyncTimeline): ValidationResult {
       else if (s.start - prev.end > 0.1) warnings.push(`Gap of ${(s.start - prev.end).toFixed(2)}s before scene ${s.sceneNumber}.`);
     }
     if (!s.locked) {
-      if (s.duration > 4.01) {
+      if (s.duration > MAX_SCENE_SECONDS + TIMING_EPSILON) {
         warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can split this.`);
       }
-      if (s.duration < 1.8 && s.duration > 0) warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can merge this.`);
+      if (s.duration < MIN_SCENE_SECONDS && s.duration > 0) warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can merge this.`);
     }
     coveredSecs += s.duration;
   }
@@ -406,11 +414,9 @@ export function classifyTimeline(t: SyncTimeline): Classified {
         if (gap > 0.1) gaps.push({ beforeScene: s.sceneNumber, seconds: gap });
       }
     }
-    if (!s.locked) {
-      if (s.duration > 4.01) longScenes.push(s);
-      if (s.duration > 0 && s.duration < 1.8) shortScenes.push(s);
-    }
-    if (s.duration <= 0.001 && !s.missingImage) blocking.push(`Scene ${s.sceneNumber}: unmapped (0s).`);
+    if (s.duration > MAX_SCENE_SECONDS + TIMING_EPSILON) longScenes.push(s);
+    if (s.duration > 0 && s.duration < MIN_SCENE_SECONDS) shortScenes.push(s);
+    if (s.duration <= 0.001) blocking.push(`Scene ${s.sceneNumber}: unmapped (0s).`);
   }
 
   if (t.scenes.length && t.totalDuration > 0) {
@@ -438,6 +444,85 @@ function splitByPhrase(text: string): string[] {
   return parts.map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
+function wordLength(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+function splitWordsInHalf(text: string): [string, string] | null {
+  const all = text.split(/\s+/).filter(Boolean);
+  if (all.length < 2) return null;
+  const mid = Math.ceil(all.length / 2);
+  return [all.slice(0, mid).join(" "), all.slice(mid).join(" ")];
+}
+
+function naturalTextUnits(text: string, count: number): string[] {
+  const clean = text.trim();
+  if (!clean) return Array.from({ length: count }, () => "");
+
+  let units = splitIntoSentences(clean);
+  if (units.length < count) {
+    const phrases = splitByPhrase(clean);
+    if (phrases.length > units.length) units = phrases;
+  }
+
+  while (units.length < count) {
+    const idx = units.reduce((best, unit, i) => (wordLength(unit) > wordLength(units[best]) ? i : best), 0);
+    const split = splitWordsInHalf(units[idx]);
+    if (!split) break;
+    units.splice(idx, 1, split[0], split[1]);
+  }
+
+  if (units.length < count) {
+    return Array.from({ length: count }, (_, i) => units[i] ?? clean);
+  }
+  return units;
+}
+
+function chunkText(units: string[], count: number): string[] {
+  if (count <= 1) return [units.join(" ").trim()];
+  const chunks: string[] = [];
+  let cursor = 0;
+  for (let i = 0; i < count; i++) {
+    const remainingChunks = count - i;
+    const remainingUnits = units.slice(cursor);
+    if (remainingChunks <= 1) {
+      chunks.push(remainingUnits.join(" ").trim());
+      break;
+    }
+    const remainingWeight = remainingUnits.reduce((sum, unit) => sum + Math.max(1, wordLength(unit)), 0);
+    const target = remainingWeight / remainingChunks;
+    let taken = 0;
+    let weight = 0;
+    const maxTake = Math.max(1, remainingUnits.length - (remainingChunks - 1));
+    while (taken < maxTake) {
+      const nextWeight = Math.max(1, wordLength(remainingUnits[taken]));
+      if (taken > 0 && weight + nextWeight > target) break;
+      weight += nextWeight;
+      taken += 1;
+    }
+    chunks.push(remainingUnits.slice(0, taken || 1).join(" ").trim());
+    cursor += taken || 1;
+  }
+  while (chunks.length < count) chunks.push(units[units.length - 1] ?? "");
+  return chunks.slice(0, count);
+}
+
+function distributeDuration(totalDuration: number, childCount: number): number[] {
+  const durations: number[] = [];
+  let remaining = totalDuration;
+  for (let i = 0; i < childCount; i++) {
+    const remainingChildren = childCount - i;
+    const duration = i === childCount - 1 ? remaining : remaining / remainingChildren;
+    durations.push(duration);
+    remaining -= duration;
+  }
+  return durations;
+}
+
+function sceneSortKey(scene: SyncScene, index: number): [number, number, number] {
+  return [scene.start, scene.end, index];
+}
+
 export interface RepairSummary {
   longFixed: number;
   shortFixed: number;
@@ -446,6 +531,15 @@ export interface RepairSummary {
   merged: number;
   before: { long: number; short: number; gaps: number; missing: number };
   after: { long: number; short: number; gaps: number; missing: number };
+  longScenesBefore: { sceneId: string; sceneNumber: number; duration: number }[];
+  splitDetails: {
+    originalSceneId: string;
+    originalSceneNumber: number;
+    originalDuration: number;
+    children: { sceneId: string; sceneNumber: number; duration: number; parentSceneId: string }[];
+  }[];
+  maxFinalDuration: number;
+  totalTimelineDifference: number;
 }
 
 function snapshot(t: SyncTimeline) {
@@ -460,97 +554,115 @@ function snapshot(t: SyncTimeline) {
 
 /**
  * Deterministic auto-repair pipeline:
- * 1. Split long unlocked scenes at sentence/phrase boundaries into timing-only
- *    child scenes that share the parent image (child.derivedFromSceneId).
- * 2. Merge / redistribute unlocked short scenes with a compatible neighbour.
- * 3. Close any remaining gaps by extending the previous unlocked scene.
+ * 1. Split every scene above the hard 4.00s cap into the minimum number of
+ *    children required by ceil(duration / 4), using sentence/phrase boundaries
+ *    for narration text and exact duration preservation for timing.
+ * 2. Reflow all scene start/end values so later scenes stay continuous.
+ * 3. Preserve the original image slot on the first child and create separate
+ *    missing image/motion slots for additional children.
  */
 export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summary: RepairSummary; splitsCreated: number } {
   const before = snapshot(t);
   let scenes: SyncScene[] = t.scenes.map((s) => ({ ...s }));
+  const longScenesBefore = classifyTimeline(t).autoFixable.longScenes.map((s) => ({
+    sceneId: s.sceneId,
+    sceneNumber: s.sceneNumber,
+    duration: s.duration,
+  }));
 
   // ---- 1. SPLIT LONG SCENES ----
   let splitsCreated = 0;
+  const splitDetails: RepairSummary["splitDetails"] = [];
   const grown: SyncScene[] = [];
-  // Track the next available scene number across ALL iterations so multiple
-  // long-scene splits in the same pass never collide on scene numbers.
-  let nextNum = scenes.reduce((m, s) => Math.max(m, s.sceneNumber), 0) + 1;
-  for (const s of scenes) {
-    const cap = 4;
-    if (s.locked || s.duration <= cap + 0.05) { grown.push(s); continue; }
-
-    // Choose the number of child pieces so avg piece ≈ 2.75s (2.0–3.5 target).
-    const target = 2.75;
-    let pieces = Math.max(2, Math.round(s.duration / target));
-    // Try sentence split; if not enough sentences, fall back to phrase split; then even split.
-    let parts = splitIntoSentences(s.narrationText);
-    if (parts.length < pieces) {
-      const phrase = splitByPhrase(s.narrationText);
-      if (phrase.length > parts.length) parts = phrase;
+  scenes.forEach((s, originalIndex) => {
+    if (s.duration <= MAX_SCENE_SECONDS + TIMING_EPSILON) {
+      grown.push(s);
+      return;
     }
-    if (parts.length < 2) {
-      // No usable boundary — even split with placeholder text.
-      parts = Array.from({ length: pieces }, (_, i) => `${s.narrationText} (part ${i + 1})`.trim());
-    } else if (parts.length > pieces) {
-      // Combine adjacent parts to match target piece count.
-      const merged: string[] = [];
-      const groupSize = Math.ceil(parts.length / pieces);
-      for (let i = 0; i < parts.length; i += groupSize) merged.push(parts.slice(i, i + groupSize).join(" "));
-      parts = merged;
-    }
-    pieces = parts.length;
 
-    // Distribute duration by word count of each piece.
-    const weights = parts.map((p) => Math.max(1, p.split(/\s+/).filter(Boolean).length));
-    const total = weights.reduce((a, b) => a + b, 0);
-    let t0 = s.start;
-    // If the LAST piece would still exceed the cap under an uneven weight
-    // distribution, fall back to an even split so no child stays long.
-    const evenShare = s.duration / pieces;
-    const useEven = evenShare <= cap + 0.05;
-    parts.forEach((text, i) => {
-      const share = useEven ? evenShare : (weights[i] / total) * s.duration;
-      let dur = Math.max(1.8, Math.min(4, share));
-      // Last piece absorbs remainder to hit s.end exactly.
-      const isLast = i === parts.length - 1;
-      const start = t0;
-      const end = isLast ? s.end : Math.min(s.end, start + dur);
-      dur = end - start;
-      const child: SyncScene = i === 0
-        ? { ...s, end, duration: dur, narrationText: text, manual: true, sceneKind: s.sceneKind, derivedFromSceneId: s.sceneId }
-        : {
-          ...s,
-          sceneId: `scene-${nextNum}`,
-          sceneNumber: nextNum,
-          start, end, duration: dur,
-          narrationText: text,
-          manual: true,
-          // Share parent image; do NOT mark missing so pipeline treats it as covered.
-          imageId: s.imageId,
-          missingImage: s.missingImage,
-          status: s.status === "missing" ? "missing" : "ready",
-          derivedFromSceneId: s.sceneId,
-        };
-      grown.push(child);
-      if (i > 0) nextNum += 1;
-      t0 = end;
+    const childCount = Math.max(2, Math.ceil(s.duration / MAX_SCENE_SECONDS));
+    const units = naturalTextUnits(s.narrationText, childCount);
+    const textChunks = chunkText(units, childCount);
+    const durations = distributeDuration(s.duration, childCount);
+    const parentSceneId = s.parentSceneId ?? s.derivedFromSceneId ?? s.sceneId;
+    const children: SyncScene[] = [];
+    let cursor = s.start;
+
+    durations.forEach((duration, i) => {
+      const start = cursor;
+      const end = i === durations.length - 1 ? s.end : start + duration;
+      const childSceneId = i === 0 ? s.sceneId : `${parentSceneId}-part-${i + 1}`;
+      const hasOriginalImage = !s.missingImage && !!s.imageId;
+      const imageId = i === 0 ? s.imageId : `scene:${t.projectId}:${childSceneId}`;
+      const child: SyncScene = {
+        ...s,
+        sceneId: childSceneId,
+        sceneNumber: s.sceneNumber + (i / 1000) + (originalIndex / 1_000_000_000),
+        start,
+        end,
+        duration: end - start,
+        imageId,
+        narrationText: textChunks[i] || s.narrationText,
+        manual: true,
+        locked: false,
+        missingImage: i === 0 ? s.missingImage : true,
+        status: i === 0 ? (hasOriginalImage ? "ready" : "missing") : "missing",
+        derivedFromSceneId: parentSceneId,
+        parentSceneId,
+        motionSlotId: `motion:${t.projectId}:${childSceneId}`,
+      };
+      children.push(child);
+      cursor = end;
     });
-    splitsCreated += pieces - 1;
+
+    grown.push(...children);
+    splitDetails.push({
+      originalSceneId: s.sceneId,
+      originalSceneNumber: s.sceneNumber,
+      originalDuration: s.duration,
+      children: children.map((child) => ({
+        sceneId: child.sceneId,
+        sceneNumber: child.sceneNumber,
+        duration: child.duration,
+        parentSceneId,
+      })),
+    });
+    splitsCreated += childCount - 1;
+  });
+  scenes = grown
+    .map((scene, index) => ({ scene, key: sceneSortKey(scene, index) }))
+    .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2])
+    .map(({ scene }, index) => ({
+      ...scene,
+      sceneNumber: index + 1,
+      imageId: scene.imageId || `scene:${t.projectId}:${index + 1}`,
+      motionSlotId: scene.motionSlotId || `motion:${t.projectId}:${scene.sceneId}`,
+    }));
+  for (const detail of splitDetails) {
+    for (const child of detail.children) {
+      const repaired = scenes.find((scene) => scene.sceneId === child.sceneId);
+      if (repaired) child.sceneNumber = repaired.sceneNumber;
+    }
   }
-  scenes = grown;
 
   // ---- 2. MERGE / REDISTRIBUTE SHORT SCENES ----
   let merged = 0;
   const out: SyncScene[] = [];
   for (let i = 0; i < scenes.length; i++) {
     const s = scenes[i];
-    if (s.locked || s.duration >= 1.8 || s.duration <= 0.001) { out.push(s); continue; }
+    if (s.duration >= MIN_SCENE_SECONDS || s.duration <= 0.001) { out.push(s); continue; }
 
     const prev = out[out.length - 1];
     const next = scenes[i + 1];
     // Prefer merging with an adjacent scene derived from the same parent, else nearest unlocked.
-    const canMergePrev = prev && !prev.locked && (prev.derivedFromSceneId === s.derivedFromSceneId || prev.sceneNumber === s.sceneNumber - 1);
-    const canMergeNext = next && !next.locked && (next.derivedFromSceneId === s.derivedFromSceneId);
+    const canMergePrev = prev
+      && !prev.locked
+      && prev.duration + s.duration <= MAX_SCENE_SECONDS + TIMING_EPSILON
+      && (prev.derivedFromSceneId === s.derivedFromSceneId || prev.sceneNumber === s.sceneNumber - 1);
+    const canMergeNext = next
+      && !next.locked
+      && s.duration + next.duration <= MAX_SCENE_SECONDS + TIMING_EPSILON
+      && next.derivedFromSceneId === s.derivedFromSceneId;
 
     if (canMergePrev) {
       prev.end = s.end;
@@ -570,8 +682,8 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
       continue;
     }
     // Redistribute: try borrowing time from previous unlocked without dropping it below 1.8s.
-    if (prev && !prev.locked && prev.duration > 1.8 + (1.8 - s.duration) + 0.05) {
-      const needed = 1.8 - s.duration;
+    if (prev && prev.duration > MIN_SCENE_SECONDS + (MIN_SCENE_SECONDS - s.duration) + 0.05) {
+      const needed = MIN_SCENE_SECONDS - s.duration;
       prev.end -= needed;
       prev.duration = prev.end - prev.start;
       s.start = prev.end;
@@ -585,32 +697,29 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
   }
   scenes = out;
 
-  // ---- 3. CLOSE GAPS ----
+  // ---- 3. REFLOW TIMING / CLOSE GAPS ----
   let gapsClosed = 0;
-  for (let i = 1; i < scenes.length; i++) {
-    const prev = scenes[i - 1];
-    const s = scenes[i];
-    const gap = s.start - prev.end;
-    if (gap > 0.05) {
-      if (!prev.locked) {
-        prev.end = s.start;
-        prev.duration = prev.end - prev.start;
-        prev.manual = true;
-        gapsClosed += 1;
-      } else if (!s.locked) {
-        s.start = prev.end;
-        s.duration = s.end - s.start;
-        s.manual = true;
-        gapsClosed += 1;
-      }
-    } else if (gap < -0.001) {
-      // Overlap safety: pull s forward.
-      if (!s.locked) { s.start = prev.end; s.duration = Math.max(0, s.end - s.start); s.manual = true; }
-    }
+  let cursor = 0;
+  for (const s of scenes) {
+    if (Math.abs(s.start - cursor) > 0.05) gapsClosed += 1;
+    const duration = Math.max(0, s.duration);
+    s.start = cursor;
+    s.end = cursor + duration;
+    s.duration = duration;
+    s.manual = true;
+    cursor = s.end;
   }
 
-  // Renumber sequential scene numbers to keep the timeline tidy (preserve locked numbers).
-  // Skip renumber to preserve external references — just ensure uniqueness.
+  const drift = t.totalDuration - cursor;
+  if (Math.abs(drift) > TIMING_EPSILON && scenes.length) {
+    const last = scenes[scenes.length - 1];
+    const adjusted = last.duration + drift;
+    if (adjusted > 0 && adjusted <= MAX_SCENE_SECONDS + TIMING_EPSILON) {
+      last.duration = adjusted;
+      last.end = last.start + adjusted;
+      cursor = last.end;
+    }
+  }
 
   // Refresh status field.
   for (const s of scenes) {
@@ -622,6 +731,8 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
 
   const timeline: SyncTimeline = { ...t, scenes, generatedAt: Date.now() };
   const after = snapshot(timeline);
+  const maxFinalDuration = scenes.reduce((max, s) => Math.max(max, s.duration), 0);
+  const totalTimelineDifference = scenes.length ? Math.abs(scenes[scenes.length - 1].end - t.totalDuration) : t.totalDuration;
   const summary: RepairSummary = {
     longFixed: Math.max(0, before.long - after.long),
     shortFixed: Math.max(0, before.short - after.short),
@@ -629,6 +740,10 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
     splitsCreated,
     merged,
     before, after,
+    longScenesBefore,
+    splitDetails,
+    maxFinalDuration,
+    totalTimelineDifference,
   };
   return { timeline, summary, splitsCreated };
 }

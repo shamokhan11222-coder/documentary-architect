@@ -34,6 +34,52 @@ export const Route = createFileRoute("/voice-sync")({
 
 type Filter = "all" | "ready" | "missing" | "long" | "short" | "unmapped" | "locked";
 
+function repairUntilValid(start: SyncTimeline): { timeline: SyncTimeline; summary: ReturnType<typeof repairTimeline>["summary"] } {
+  let current = start;
+  let first: ReturnType<typeof repairTimeline>["summary"] | null = null;
+  let last: ReturnType<typeof repairTimeline>["summary"] | null = null;
+  const splitDetails: ReturnType<typeof repairTimeline>["summary"]["splitDetails"] = [];
+  let prevLong = Infinity;
+  for (let pass = 0; pass < 10; pass++) {
+    const { timeline, summary } = repairTimeline(current);
+    current = timeline;
+    if (!first) first = summary;
+    last = summary;
+    splitDetails.push(...summary.splitDetails);
+    if (summary.after.long === 0 && summary.after.gaps === 0) break;
+    if (summary.after.long >= prevLong && summary.splitDetails.length === 0) break;
+    prevLong = summary.after.long;
+  }
+  const summary = {
+    ...(last ?? first!),
+    before: first!.before,
+    longScenesBefore: first!.longScenesBefore,
+    splitDetails,
+    maxFinalDuration: current.scenes.reduce((max, s) => Math.max(max, s.duration), 0),
+    totalTimelineDifference: current.scenes.length
+      ? Math.abs(current.scenes[current.scenes.length - 1].end - current.totalDuration)
+      : current.totalDuration,
+  };
+  return { timeline: current, summary };
+}
+
+function logDurationRepair(summary: ReturnType<typeof repairUntilValid>["summary"]) {
+  console.info("[Voice Sync Duration Repair]", {
+    longSceneIdsBeforeRepair: summary.longScenesBefore.map((s) => s.sceneId),
+    durationBefore: summary.longScenesBefore.map((s) => ({ sceneId: s.sceneId, duration: s.duration })),
+    createdChildSceneIds: summary.splitDetails.map((d) => ({
+      originalSceneId: d.originalSceneId,
+      children: d.children.map((c) => c.sceneId),
+    })),
+    childDurations: summary.splitDetails.map((d) => ({
+      originalSceneId: d.originalSceneId,
+      children: d.children.map((c) => ({ sceneId: c.sceneId, duration: c.duration })),
+    })),
+    maxFinalDuration: summary.maxFinalDuration,
+    totalTimelineDifference: summary.totalTimelineDifference,
+  });
+}
+
 function VoiceSyncPage() {
   const { selected } = useSelectedProject();
   const map = useVisualMap(selected?.id ?? null);
@@ -46,6 +92,7 @@ function VoiceSyncPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [pending, setPending] = useState<SyncTimeline | null>(null);
   const [imageIds, setImageIds] = useState<Set<number>>(new Set());
+  const autoRepairKey = useRef<string | null>(null);
 
   const scenes = map ? [...map.scenes].sort((a, b) => a.sceneNumber - b.sceneNumber) : [];
 
@@ -77,7 +124,9 @@ function VoiceSyncPage() {
       options: { mode, customTarget },
       previous: stored,
     });
-    setPending(timeline);
+    const repaired = repairUntilValid(timeline);
+    logDurationRepair(repaired.summary);
+    setPending(repaired.timeline);
     setWarnings(warnings);
   }
 
@@ -95,25 +144,29 @@ function VoiceSyncPage() {
 
   function repairSync() {
     if (!active) return;
-    let current = active;
-    let first: ReturnType<typeof repairTimeline>["summary"] | null = null;
-    let last: ReturnType<typeof repairTimeline>["summary"] | null = null;
-    let prevLong = Infinity;
-    for (let pass = 0; pass < 5; pass++) {
-      const { timeline, summary } = repairTimeline(current);
-      current = timeline;
-      if (!first) first = summary;
-      last = summary;
-      if (summary.after.long === 0 && summary.after.gaps === 0) break;
-      if (summary.after.long >= prevLong) break;
-      prevLong = summary.after.long;
-    }
-    setPending(current);
-    const summary = { before: first!.before, after: last!.after };
+    const { timeline, summary } = repairUntilValid(active);
+    saveSyncTimeline(timeline);
+    setPending(null);
+    logDurationRepair(summary);
     toast.success(
-      `Long ${summary.before.long}→${summary.after.long} · Short ${summary.before.short}→${summary.after.short} · Gaps ${summary.before.gaps}→${summary.after.gaps} · Missing ${summary.before.missing} (unchanged)`,
+      `${summary.after.gaps} gap(s) remain · ${summary.after.long} scene(s) still long`,
     );
   }
+
+  useEffect(() => {
+    if (!stored) return;
+    const longScenes = classifyTimeline(stored).autoFixable.longScenes;
+    if (!longScenes.length) return;
+    const key = `${stored.projectId}:${stored.generatedAt}:${longScenes.map((s) => `${s.sceneId}:${s.duration}`).join("|")}`;
+    if (autoRepairKey.current === key) return;
+    autoRepairKey.current = key;
+    const { timeline, summary } = repairUntilValid(stored);
+    saveSyncTimeline(timeline);
+    setPending(null);
+    setWarnings([]);
+    logDurationRepair(summary);
+    toast.success(`${summary.after.gaps} gap(s) remain · ${summary.after.long} scene(s) still long`);
+  }, [stored?.projectId, stored?.generatedAt]);
 
   function resetSync() {
     if (!selected) return;
@@ -260,8 +313,8 @@ function VoiceSyncPage() {
               </div>
               <div className="mt-0.5 text-muted-foreground">
                 {ready
-                  ? `${active.scenes.filter((s) => s.missingImage).length} scene(s) still need images (non-blocking).`
-                  : `${classified?.autoFixable.longScenes.length ?? 0} long · ${classified?.autoFixable.shortScenes.length ?? 0} short · ${classified?.autoFixable.gaps.length ?? 0} gap(s). Click "Repair Sync Issues".`}
+                  ? `0 gap(s) remain · 0 scene(s) still long`
+                  : `${classified?.autoFixable.gaps.length ?? 0} gap(s) remain · ${classified?.autoFixable.longScenes.length ?? 0} scene(s) still long`}
               </div>
             </div>
           )}
@@ -280,7 +333,7 @@ function VoiceSyncPage() {
               <Stat label="Longest" value={`${stats.max.toFixed(2)}s`} />
               <Stat label="Unmapped" value={`${stats.unmapped}`} />
               <Stat label="Gaps" value={`${validation?.warnings.filter(w => w.includes("Gap")).length ?? 0}`} />
-              <Stat label="Status" value={validation?.ok ? (pending ? "Preview" : "Saved") : "Warnings"} />
+              <Stat label="Status" value={ready ? (pending ? "Preview" : "Complete") : "Warnings"} />
               <Stat label="Mode" value={active!.mode} />
             </div>
           )}
