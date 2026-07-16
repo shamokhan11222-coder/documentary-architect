@@ -6,6 +6,7 @@ import { generateBlockAudio } from "./local-tts/engine";
 import { concatSegments, encodeWav, blobToDataUrl, hashText } from "./local-tts/wav";
 import { ENGINE_VERSION } from "./local-tts/presets";
 import { postProcess } from "./local-tts/dsp";
+import { sanitizeNarration } from "./sanitize-narration";
 import {
   NEUTRAL_TUNING,
   ZENN_TUNING,
@@ -84,7 +85,9 @@ export async function generateVoiceBlock(
   onChunk?: (i: number, total: number) => void,
 ): Promise<number> {
   const id = voiceBlockId(topicId, index);
-  const hash = hashText(text);
+  const clean = sanitizeNarration(text);
+  if (!clean.trim()) throw new Error("Block text is empty after sanitization.");
+  const hash = hashText(clean);
   const presetId = settings.voicePresetId ?? "young-smooth-male";
   const targetSpeed = settings.speed || 1.0;
   const tuning = resolveTuning(settings);
@@ -102,7 +105,7 @@ export async function generateVoiceBlock(
     return existing.duration;
   }
   const { segments } = await generateBlockAudio({
-    text,
+    text: clean,
     presetId,
     speed: kokoroSpeed,
     dictionary: settings.dictionary,

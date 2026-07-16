@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { sanitizeNarration } from "./sanitize-narration";
 import type {
   PromptPack,
   RatingReport,
@@ -538,6 +539,9 @@ export function useStory(topicId: string | null): Story | null {
 }
 
 export function saveStory(s: Story) {
+  // Sanitize narration text at the persistence boundary so nothing downstream
+  // (TTS, sync, export) ever sees zero-width / control / replacement chars.
+  if (typeof s.script === "string") s = { ...s, script: sanitizeNarration(s.script) };
   const all = readRecord<Story>(KEYS.story);
   all[s.topicId] = s;
   write(KEYS.story, all);

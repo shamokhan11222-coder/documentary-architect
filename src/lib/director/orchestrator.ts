@@ -282,18 +282,17 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     for (let i = 0; i < blocks.length; i++) {
       if (cancelled.current) throw new DOMException("aborted", "AbortError");
       if (blocks[i].realSeconds && blocks[i].realSeconds! > 0) {
-        patchStage("voice", { current: i + 1, progress: (i + 1) / blocks.length, lastProgressAt: Date.now() });
         continue;
       }
       setTask(id, "voice", `Voice Director → narrating ${i + 1}/${blocks.length}…`);
-      // Stall detector: 5min without a chunk callback marks the block stalled
+      // Stall detector: 3min without a chunk callback marks the block stalled
       // but does NOT abort — independent stages keep running elsewhere.
       let lastTick = Date.now();
       const stallTimer = window.setInterval(() => {
-        if (Date.now() - lastTick > 5 * 60_000) {
-          patchStage("voice", { stalled: true, warnings: [`Block ${i + 1} stalled (>5min without progress). Retry or Skip.`] });
+        if (Date.now() - lastTick > 3 * 60_000) {
+          patchStage("voice", { stalled: true, warnings: [`Block ${i + 1} stalled (>3min without progress). Retry or Skip.`] });
         }
-      }, 30_000);
+      }, 20_000);
       try {
         blocks[i].realSeconds = await generateVoiceBlock(
           id, i, blocks[i].text, settings,
@@ -306,7 +305,15 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
       } finally {
         window.clearInterval(stallTimer);
       }
-      patchStage("voice", { current: i + 1, progress: (i + 1) / blocks.length, lastProgressAt: Date.now(), stalled: false });
+      // HONEST progress: recount valid blocks after each attempt (never advance
+      // by index — failed/skipped blocks must not push the bar forward).
+      const validNow = blocks.filter((b) => b.realSeconds && b.realSeconds > 0).length;
+      patchStage("voice", {
+        current: validNow,
+        progress: validNow / Math.max(1, blocks.length),
+        lastProgressAt: Date.now(),
+        stalled: false,
+      });
       // Persist partial progress after every block so refresh resumes cleanly.
       const partial: VoiceProject = { topicId: id, settings, blocks, generatedAt: Date.now() };
       const allNow = JSON.parse(localStorage.getItem("docos.voice") || "{}");
@@ -318,7 +325,18 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     all[id] = voice;
     localStorage.setItem("docos.voice", JSON.stringify(all));
     window.dispatchEvent(new Event("storage"));
-    patchStage("voice", { status: "done", progress: 1 });
+    // TRUE completion: only mark done when every required block has valid audio.
+    const validFinal = blocks.filter((b) => b.realSeconds && b.realSeconds > 0).length;
+    if (validFinal === blocks.length) {
+      patchStage("voice", { status: "done", progress: 1, current: validFinal });
+    } else {
+      patchStage("voice", {
+        status: "failed",
+        progress: validFinal / Math.max(1, blocks.length),
+        current: validFinal,
+        error: `Only ${validFinal}/${blocks.length} voice blocks completed. Retry Voice stage to finish the rest.`,
+      });
+    }
   }
 
   async function runVoiceSync(id: string) {
@@ -327,6 +345,16 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     const scenes = visual?.scenes ?? [];
     if (!voice || !scenes.length) {
       patchStage("voice-sync", { status: "skipped", progress: 1 });
+      return;
+    }
+    // Gate voice-sync on real completed audio, not on the voice stage flag.
+    const missing = voice.blocks.filter((b) => !(b.realSeconds && b.realSeconds > 0)).length;
+    if (missing > 0) {
+      patchStage("voice-sync", {
+        status: "pending",
+        progress: 0,
+        error: `Waiting for ${missing} voice block(s) before sync.`,
+      });
       return;
     }
     patchStage("voice-sync", { status: "running", progress: 0.4 });
