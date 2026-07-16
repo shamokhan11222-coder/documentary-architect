@@ -395,8 +395,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
         await putImage(`scene:${id}:${scene.sceneNumber}`, url);
       } catch (e) {
         if (isRateLimitError(e)) {
-          // Provider quota hit — mark skipped, keep completed images, continue.
-          patchStage("images", { status: "skipped", warnings: ["Provider free-tier limit reached — completed images kept."] });
+          patchStage("images", { status: "failed", error: "Provider free-tier limit — retry when cooldown ends.", warnings: ["Completed images preserved."] });
           return;
         }
         // Single image failure is not fatal; log and move on.
@@ -489,7 +488,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
         await putImage(`thumb:${id}:${i}`, url);
       } catch (e) {
         if (isRateLimitError(e)) {
-          patchStage("thumbnail", { status: "skipped", warnings: ["Provider limit — thumbnail draft partially rendered."] });
+          patchStage("thumbnail", { status: "failed", error: "Provider limit — thumbnail draft partially rendered.", warnings: ["Retry when provider cools down."] });
           return;
         }
       }
@@ -509,12 +508,20 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
   }
 
   async function runExportQueue(id: string) {
-    patchStage("export-queue", { status: "running", progress: 0.5 });
-    // Export queue is a pointer, not a heavy job: mark ready when all
-    // deliverables the export step needs are on disk. Fires a browser event
-    // so the /export route can pick up the ready state without polling.
+    // Export is only "done" once a real playable artifact is on disk
+    // (stamped under `export:<projectId>:*`). Otherwise stay waiting.
+    const states = computeStageStates(id, projectRef.current!);
+    const st = states["export-queue"];
+    if (st.status === "done") {
+      patchStage("export-queue", { status: "done", progress: 1 });
+      return;
+    }
     window.dispatchEvent(new CustomEvent("director:export-ready", { detail: { projectId: id } }));
-    patchStage("export-queue", { status: "done", progress: 1 });
+    patchStage("export-queue", {
+      status: "waiting",
+      progress: 0,
+      error: st.error ?? "Waiting for a rendered export file.",
+    });
   }
 
   const runners: Record<StageId, (id: string) => Promise<void>> = {
@@ -632,7 +639,8 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
         if (st.status === "done" || st.status === "skipped" || st.status === "failed" || st.status === "running") continue;
         if (inFlight.has(s.id)) continue;
         if (blocked(s.id)) {
-          patchStage(s.id, { status: "skipped", warnings: ["Upstream stage failed — skipped."] });
+          const upstream = DEPS[s.id].filter((d) => projectRef.current!.stages[d].status === "failed").join(", ");
+          patchStage(s.id, { status: "blocked", error: `Blocked — upstream failed: ${upstream || "unknown"}. Retry that stage then Resume.` });
           continue;
         }
         if (!ready(s.id)) {
