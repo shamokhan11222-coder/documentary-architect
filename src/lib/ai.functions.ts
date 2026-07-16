@@ -647,9 +647,10 @@ Return a JSON object:
   });
 
 export const regenerateThumbnail = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; idea: ThumbnailIdea }) => {
+  .inputValidator((data: { topic?: string; topicTitle?: string; idea: ThumbnailIdea }) => {
     if (!data?.idea) throw new Error("Idea is required");
-    return data;
+    const title = (data.topicTitle ?? data.topic ?? "").trim();
+    return { ...data, topic: title, topicTitle: title };
   })
   .handler(async ({ data }) => {
     const user = `Documentary: "${data.topic}"
