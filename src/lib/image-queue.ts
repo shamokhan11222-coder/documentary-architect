@@ -47,6 +47,36 @@ export function setQueueDelay(ms: number) {
   emit();
 }
 
+/** Neutral placeholder PNG (1024x576) used when a scene image is skipped
+ *  or when a Draft Export needs a stand-in for a missing/failed image. */
+export function makePlaceholderImage(sceneNumber: number, label = "Placeholder"): string {
+  if (typeof document === "undefined") {
+    // SSR-safe fallback: 1x1 transparent PNG.
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  }
+  const w = 1024, h = 576;
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, "#1f2937");
+  g.addColorStop(1, "#0b0f16");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(24, 24, w - 48, h - 48);
+  ctx.fillStyle = "#e5e7eb";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "600 44px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.fillText(`Scene ${sceneNumber}`, w / 2, h / 2 - 30);
+  ctx.font = "400 22px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+  ctx.fillStyle = "#9ca3af";
+  ctx.fillText(label, w / 2, h / 2 + 20);
+  return c.toDataURL("image/png");
+}
+
 // ---- internal state ----
 interface Runner {
   save: (scene: VisualScene, image: string) => Promise<void>;
@@ -192,6 +222,68 @@ export function continueFromLastImage() {
     if (n > lastDone && s !== "done") setItem(n, "pending");
   }
   resumeOrStart();
+}
+
+/** Retry the current stuck scene (or the first non-done scene) — re-queues it
+ *  as pending and (re)starts the loop. Never touches completed images. */
+export function retryStuckScene() {
+  if (!runner) return;
+  const target = currentScene ?? firstPending();
+  if (target == null) return;
+  if (items.get(target) !== "done") setItem(target, "pending");
+  resumeOrStart();
+}
+
+/** Save a neutral placeholder for a specific scene and mark it done so the
+ *  export pipeline can continue. Never overwrites an existing completed image. */
+export async function skipSceneWithPlaceholder(sceneNumber: number): Promise<void> {
+  if (!runner) return;
+  if (items.get(sceneNumber) === "done") return;
+  const scene = sceneMap.get(sceneNumber);
+  if (!scene) return;
+  const img = makePlaceholderImage(sceneNumber, "Missing image — placeholder");
+  await runner.save(scene, img);
+  setItem(sceneNumber, "done");
+  if (currentScene === sceneNumber) currentScene = null;
+  emit();
+}
+
+/** Skip the scene currently generating (or the first not-done scene) and move
+ *  on. If the loop is idle this simply marks it done with a placeholder. */
+export async function skipCurrentWithPlaceholder(): Promise<void> {
+  const target = currentScene ?? firstPending();
+  if (target == null) return;
+  await skipSceneWithPlaceholder(target);
+  // Cancel any in-flight wait and let the loop pick up the next pending scene.
+  if (state === "running" || state === "cooling") {
+    loopToken++;
+    if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+    resumeOrStart();
+  }
+}
+
+/** Mark every remaining pending / failed / cooling scene as a placeholder so a
+ *  Draft Export can proceed. Completed images are preserved. */
+export async function markRemainingAsPlaceholders(): Promise<number> {
+  if (!runner) return 0;
+  const targets = [...items.entries()]
+    .filter(([, s]) => s !== "done")
+    .map(([n]) => n)
+    .sort((a, b) => a - b);
+  for (const n of targets) {
+    await skipSceneWithPlaceholder(n);
+  }
+  if (state === "running" || state === "cooling") {
+    loopToken++;
+    if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+  }
+  state = "done";
+  currentScene = null;
+  message = targets.length
+    ? `Marked ${targets.length} scene(s) as placeholders.`
+    : "No missing scenes to mark.";
+  emit();
+  return targets.length;
 }
 
 function resumeOrStart() {

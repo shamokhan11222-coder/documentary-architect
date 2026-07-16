@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Loader2, Package } from "lucide-react";
+import { Loader2, Package, FileVideo } from "lucide-react";
 import JSZip from "jszip";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import { voiceBlockId } from "@/lib/generate-voice";
 import { slugify } from "@/lib/io";
 import type { Seo, RatingReport } from "@/lib/types";
 import { humanizeError } from "@/lib/humanize-error";
+import { makePlaceholderImage } from "@/lib/image-queue";
 
 export const Route = createFileRoute("/export")({
   head: () => ({ meta: [{ title: "Export — Stickmax Studio" }] }),
@@ -119,9 +120,31 @@ function ExportPage() {
   const subs = useSubtitles(id);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
+  const [imageStats, setImageStats] = useState<{ have: number; missing: number; total: number }>({
+    have: 0, missing: 0, total: 0,
+  });
 
-  async function exportAll() {
+  // Live count of which scene images actually exist in storage.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!selected || !map) { setImageStats({ have: 0, missing: 0, total: 0 }); return; }
+      let have = 0;
+      for (const s of map.scenes) {
+        const img = await loadImage(sceneImageId(selected.id, s.sceneNumber));
+        if (typeof img === "string" && img.length > 16) have++;
+      }
+      if (!cancelled) setImageStats({ have, missing: map.scenes.length - have, total: map.scenes.length });
+    })();
+    return () => { cancelled = true; };
+  }, [selected, map, busy]);
+
+  async function exportAll(mode: "full" | "draft") {
     if (!selected) return;
+    if (mode === "full" && imageStats.missing > 0) {
+      toast.error(`Full Export blocked: ${imageStats.missing} scene image(s) missing.`);
+      return;
+    }
     setBusy(true);
     try {
       const zip = new JSZip();
@@ -139,6 +162,7 @@ function ExportPage() {
         : 0;
 
       // storyboard.json + images/ with scene-number + timestamp filenames
+      let placeholderCount = 0;
       if (map) {
         root.file("storyboard.json", JSON.stringify(map.scenes, null, 2));
         const imagesDir = root.folder("images")!;
@@ -154,7 +178,11 @@ function ExportPage() {
         for (let i = 0; i < scenes.length; i++) {
           const s = scenes[i];
           setProgress(`Image ${i + 1}/${scenes.length}`);
-          const img = await loadImage(sceneImageId(selected.id, s.sceneNumber));
+          let img = await loadImage(sceneImageId(selected.id, s.sceneNumber));
+          if (!img && mode === "draft") {
+            img = makePlaceholderImage(s.sceneNumber, "Missing image — placeholder");
+            placeholderCount++;
+          }
           if (img) {
             const name = `${String(s.sceneNumber).padStart(3, "0")}_${stamp(clock)}.png`;
             imagesDir.file(name, dataUrlToBytes(img));
@@ -209,10 +237,14 @@ function ExportPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${slugify(selected.topic)}.zip`;
+      link.download = `${slugify(selected.topic)}${mode === "draft" ? "-draft" : ""}.zip`;
       link.click();
       URL.revokeObjectURL(url);
-      toast.success("Project exported");
+      toast.success(
+        mode === "draft"
+          ? `Draft exported (${placeholderCount} placeholder image${placeholderCount === 1 ? "" : "s"}).`
+          : "Project exported",
+      );
     } catch (e) {
       toast.error(humanizeError(e, "Export failed"));
     } finally {
@@ -262,11 +294,32 @@ function ExportPage() {
 ├── subtitles.srt
 └── rating.txt`}</pre>
 
-          <Button className="mt-5" onClick={exportAll} disabled={busy}>
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Package className="mr-2 h-4 w-4" />}
-            Export Entire Project
-          </Button>
-          {progress && <span className="ml-3 text-xs text-muted-foreground">{progress}</span>}
+          <div className="mt-5 grid gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs sm:grid-cols-4">
+            <div><span className="font-semibold">Images:</span> {imageStats.have} / {imageStats.total}</div>
+            <div><span className="font-semibold">Missing:</span> <span className={imageStats.missing ? "text-amber-600" : ""}>{imageStats.missing}</span></div>
+            <div><span className="font-semibold">Full Export:</span> {imageStats.missing === 0 && imageStats.total > 0 ? <span className="text-green-600">ready</span> : <span className="text-red-600">blocked</span>}</div>
+            <div><span className="font-semibold">Draft Export:</span> <span className="text-green-600">ready</span></div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => exportAll("full")}
+              disabled={busy || imageStats.missing > 0 || imageStats.total === 0}
+              title={imageStats.missing > 0 ? `Blocked: ${imageStats.missing} missing image(s)` : "Export the full project"}
+            >
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Package className="mr-2 h-4 w-4" />}
+              Full Export
+            </Button>
+            <Button variant="outline" onClick={() => exportAll("draft")} disabled={busy}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileVideo className="mr-2 h-4 w-4" />}
+              Draft Export {imageStats.missing > 0 && `(${imageStats.missing} placeholder${imageStats.missing === 1 ? "" : "s"})`}
+            </Button>
+            {progress && <span className="ml-2 text-xs text-muted-foreground">{progress}</span>}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Draft Export uses neutral placeholders for any missing scene images so you can preview the full timeline immediately.
+            Full Export unlocks once every scene has a generated image.
+          </p>
         </>
       )}
     </div>
