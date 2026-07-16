@@ -228,7 +228,7 @@ function VoiceSyncPage() {
     if (!stored) return;
     const longScenes = classifyTimeline(stored).autoFixable.longScenes;
     if (!longScenes.length) return;
-    const key = `${stored.projectId}:${stored.generatedAt}:${longScenes.map((s) => `${s.sceneId}:${s.duration}`).join("|")}`;
+    const key = `${stored.projectId}:${longScenes.map((s) => `${s.sceneId}:${s.duration}`).join("|")}`;
     if (autoRepairKey.current === key) return;
     autoRepairKey.current = key;
     applyRepairTimeline(stored, "auto");
