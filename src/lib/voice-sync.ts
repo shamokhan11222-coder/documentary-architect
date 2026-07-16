@@ -66,7 +66,7 @@ export const MODE_TARGETS: Record<SyncMode, { target: number; min: number; max: 
   fast:     { target: 2.25, min: 1.8, max: 3.0 },
   balanced: { target: 3.0, min: 2.0, max: 3.5 },
   slow:     { target: 3.75, min: 3.0, max: 4.5 },
-  custom:   { target: 3.0, min: 1.8, max: 5.0 },
+  custom:   { target: 3.0, min: 1.8, max: 4.0 },
 };
 
 // ---------------- Storage ----------------
@@ -357,11 +357,7 @@ export function validateTimeline(t: SyncTimeline): ValidationResult {
       else if (s.start - prev.end > 0.1) warnings.push(`Gap of ${(s.start - prev.end).toFixed(2)}s before scene ${s.sceneNumber}.`);
     }
     if (!s.locked) {
-      const isComplex = COMPLEX_SCENE_APPROVED_STATUSES.has(s.sceneKind ?? "");
-      if (s.duration > 4.01 && s.duration <= 5.01) {
-        if (isComplex) warnings.push(`Scene ${s.sceneNumber}: complex visual — ${s.duration.toFixed(2)}s approved.`);
-        else warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can split this.`);
-      } else if (s.duration > 5.01) {
+      if (s.duration > 4.01) {
         warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can split this.`);
       }
       if (s.duration < 1.8 && s.duration > 0) warnings.push(`Scene ${s.sceneNumber}: ${s.duration.toFixed(2)}s — repair can merge this.`);
@@ -379,9 +375,7 @@ export function validateTimeline(t: SyncTimeline): ValidationResult {
 
 // ---------------- Classification & Auto-Repair ----------------
 
-const COMPLEX_SCENE_APPROVED_STATUSES = new Set<string>([
-  "infographic", "diagram", "comparison", "map", "timeline", "data visualization",
-]);
+// Hard 4.00s cap applies to every scene kind (no complex-scene exception).
 
 export interface Classified {
   blocking: string[];       // must-fix errors (overlap, negative dur, mismatch)
@@ -413,9 +407,7 @@ export function classifyTimeline(t: SyncTimeline): Classified {
       }
     }
     if (!s.locked) {
-      const complex = COMPLEX_SCENE_APPROVED_STATUSES.has((s.sceneKind ?? "").toLowerCase());
-      if (s.duration > (complex ? 5.05 : 4.01)) longScenes.push(s);
-      else if (s.duration > 4.01 && complex) warnings.push(`Scene ${s.sceneNumber}: complex visual — ${s.duration.toFixed(2)}s approved.`);
+      if (s.duration > 4.01) longScenes.push(s);
       if (s.duration > 0 && s.duration < 1.8) shortScenes.push(s);
     }
     if (s.duration <= 0.001 && !s.missingImage) blocking.push(`Scene ${s.sceneNumber}: unmapped (0s).`);
@@ -484,8 +476,7 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
   // long-scene splits in the same pass never collide on scene numbers.
   let nextNum = scenes.reduce((m, s) => Math.max(m, s.sceneNumber), 0) + 1;
   for (const s of scenes) {
-    const complex = COMPLEX_SCENE_APPROVED_STATUSES.has((s.sceneKind ?? "").toLowerCase());
-    const cap = complex ? 5 : 4;
+    const cap = 4;
     if (s.locked || s.duration <= cap + 0.05) { grown.push(s); continue; }
 
     // Choose the number of child pieces so avg piece ≈ 2.75s (2.0–3.5 target).
@@ -519,7 +510,7 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
     const useEven = evenShare <= cap + 0.05;
     parts.forEach((text, i) => {
       const share = useEven ? evenShare : (weights[i] / total) * s.duration;
-      let dur = Math.max(1.8, Math.min(complex ? 5 : 4, share));
+      let dur = Math.max(1.8, Math.min(4, share));
       // Last piece absorbs remainder to hit s.end exactly.
       const isLast = i === parts.length - 1;
       const start = t0;

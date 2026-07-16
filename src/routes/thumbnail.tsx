@@ -268,16 +268,23 @@ function ThumbnailPage() {
       setProviderLimit(false);
       setConceptPending(false);
       setProviderError(null);
-      const conceptResult = (await gen({
-        data: {
-          topic: activeCtx.title,
-          topicId: activeCtx.topicId,
-          projectId: activeCtx.projectId,
-          script: story?.script,
-          angle: research?.storyAngles?.[0],
-          ...buildInjection(["thumbnail"]),
-        },
-      })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
+      const payload = {
+        projectId: activeCtx.projectId,
+        topicId: activeCtx.topicId,
+        topicTitle: activeCtx.title,
+        storyTitle: story?.script ? activeCtx.title : undefined,
+        storySummary: research?.storyAngles?.[0],
+        script: story?.script,
+        angle: research?.storyAngles?.[0],
+        ...buildInjection(["thumbnail"]),
+      };
+      if (dev) console.log("[thumbnail] request", {
+        resolvedTopicId: activeCtx.topicId,
+        resolvedTopicTitle: activeCtx.title,
+        resolvedProjectId: activeCtx.projectId,
+        requestPayload: payload,
+      });
+      const conceptResult = (await gen({ data: payload })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
       const ideas = conceptResult.ideas;
       setConceptProvider(conceptResult.conceptProvider);
       saveThumbnails({ topicId: selected.id, ideas, generatedAt: Date.now() });
@@ -316,7 +323,7 @@ function ThumbnailPage() {
     if (!selected || !pack || !activeCtx) return;
     return withBusy(`i-${index}`, async () => {
       setProviderLimit(false);
-      const updated = (await regen({ data: { topic: activeCtx.title, idea: pack.ideas[index] } })) as ThumbnailIdea;
+      const updated = (await regen({ data: { topic: activeCtx.title, topicTitle: activeCtx.title, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
       try {
@@ -350,9 +357,9 @@ function ThumbnailPage() {
       setProviderLimit(false);
       const laterResult = (await gen({
         data: {
-          topic: activeCtx.title,
-          topicId: activeCtx.topicId,
           projectId: activeCtx.projectId,
+          topicId: activeCtx.topicId,
+          topicTitle: activeCtx.title,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
@@ -513,6 +520,15 @@ function ThumbnailPage() {
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {!mounted ? "Loading selected topic…" : pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {!mounted
+          ? "Loading active project…"
+          : activeCtx
+            ? <>Active topic: <span className="font-medium text-foreground">{activeCtx.title}</span></>
+            : "No active topic. Return to Projects and select one."}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
           <Upload className="mr-2 h-4 w-4" /> Upload Thumbnail Manually
         </Button>
