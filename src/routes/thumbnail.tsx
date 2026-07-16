@@ -520,6 +520,15 @@ function ThumbnailPage() {
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {!mounted ? "Loading selected topic…" : pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        {!mounted
+          ? "Loading active project…"
+          : activeCtx
+            ? <>Active topic: <span className="font-medium text-foreground">{activeCtx.title}</span></>
+            : "No active topic. Return to Projects and select one."}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
           <Upload className="mr-2 h-4 w-4" /> Upload Thumbnail Manually
         </Button>
