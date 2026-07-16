@@ -20,6 +20,7 @@ import {
   Sliders,
   Download,
   Info,
+  Unlock,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -92,9 +93,19 @@ function DirectorPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <ModeSelector mode={project.mode} onChange={api.setMode} />
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="lg" onClick={api.start} disabled={api.running}>
-              {api.running ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Play className="mr-2 h-5 w-5" />}
-              🎬 Direct My Video
+            <Button
+              type="button"
+              size="lg"
+              onClick={(e) => { e.preventDefault(); void api.start(); }}
+              disabled={api.running || api.starting}
+            >
+              {api.starting ? (
+                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Starting Director…</>
+              ) : api.running ? (
+                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Production Running</>
+              ) : (
+                <><Play className="mr-2 h-5 w-5" /> 🎬 Direct My Video</>
+              )}
             </Button>
             <Button size="lg" variant="outline" onClick={api.pause} disabled={!api.running}>
               <Pause className="mr-2 h-4 w-4" /> Pause
@@ -105,8 +116,27 @@ function DirectorPage() {
             <Button size="lg" variant="outline" onClick={api.recalculate} title="Rescan stored artifacts and fix any stale stage status">
               <Wand2 className="mr-2 h-4 w-4" /> Recalculate Status
             </Button>
+            <Button size="lg" variant="ghost" onClick={api.resetLock} title="Clear stale isRunning/isStarting/production lock without deleting artifacts">
+              <Unlock className="mr-2 h-4 w-4" /> Reset Director Lock
+            </Button>
           </div>
         </div>
+
+        {api.startError && (
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex-1">
+              <div className="font-medium">Director could not start</div>
+              <div className="text-xs opacity-90">{api.startError}</div>
+            </div>
+            <button
+              className="rounded-md border border-destructive/40 px-2 py-0.5 text-xs hover:bg-destructive/20"
+              onClick={(e) => { e.preventDefault(); void api.start(); }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
           <Kpi label="Current Stage" value={currentStage?.label ?? "Idle"} />
