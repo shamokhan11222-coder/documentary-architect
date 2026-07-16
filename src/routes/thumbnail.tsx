@@ -121,6 +121,36 @@ function ThumbnailPage() {
   const uploadIndexRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Hydration: on first render (SSR + before localStorage flushes) `topics`
+  // is [] and any `selectedId` won't resolve. We can't rely on `selected`
+  // alone to gate the button — flip a mount flag so we know the client-side
+  // store has been read at least once.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // Canonical active-topic resolver. Priority:
+  //   1. Selected id matches a normalized topic in the store  (route/store)
+  //   2. Persisted selectedTopicId points to a topic we can find (persisted)
+  //   3. Fallback to the first topic in the list (localStorage)
+  // Always returns a non-empty title — never sends whitespace to the server.
+  type ActiveTopicCtx = { topicId: string; title: string; projectId: string; source: "store" | "persisted" | "fallback" };
+  const activeCtx: ActiveTopicCtx | null = useMemo(() => {
+    const clean = (s: unknown) => (typeof s === "string" ? s.trim() : "");
+    const build = (t: (typeof topics)[number], source: ActiveTopicCtx["source"]): ActiveTopicCtx => ({
+      topicId: t.id,
+      projectId: t.id,
+      title: clean(t.topic) || clean(t.altTitle) || "Untitled project",
+      source,
+    });
+    if (selected) return build(selected, selectedId === selected.id ? "store" : "persisted");
+    const persisted = selectedId ? topics.find((t) => t.id === selectedId) : null;
+    if (persisted) return build(persisted, "persisted");
+    if (topics[0]) return build(topics[0], "fallback");
+    return null;
+  }, [selected, selectedId, topics]);
+
+  const topicReady = mounted && !!activeCtx;
+
   // Reactive truth for the FIRST thumbnail image. The "ready" state is derived
   // ONLY from an actually-stored image URL — never from concept-only data.
   const firstImg = useImage(selected ? thumbImageId(selected.id, 0) : null);
@@ -230,14 +260,19 @@ function ThumbnailPage() {
   // First click: create ideas and render only ONE thumbnail (or a few in Best
   // Quality mode). Cheapest path — no wall of 10 auto-generated thumbnails.
   function handleGenerate() {
-    if (!selected) return;
+    if (!selected || !activeCtx) {
+      if (mounted && !activeCtx) toast.error("No active topic found. Return to Projects and select a topic.");
+      return;
+    }
     return withBusy("gen", async () => {
       setProviderLimit(false);
       setConceptPending(false);
       setProviderError(null);
       const conceptResult = (await gen({
         data: {
-          topic: selected.topic,
+          topic: activeCtx.title,
+          topicId: activeCtx.topicId,
+          projectId: activeCtx.projectId,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
@@ -278,10 +313,10 @@ function ThumbnailPage() {
   }
 
   function handleRegen(index: number) {
-    if (!selected || !pack) return;
+    if (!selected || !pack || !activeCtx) return;
     return withBusy(`i-${index}`, async () => {
       setProviderLimit(false);
-      const updated = (await regen({ data: { topic: selected.topic, idea: pack.ideas[index] } })) as ThumbnailIdea;
+      const updated = (await regen({ data: { topic: activeCtx.title, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
       try {
@@ -307,12 +342,17 @@ function ThumbnailPage() {
   // Generate the concept now, render the image later — keeps the concept saved
   // without attempting (and possibly failing) image generation.
   function handleGenerateLater() {
-    if (!selected) return;
+    if (!selected || !activeCtx) {
+      if (mounted && !activeCtx) toast.error("No active topic found. Return to Projects and select a topic.");
+      return;
+    }
     return withBusy("later", async () => {
       setProviderLimit(false);
       const laterResult = (await gen({
         data: {
-          topic: selected.topic,
+          topic: activeCtx.title,
+          topicId: activeCtx.topicId,
+          projectId: activeCtx.projectId,
           script: story?.script,
           angle: research?.storyAngles?.[0],
           ...buildInjection(["thumbnail"]),
@@ -469,9 +509,9 @@ function ThumbnailPage() {
             </option>
           ))}
         </select>
-        <Button onClick={handleGenerate} disabled={!selected || !!busy}>
+        <Button onClick={handleGenerate} disabled={!topicReady || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
+          {!mounted ? "Loading selected topic…" : pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
         <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
           <Upload className="mr-2 h-4 w-4" /> Upload Thumbnail Manually
@@ -601,6 +641,10 @@ function ThumbnailPage() {
       {/* Debug line — reflects the raw thumbnail state, never concept-only. */}
       {selected && dev && (
         <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+          <div>Active Topic ID: {activeCtx?.topicId ?? "—"}</div>
+          <div>Active Title: {activeCtx?.title ?? "—"}</div>
+          <div>Project ID: {activeCtx?.projectId ?? "—"}</div>
+          <div>Source: {activeCtx?.source ?? "—"}</div>
           <div>Thumbnail Status: {thumbnailStatus}</div>
           <div>Has Image URL: {hasImageUrl ? "true" : "false"}</div>
           <div>Concept Provider: {conceptProvider ?? "—"}</div>
@@ -634,6 +678,12 @@ function ThumbnailPage() {
       )}
 
       {!selected && <p className="mt-6 text-sm text-muted-foreground">Select a project to start.</p>}
+
+      {mounted && !activeCtx && topics.length === 0 && (
+        <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+          No active topic found. Return to Projects and select a topic.
+        </p>
+      )}
 
       {pack && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
