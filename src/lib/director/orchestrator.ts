@@ -149,6 +149,7 @@ export interface DirectorApi {
   pause: () => void;
   reset: () => void;
   resetStage: (id: StageId) => void;
+  retryStage: (id: StageId) => Promise<void>;
   recalculate: () => void;
   approveStage: (id: StageId, approved: boolean) => void;
   setMode: (m: Mode) => void;
