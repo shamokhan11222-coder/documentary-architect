@@ -509,9 +509,9 @@ function ThumbnailPage() {
             </option>
           ))}
         </select>
-        <Button onClick={handleGenerate} disabled={!selected || !!busy}>
+        <Button onClick={handleGenerate} disabled={!topicReady || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
+          {!mounted ? "Loading selected topic…" : pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
         <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
           <Upload className="mr-2 h-4 w-4" /> Upload Thumbnail Manually
@@ -674,6 +674,12 @@ function ThumbnailPage() {
       )}
 
       {!selected && <p className="mt-6 text-sm text-muted-foreground">Select a project to start.</p>}
+
+      {mounted && !activeCtx && topics.length === 0 && (
+        <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+          No active topic found. Return to Projects and select a topic.
+        </p>
+      )}
 
       {pack && selected && (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
