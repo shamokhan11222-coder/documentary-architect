@@ -601,7 +601,7 @@ function fallbackThumbnailConcepts(topic: string, angle?: string, count = 3): Th
 }
 
 export const generateThumbnails = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; script?: string; angle?: string; instructions?: string; knowledge?: string }) => {
+  .inputValidator((data: { topic: string; topicId?: string; projectId?: string; script?: string; angle?: string; instructions?: string; knowledge?: string }) => {
     if (!data?.topic?.trim()) throw new Error("Topic is required");
     return data;
   })
