@@ -14,6 +14,9 @@ import {
   stopAfterCurrentImage,
   setQueueDelay,
   DELAY_OPTIONS,
+  retryStuckScene,
+  skipCurrentWithPlaceholder,
+  markRemainingAsPlaceholders,
 } from "@/lib/image-queue";
 import { usePuterStatus } from "@/lib/puter-image";
 import { usePollinationsStatus } from "@/lib/pollinations-image";
@@ -198,6 +201,31 @@ export function ImageQueuePanel({ onStart }: { onStart: () => void }) {
           </Button>
           <Button size="sm" variant="outline" onClick={continueFromLastImage}>
             <SkipForward className="mr-1 h-4 w-4" /> Continue From Last
+          </Button>
+          <Button size="sm" variant="outline" onClick={retryStuckScene}>
+            <RotateCcw className="mr-1 h-4 w-4" /> Retry Stuck Scene
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              void skipCurrentWithPlaceholder().then(() =>
+                toast.success("Scene marked as placeholder — queue moved on."),
+              );
+            }}
+          >
+            <SkipForward className="mr-1 h-4 w-4" /> Skip Scene w/ Placeholder
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              void markRemainingAsPlaceholders().then((n) =>
+                toast.success(`Marked ${n} remaining scene(s) as placeholders.`),
+              );
+            }}
+          >
+            <ImageIcon className="mr-1 h-4 w-4" /> Mark Remaining as Placeholders
           </Button>
         </div>
       </div>
