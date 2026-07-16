@@ -641,6 +641,10 @@ function ThumbnailPage() {
       {/* Debug line — reflects the raw thumbnail state, never concept-only. */}
       {selected && dev && (
         <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+          <div>Active Topic ID: {activeCtx?.topicId ?? "—"}</div>
+          <div>Active Title: {activeCtx?.title ?? "—"}</div>
+          <div>Project ID: {activeCtx?.projectId ?? "—"}</div>
+          <div>Source: {activeCtx?.source ?? "—"}</div>
           <div>Thumbnail Status: {thumbnailStatus}</div>
           <div>Has Image URL: {hasImageUrl ? "true" : "false"}</div>
           <div>Concept Provider: {conceptProvider ?? "—"}</div>
