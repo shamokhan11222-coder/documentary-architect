@@ -545,7 +545,6 @@ export function saveStory(s: Story) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { sanitizeNarration } = require("./sanitize-narration") as typeof import("./sanitize-narration");
     if (typeof s.script === "string") s = { ...s, script: sanitizeNarration(s.script) };
-    if (typeof s.hook === "string") s = { ...s, hook: sanitizeNarration(s.hook) };
   } catch {
     /* sanitizer unavailable — persist raw */
   }
