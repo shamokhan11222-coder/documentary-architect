@@ -95,8 +95,21 @@ function VoiceSyncPage() {
 
   function repairSync() {
     if (!active) return;
-    const { timeline, summary } = repairTimeline(active);
-    setPending(timeline);
+    let current = active;
+    let first: ReturnType<typeof repairTimeline>["summary"] | null = null;
+    let last: ReturnType<typeof repairTimeline>["summary"] | null = null;
+    let prevLong = Infinity;
+    for (let pass = 0; pass < 5; pass++) {
+      const { timeline, summary } = repairTimeline(current);
+      current = timeline;
+      if (!first) first = summary;
+      last = summary;
+      if (summary.after.long === 0 && summary.after.gaps === 0) break;
+      if (summary.after.long >= prevLong) break;
+      prevLong = summary.after.long;
+    }
+    setPending(current);
+    const summary = { before: first!.before, after: last!.after };
     toast.success(
       `Long ${summary.before.long}→${summary.after.long} · Short ${summary.before.short}→${summary.after.short} · Gaps ${summary.before.gaps}→${summary.after.gaps} · Missing ${summary.before.missing} (unchanged)`,
     );
