@@ -602,32 +602,36 @@ function fallbackThumbnailConcepts(topic: string, angle?: string, count = 3): Th
 
 export const generateThumbnails = createServerFn({ method: "POST" })
   .inputValidator((data: {
-    topicTitle?: string;
-    topic?: string;
-    topicId?: string;
-    projectId?: string;
+    projectId: string;
+    topicId: string;
+    topicTitle: string;
     storyTitle?: string;
     storySummary?: string;
-    script?: string;
-    angle?: string;
-    instructions?: string;
-    knowledge?: string;
   }) => {
-    // Canonical field is `topicTitle`. Legacy callers may still send `topic`.
-    const title = (data?.topicTitle ?? data?.topic ?? "").trim();
-    if (!title) throw new Error("Topic is required");
-    // Dev-safe server log (never logs keys/PII).
-    console.log("[thumbnail] receivedInputKeys=", Object.keys(data ?? {}),
-      " receivedTopicTitle=", title,
-      " receivedTopicId=", data?.topicId ?? null,
-      " receivedProjectId=", data?.projectId ?? null);
-    return { ...data, topic: title, topicTitle: title };
+    const projectId = data?.projectId?.trim() ?? "";
+    const topicId = data?.topicId?.trim() ?? "";
+    const topicTitle = data?.topicTitle?.trim() ?? "";
+    console.log("[thumbnail] server input", {
+      receivedInputKeys: Object.keys(data ?? {}),
+      receivedProjectId: projectId,
+      receivedTopicId: topicId,
+      receivedTopicTitle: topicTitle,
+    });
+    if (!projectId) throw new Error("Project is required");
+    if (!topicId) throw new Error("Topic ID is required");
+    if (!data?.topicTitle?.trim()) throw new Error("Topic is required");
+    return {
+      projectId,
+      topicId,
+      topicTitle,
+      storyTitle: data.storyTitle?.trim() || undefined,
+      storySummary: data.storySummary?.trim() || undefined,
+    };
   })
   .handler(async ({ data }) => {
-    const user = `Documentary topic: "${data.topic}"
-${data.angle ? `Main story angle: ${data.angle}` : ""}
-${data.script ? `SCRIPT:\n${data.script.slice(0, 6000)}` : ""}
-${injectionBlock(data)}
+    const user = `Documentary topic: "${data.topicTitle}"
+${data.storyTitle ? `Story title: ${data.storyTitle}` : ""}
+${data.storySummary ? `Story summary: ${data.storySummary}` : ""}
 Generate 10 distinct high-CTR thumbnail ideas.
 
 Return a JSON object:
@@ -642,7 +646,7 @@ Return a JSON object:
       return { ideas, conceptProvider: "Lovable AI Gateway" };
     } catch (e) {
       console.error("[thumbnail] concept gateway failed, using local fallback:", e instanceof Error ? e.message : e);
-      return { ideas: fallbackThumbnailConcepts(data.topic, data.angle), conceptProvider: "Local Fallback" };
+      return { ideas: fallbackThumbnailConcepts(data.topicTitle, data.storySummary), conceptProvider: "Local Fallback" };
     }
   });
 

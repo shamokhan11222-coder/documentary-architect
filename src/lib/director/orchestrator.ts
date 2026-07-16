@@ -484,13 +484,21 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     if (!story) throw new Error("Story required before thumbnail.");
     patchStage("thumbnail", { status: "running", progress: 0.2 });
     setTask(id, "thumbnail", "Thumbnail Designer → designing…");
+    const payload = {
+      projectId: id,
+      topicId: id,
+      topicTitle: topic ?? "",
+      storyTitle: story.sections?.[0]?.title || undefined,
+      storySummary: research?.storyAngles?.[0],
+    };
+    console.log("[thumbnail] client payload", {
+      projectId: payload.projectId,
+      topicId: payload.topicId,
+      topicTitle: payload.topicTitle,
+      payload,
+    });
     const { ideas } = (await withRetry(() => doThumbs({
-      data: {
-        topic: topic ?? "",
-        script: story.script,
-        angle: research?.storyAngles?.[0],
-        ...buildInjection(["thumbnail"]),
-      },
+      data: payload,
     }))) as { ideas: ThumbnailIdea[]; conceptProvider: string };
     saveThumbnails({ topicId: id, ideas, generatedAt: Date.now() });
     for (let i = 0; i < ideas.length; i++) {
