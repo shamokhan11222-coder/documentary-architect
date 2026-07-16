@@ -226,8 +226,21 @@ function ProjectsPage() {
       }
 
       setAutoStep("Designing thumbnails…");
+      const thumbnailPayload = {
+        projectId: t.id,
+        topicId: t.id,
+        topicTitle: t.topic,
+        storyTitle: story.sections?.[0]?.title || undefined,
+        storySummary: research.storyAngles?.[0],
+      };
+      console.log("[thumbnail] client payload", {
+        projectId: thumbnailPayload.projectId,
+        topicId: thumbnailPayload.topicId,
+        topicTitle: thumbnailPayload.topicTitle,
+        payload: thumbnailPayload,
+      });
       const { ideas } = (await doThumbs({
-        data: { topic: t.topic, script: story.script, angle: research.storyAngles?.[0], ...buildInjection(["thumbnail"]) },
+        data: thumbnailPayload,
       })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
       saveThumbnails({ topicId: t.id, ideas, generatedAt: Date.now() });
       for (let i = 0; i < ideas.length; i++) {
