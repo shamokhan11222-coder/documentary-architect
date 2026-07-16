@@ -366,11 +366,23 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
       hasImage: (n) => imageIds.has(n),
       options: { mode: "auto" }, previous: readSyncTimeline(id),
     });
-    const { timeline: repaired, summary } = repairTimeline(timeline);
-    saveSyncTimeline(repaired);
-    const w = summary.after.long > 0 || summary.after.gaps > 0
-      ? [`${summary.after.gaps} gap(s) remain, ${summary.after.long} scene(s) still long`]
-      : [];
+    // Iteratively auto-split until no long scenes remain (or no progress).
+    let current = timeline;
+    let lastLong = Infinity;
+    let lastSummary: ReturnType<typeof repairTimeline>["summary"] | null = null;
+    for (let pass = 0; pass < 5; pass++) {
+      const { timeline: next, summary } = repairTimeline(current);
+      current = next;
+      lastSummary = summary;
+      if (summary.after.long === 0 && summary.after.gaps === 0) break;
+      if (summary.after.long >= lastLong) break; // no further progress
+      lastLong = summary.after.long;
+    }
+    saveSyncTimeline(current);
+    const after = lastSummary?.after ?? { long: 0, gaps: 0, short: 0, missing: 0 };
+    const w: string[] = [];
+    if (after.long > 0) w.push(`${after.long} scene(s) could not be split safely.`);
+    if (after.gaps > 0) w.push(`${after.gaps} gap(s) remain.`);
     patchStage("voice-sync", { status: "done", progress: 1, warnings: w });
   }
 
