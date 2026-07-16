@@ -463,7 +463,7 @@ function SceneRow({
   onMerge: () => void;
   onEndChange: (v: number) => void;
 }) {
-  const img = useImage(`scene:${topicId}:${scene.sceneNumber}`);
+  const img = useImage(scene.imageId || `scene:${topicId}:${scene.sceneNumber}`);
   return (
     <div className="flex items-center gap-3 p-2 text-sm">
       <span className="w-20 shrink-0 font-mono text-[11px] text-muted-foreground">{fmtTimestamp(scene.start, ".").slice(0, 8)}</span>
@@ -525,7 +525,7 @@ function PreviewPlayer({ timeline, topicId }: { timeline: SyncTimeline; topicId:
   }, []);
 
   const currentScene = timeline.scenes.find((s) => t >= s.start && t < s.end) ?? timeline.scenes[0];
-  const currentImg = useImage(currentScene ? `scene:${topicId}:${currentScene.sceneNumber}` : null);
+  const currentImg = useImage(currentScene ? (currentScene.imageId || `scene:${topicId}:${currentScene.sceneNumber}`) : null);
 
   async function play() {
     if (!ready) { toast.info("Loading narration…"); return; }
