@@ -685,6 +685,11 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     patchStage(id, { status: "pending", progress: 0, current: 0, error: undefined, approved: undefined });
   }, [patchStage]);
 
+  const recalculate = useCallback(() => {
+    if (!projectRef.current) return;
+    commit(hydrateFromArtifacts(projectRef.current));
+  }, [commit]);
+
   const approveStage = useCallback((id: StageId, approved: boolean) => {
     patchStage(id, { approved });
   }, [patchStage]);
