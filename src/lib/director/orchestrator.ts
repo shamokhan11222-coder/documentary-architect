@@ -685,6 +685,34 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     patchStage(id, { status: "pending", progress: 0, current: 0, error: undefined, approved: undefined });
   }, [patchStage]);
 
+  // Immediate retry: reset the failed/blocked stage to pending and kick the
+  // scheduler right now. Existing valid artifacts (e.g. completed voice
+  // blocks) are preserved because runners re-hydrate from IndexedDB /
+  // localStorage before generating anything.
+  const retryStage = useCallback(async (id: StageId) => {
+    if (!projectRef.current || !topicId) return;
+    patchStage(id, { status: "pending", progress: 0, current: 0, error: undefined, warnings: [], stalled: false });
+    // Also clear downstream "blocked" flags so the scheduler re-evaluates them.
+    for (const s of STAGES) {
+      const st = projectRef.current.stages[s.id].status;
+      if (st === "blocked" || st === "waiting") {
+        patchStage(s.id, { status: "pending", error: undefined });
+      }
+    }
+    if (running) return; // scheduler will pick it up on the next tick
+    cancelled.current = false;
+    setRunning(true);
+    setPipelineRunning(topicId, true);
+    logActivity(topicId, `Retry Now → ${id}`, "info");
+    try {
+      await runScheduler(topicId);
+    } finally {
+      setRunning(false);
+      setPipelineRunning(topicId, false);
+      commit({ ...projectRef.current!, currentStage: null });
+    }
+  }, [topicId, running, patchStage, commit]);
+
   const recalculate = useCallback(() => {
     if (!projectRef.current) return;
     commit(hydrateFromArtifacts(projectRef.current));
@@ -746,6 +774,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     pause,
     reset,
     resetStage,
+    retryStage,
     recalculate,
     approveStage,
     setMode,
