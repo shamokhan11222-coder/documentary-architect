@@ -150,6 +150,7 @@ export interface DirectorApi {
   pause: () => void;
   reset: () => void;
   resetStage: (id: StageId) => void;
+  recalculate: () => void;
   approveStage: (id: StageId, approved: boolean) => void;
   setMode: (m: Mode) => void;
   setCaptionPreset: (id: DirectorProject["captionPreset"]) => void;
@@ -740,6 +741,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     pause,
     reset,
     resetStage,
+    recalculate,
     approveStage,
     setMode,
     setCaptionPreset,
