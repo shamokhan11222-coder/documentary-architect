@@ -479,8 +479,10 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
 
   // ---- 1. SPLIT LONG SCENES ----
   let splitsCreated = 0;
-  const nextNumStart = () => scenes.reduce((m, s) => Math.max(m, s.sceneNumber), 0) + 1;
   const grown: SyncScene[] = [];
+  // Track the next available scene number across ALL iterations so multiple
+  // long-scene splits in the same pass never collide on scene numbers.
+  let nextNum = scenes.reduce((m, s) => Math.max(m, s.sceneNumber), 0) + 1;
   for (const s of scenes) {
     const complex = COMPLEX_SCENE_APPROVED_STATUSES.has((s.sceneKind ?? "").toLowerCase());
     const cap = complex ? 5 : 4;
@@ -511,9 +513,12 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
     const weights = parts.map((p) => Math.max(1, p.split(/\s+/).filter(Boolean).length));
     const total = weights.reduce((a, b) => a + b, 0);
     let t0 = s.start;
-    let base = nextNumStart();
+    // If the LAST piece would still exceed the cap under an uneven weight
+    // distribution, fall back to an even split so no child stays long.
+    const evenShare = s.duration / pieces;
+    const useEven = evenShare <= cap + 0.05;
     parts.forEach((text, i) => {
-      const share = (weights[i] / total) * s.duration;
+      const share = useEven ? evenShare : (weights[i] / total) * s.duration;
       let dur = Math.max(1.8, Math.min(complex ? 5 : 4, share));
       // Last piece absorbs remainder to hit s.end exactly.
       const isLast = i === parts.length - 1;
@@ -524,8 +529,8 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
         ? { ...s, end, duration: dur, narrationText: text, manual: true, sceneKind: s.sceneKind, derivedFromSceneId: s.sceneId }
         : {
           ...s,
-          sceneId: `scene-${base}`,
-          sceneNumber: base,
+          sceneId: `scene-${nextNum}`,
+          sceneNumber: nextNum,
           start, end, duration: dur,
           narrationText: text,
           manual: true,
@@ -536,7 +541,7 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
           derivedFromSceneId: s.sceneId,
         };
       grown.push(child);
-      if (i > 0) base += 1;
+      if (i > 0) nextNum += 1;
       t0 = end;
     });
     splitsCreated += pieces - 1;
