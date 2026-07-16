@@ -158,6 +158,9 @@ export interface DirectorApi {
   toggleLock: (kind: "character") => void;
   warnings: string[];
   suggestions: string[];
+  starting: boolean;
+  startError: string | null;
+  resetLock: () => void;
 }
 
 /**
