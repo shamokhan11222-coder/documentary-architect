@@ -486,10 +486,11 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     setTask(id, "thumbnail", "Thumbnail Designer → designing…");
     const { ideas } = (await withRetry(() => doThumbs({
       data: {
-        topic: topic ?? "",
-        script: story.script,
-        angle: research?.storyAngles?.[0],
-        ...buildInjection(["thumbnail"]),
+        projectId: id,
+        topicId: id,
+        topicTitle: topic ?? "",
+        storyTitle: story.sections?.[0]?.title || undefined,
+        storySummary: research?.storyAngles?.[0],
       },
     }))) as { ideas: ThumbnailIdea[]; conceptProvider: string };
     saveThumbnails({ topicId: id, ideas, generatedAt: Date.now() });

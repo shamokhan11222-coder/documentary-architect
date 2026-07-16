@@ -133,13 +133,13 @@ function ThumbnailPage() {
   //   2. Persisted selectedTopicId points to a topic we can find (persisted)
   //   3. Fallback to the first topic in the list (localStorage)
   // Always returns a non-empty title — never sends whitespace to the server.
-  type ActiveTopicCtx = { topicId: string; title: string; projectId: string; source: "store" | "persisted" | "fallback" };
+  type ActiveTopicCtx = { topicId: string; topicTitle: string; projectId: string; source: "store" | "persisted" | "fallback" };
   const activeCtx: ActiveTopicCtx | null = useMemo(() => {
     const clean = (s: unknown) => (typeof s === "string" ? s.trim() : "");
     const build = (t: (typeof topics)[number], source: ActiveTopicCtx["source"]): ActiveTopicCtx => ({
       topicId: t.id,
       projectId: t.id,
-      title: clean(t.topic) || clean(t.altTitle) || "Untitled project",
+      topicTitle: clean(t.topic) || clean(t.altTitle) || "Untitled project",
       source,
     });
     if (selected) return build(selected, selectedId === selected.id ? "store" : "persisted");
@@ -149,7 +149,7 @@ function ThumbnailPage() {
     return null;
   }, [selected, selectedId, topics]);
 
-  const topicReady = mounted && !!activeCtx;
+  const topicReady = mounted && !!activeCtx?.projectId && !!activeCtx?.topicId && !!activeCtx?.topicTitle;
 
   // Reactive truth for the FIRST thumbnail image. The "ready" state is derived
   // ONLY from an actually-stored image URL — never from concept-only data.
@@ -271,18 +271,15 @@ function ThumbnailPage() {
       const payload = {
         projectId: activeCtx.projectId,
         topicId: activeCtx.topicId,
-        topicTitle: activeCtx.title,
-        storyTitle: story?.script ? activeCtx.title : undefined,
+        topicTitle: activeCtx.topicTitle,
+        storyTitle: story?.sections?.[0]?.title || undefined,
         storySummary: research?.storyAngles?.[0],
-        script: story?.script,
-        angle: research?.storyAngles?.[0],
-        ...buildInjection(["thumbnail"]),
       };
-      if (dev) console.log("[thumbnail] request", {
-        resolvedTopicId: activeCtx.topicId,
-        resolvedTopicTitle: activeCtx.title,
-        resolvedProjectId: activeCtx.projectId,
-        requestPayload: payload,
+      console.log("[thumbnail] client payload", {
+        projectId: activeCtx.projectId,
+        topicId: activeCtx.topicId,
+        topicTitle: activeCtx.topicTitle,
+        payload,
       });
       const conceptResult = (await gen({ data: payload })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
       const ideas = conceptResult.ideas;
@@ -323,7 +320,7 @@ function ThumbnailPage() {
     if (!selected || !pack || !activeCtx) return;
     return withBusy(`i-${index}`, async () => {
       setProviderLimit(false);
-      const updated = (await regen({ data: { topic: activeCtx.title, topicTitle: activeCtx.title, idea: pack.ideas[index] } })) as ThumbnailIdea;
+      const updated = (await regen({ data: { topicTitle: activeCtx.topicTitle, idea: pack.ideas[index] } })) as ThumbnailIdea;
       const ideas = pack.ideas.map((it, i) => (i === index ? updated : it));
       saveThumbnails({ ...pack, ideas, generatedAt: Date.now() });
       try {
@@ -359,10 +356,9 @@ function ThumbnailPage() {
         data: {
           projectId: activeCtx.projectId,
           topicId: activeCtx.topicId,
-          topicTitle: activeCtx.title,
-          script: story?.script,
-          angle: research?.storyAngles?.[0],
-          ...buildInjection(["thumbnail"]),
+          topicTitle: activeCtx.topicTitle,
+          storyTitle: story?.sections?.[0]?.title || undefined,
+          storySummary: research?.storyAngles?.[0],
         },
       })) as { ideas: ThumbnailIdea[]; conceptProvider: string };
       setConceptProvider(laterResult.conceptProvider);
@@ -503,7 +499,14 @@ function ThumbnailPage() {
         Real generated thumbnail concepts with CTR scoring. No prompts — just pick a winner.
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-4 text-xs text-muted-foreground">
+        {!mounted
+          ? "Loading active topic..."
+          : activeCtx
+            ? <>Active topic: <span className="font-medium text-foreground">{activeCtx.topicTitle}</span></>
+            : "No active topic. Return to Projects and select one."}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <select
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
           value={selectedId ?? ""}
@@ -518,15 +521,8 @@ function ThumbnailPage() {
         </select>
         <Button onClick={handleGenerate} disabled={!topicReady || !!busy}>
           {busy === "gen" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {!mounted ? "Loading selected topic…" : pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
+          {!mounted ? "Loading active topic..." : pack ? "Regenerate First Thumbnail" : "Generate Thumbnail"}
         </Button>
-      </div>
-      <div className="mt-2 text-xs text-muted-foreground">
-        {!mounted
-          ? "Loading active project…"
-          : activeCtx
-            ? <>Active topic: <span className="font-medium text-foreground">{activeCtx.title}</span></>
-            : "No active topic. Return to Projects and select one."}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button variant="outline" onClick={() => openUpload(0)} disabled={!selected || !!busy}>
@@ -556,7 +552,7 @@ function ThumbnailPage() {
         {/* Developer-only actions */}
         {dev && (
           <>
-            <Button variant="secondary" onClick={handleGenerateLater} disabled={!selected || !!busy}>
+              <Button variant="secondary" onClick={handleGenerateLater} disabled={!topicReady || !!busy}>
               {busy === "later" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <Clock className="mr-2 h-4 w-4" /> Generate Thumbnail Later
             </Button>
@@ -658,7 +654,7 @@ function ThumbnailPage() {
       {selected && dev && (
         <div className="mt-3 rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
           <div>Active Topic ID: {activeCtx?.topicId ?? "—"}</div>
-          <div>Active Title: {activeCtx?.title ?? "—"}</div>
+          <div>Active Title: {activeCtx?.topicTitle ?? "—"}</div>
           <div>Project ID: {activeCtx?.projectId ?? "—"}</div>
           <div>Source: {activeCtx?.source ?? "—"}</div>
           <div>Thumbnail Status: {thumbnailStatus}</div>
