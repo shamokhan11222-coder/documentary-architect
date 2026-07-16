@@ -13,7 +13,7 @@ import type {
   Research,
   Story,
   ThumbnailPack,
-  SeoPack,
+  Seo,
   SubtitlePack,
   VisualScene,
   VoiceProject,
@@ -89,7 +89,7 @@ export function computeStageStates(
   const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", projectId);
   const voice = readLS<VoiceProject>("docos.voice", projectId);
   const thumb = readLS<ThumbnailPack>("docos.thumbnails", projectId);
-  const seo = readLS<SeoPack>("docos.seo", projectId);
+  const seo = readLS<Seo>("docos.seo", projectId);
   const subtitles = readLS<SubtitlePack>("docos.subtitles", projectId);
   const sync = readSyncTimeline(projectId);
   const scenes = visual?.scenes ?? [];
