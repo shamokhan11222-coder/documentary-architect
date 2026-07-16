@@ -375,9 +375,7 @@ export function validateTimeline(t: SyncTimeline): ValidationResult {
 
 // ---------------- Classification & Auto-Repair ----------------
 
-const COMPLEX_SCENE_APPROVED_STATUSES = new Set<string>([
-  "infographic", "diagram", "comparison", "map", "timeline", "data visualization",
-]);
+// Hard 4.00s cap applies to every scene kind (no complex-scene exception).
 
 export interface Classified {
   blocking: string[];       // must-fix errors (overlap, negative dur, mismatch)
