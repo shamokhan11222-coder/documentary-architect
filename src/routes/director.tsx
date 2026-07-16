@@ -203,10 +203,12 @@ function StageRow({
   stage,
   onApprove,
   onReset,
+  onRetryNow,
 }: {
   stage: DirectorProject["stages"][StageId];
   onApprove: (approved: boolean) => void;
   onReset: () => void;
+  onRetryNow: () => void;
 }) {
   const pct = Math.round(stage.progress * 100);
   return (
@@ -276,13 +278,22 @@ function StageRow({
             </button>
           </div>
         )}
-        {stage.status === "failed" && (
-          <button
-            onClick={onReset}
-            className="mt-1 inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-primary/40"
-          >
-            <SkipForward className="h-3 w-3" /> Retry on next run
-          </button>
+        {(stage.status === "failed" || stage.status === "blocked") && (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <button
+              onClick={onRetryNow}
+              className="inline-flex items-center gap-1 rounded-md border border-primary bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/20"
+            >
+              <Play className="h-3 w-3" /> Retry Now
+            </button>
+            <button
+              onClick={onReset}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary/40"
+              title="Mark as pending — will run on next Direct My Video"
+            >
+              <SkipForward className="h-3 w-3" /> Retry on next run
+            </button>
+          </div>
         )}
       </div>
     </li>
