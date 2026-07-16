@@ -519,6 +519,23 @@ function distributeDuration(totalDuration: number, childCount: number): number[]
   return durations;
 }
 
+function requiredChildCount(duration: number): number {
+  return Math.max(2, Math.ceil((duration - TIMING_EPSILON) / MAX_SCENE_SECONDS));
+}
+
+function uniqueChildSceneId(parentSceneId: string, currentSceneId: string, childIndex: number, used: Set<string>): string {
+  const base = childIndex === 0 ? currentSceneId : `${parentSceneId}-part-${childIndex + 1}`;
+  if (!used.has(base)) {
+    used.add(base);
+    return base;
+  }
+  let suffix = 2;
+  while (used.has(`${base}-${suffix}`)) suffix += 1;
+  const id = `${base}-${suffix}`;
+  used.add(id);
+  return id;
+}
+
 function sceneSortKey(scene: SyncScene, index: number): [number, number, number] {
   return [scene.start, scene.end, index];
 }
@@ -573,6 +590,7 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
   // ---- 1. SPLIT LONG SCENES ----
   let splitsCreated = 0;
   const splitDetails: RepairSummary["splitDetails"] = [];
+  const usedSceneIds = new Set(scenes.map((s) => s.sceneId));
   const grown: SyncScene[] = [];
   scenes.forEach((s, originalIndex) => {
     if (s.duration <= MAX_SCENE_SECONDS + TIMING_EPSILON) {
@@ -580,7 +598,8 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
       return;
     }
 
-    const childCount = Math.max(2, Math.ceil(s.duration / MAX_SCENE_SECONDS));
+    usedSceneIds.delete(s.sceneId);
+    const childCount = requiredChildCount(s.duration);
     const units = naturalTextUnits(s.narrationText, childCount);
     const textChunks = chunkText(units, childCount);
     const durations = distributeDuration(s.duration, childCount);
@@ -591,7 +610,7 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
     durations.forEach((duration, i) => {
       const start = cursor;
       const end = i === durations.length - 1 ? s.end : start + duration;
-      const childSceneId = i === 0 ? s.sceneId : `${parentSceneId}-part-${i + 1}`;
+      const childSceneId = uniqueChildSceneId(parentSceneId, s.sceneId, i, usedSceneIds);
       const hasOriginalImage = !s.missingImage && !!s.imageId;
       const imageId = i === 0 ? s.imageId : `scene:${t.projectId}:${childSceneId}`;
       const child: SyncScene = {
@@ -718,6 +737,101 @@ export function repairTimeline(t: SyncTimeline): { timeline: SyncTimeline; summa
       last.duration = adjusted;
       last.end = last.start + adjusted;
       cursor = last.end;
+    }
+  }
+
+  // ---- 4. FINAL HARD-CAP PASS ----
+  // Earlier repairs, stale saved timelines, or drift correction can still leave
+  // a scene above 4s. Enforce the cap here so every caller of repairTimeline()
+  // gets a complete repair in one call, not only the Voice Sync page loop.
+  for (let pass = 0; pass < 8; pass++) {
+    const long = scenes.filter((s) => s.duration > MAX_SCENE_SECONDS + TIMING_EPSILON);
+    if (!long.length) break;
+
+    const finalGrown: SyncScene[] = [];
+    const finalUsedSceneIds = new Set(scenes.map((s) => s.sceneId));
+    scenes.forEach((s, originalIndex) => {
+      if (s.duration <= MAX_SCENE_SECONDS + TIMING_EPSILON) {
+        finalGrown.push(s);
+        return;
+      }
+
+      finalUsedSceneIds.delete(s.sceneId);
+      const childCount = requiredChildCount(s.duration);
+      const units = naturalTextUnits(s.narrationText, childCount);
+      const textChunks = chunkText(units, childCount);
+      const durations = distributeDuration(s.duration, childCount);
+      const parentSceneId = s.parentSceneId ?? s.derivedFromSceneId ?? s.sceneId;
+      const children: SyncScene[] = [];
+      let childCursor = s.start;
+
+      durations.forEach((duration, i) => {
+        const start = childCursor;
+        const end = i === durations.length - 1 ? s.end : start + duration;
+        const childSceneId = uniqueChildSceneId(parentSceneId, s.sceneId, i, finalUsedSceneIds);
+        const hasOriginalImage = !s.missingImage && !!s.imageId;
+        const imageId = i === 0 ? s.imageId : `scene:${t.projectId}:${childSceneId}`;
+        const child: SyncScene = {
+          ...s,
+          sceneId: childSceneId,
+          sceneNumber: s.sceneNumber + (i / 1000) + (originalIndex / 1_000_000_000),
+          start,
+          end,
+          duration: end - start,
+          imageId,
+          narrationText: textChunks[i] || s.narrationText,
+          manual: true,
+          locked: false,
+          missingImage: i === 0 ? s.missingImage : true,
+          status: i === 0 ? (hasOriginalImage ? "ready" : "missing") : "missing",
+          derivedFromSceneId: parentSceneId,
+          parentSceneId,
+          motionSlotId: `motion:${t.projectId}:${childSceneId}`,
+        };
+        children.push(child);
+        childCursor = end;
+      });
+
+      finalGrown.push(...children);
+      splitDetails.push({
+        originalSceneId: s.sceneId,
+        originalSceneNumber: s.sceneNumber,
+        originalDuration: s.duration,
+        children: children.map((child) => ({
+          sceneId: child.sceneId,
+          sceneNumber: child.sceneNumber,
+          duration: child.duration,
+          parentSceneId,
+        })),
+      });
+      splitsCreated += childCount - 1;
+    });
+
+    scenes = finalGrown
+      .map((scene, index) => ({ scene, key: sceneSortKey(scene, index) }))
+      .sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2])
+      .map(({ scene }, index) => ({
+        ...scene,
+        sceneNumber: index + 1,
+        imageId: scene.imageId || `scene:${t.projectId}:${index + 1}`,
+        motionSlotId: scene.motionSlotId || `motion:${t.projectId}:${scene.sceneId}`,
+      }));
+
+    let finalCursor = 0;
+    for (const s of scenes) {
+      const duration = Math.max(0, s.duration);
+      s.start = finalCursor;
+      s.end = finalCursor + duration;
+      s.duration = duration;
+      s.manual = true;
+      finalCursor = s.end;
+    }
+  }
+
+  for (const detail of splitDetails) {
+    for (const child of detail.children) {
+      const repaired = scenes.find((scene) => scene.sceneId === child.sceneId);
+      if (repaired) child.sceneNumber = repaired.sceneNumber;
     }
   }
 
