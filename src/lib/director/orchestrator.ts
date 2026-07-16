@@ -338,16 +338,21 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
     const voice = readLS<VoiceProject>("docos.voice", id);
     const scenes = visual?.scenes ?? [];
     if (!voice || !scenes.length) {
-      patchStage("voice-sync", { status: "skipped", progress: 1 });
+      if (!scenes.length) {
+        patchStage("voice-sync", { status: "blocked", progress: 0, error: "Scene Planner has no scenes yet." });
+      } else {
+        patchStage("voice-sync", { status: "waiting", waitingFor: "Voice", progress: 0, error: "Waiting for Voice" });
+      }
       return;
     }
     // Gate voice-sync on real completed audio, not on the voice stage flag.
     const missing = voice.blocks.filter((b) => !(b.realSeconds && b.realSeconds > 0)).length;
     if (missing > 0) {
       patchStage("voice-sync", {
-        status: "pending",
+        status: "waiting",
+        waitingFor: "Voice",
         progress: 0,
-        error: `Waiting for ${missing} voice block(s) before sync.`,
+        error: `Waiting for Voice — ${voice.blocks.length - missing}/${voice.blocks.length} blocks valid`,
       });
       return;
     }
@@ -405,7 +410,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
   async function runCameraMotion(id: string) {
     const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
     const scenes = visual?.scenes ?? [];
-    if (!scenes.length) { patchStage("camera-motion", { status: "skipped" }); return; }
+    if (!scenes.length) { patchStage("camera-motion", { status: "blocked", progress: 0, error: "Waiting for valid scenes" }); return; }
     patchStage("camera-motion", { status: "running", total: scenes.length, current: 0 });
     const presets: DirectorProject["motionPresets"] = { ...projectRef.current!.motionPresets };
     let prev: ReturnType<typeof pickMotion> | undefined;
@@ -422,7 +427,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
 
   async function runSubtitleTiming(id: string) {
     const story = readLS<Story>("docos.story", id);
-    if (!story) { patchStage("subtitle-timing", { status: "skipped" }); return; }
+    if (!story) { patchStage("subtitle-timing", { status: "blocked", progress: 0, error: "Waiting for Story" }); return; }
     patchStage("subtitle-timing", { status: "running", progress: 0.4 });
     const paras = scriptToParagraphs(story.script);
     const cues = buildSubtitles(paras);
@@ -432,7 +437,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
 
   async function runMusic(id: string) {
     const story = readLS<Story>("docos.story", id);
-    if (!story) { patchStage("music", { status: "skipped" }); return; }
+    if (!story) { patchStage("music", { status: "blocked", progress: 0, error: "Waiting for Story" }); return; }
     patchStage("music", { status: "running", progress: 0.5 });
     const mood = suggestMood(story.script);
     // Call the real audio suggester server function to get concrete cues.
@@ -449,7 +454,7 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
   async function runSfx(id: string) {
     const visual = readLS<{ scenes: VisualScene[] }>("docos.visual", id);
     const scenes = visual?.scenes ?? [];
-    if (!scenes.length) { patchStage("sfx", { status: "skipped" }); return; }
+    if (!scenes.length) { patchStage("sfx", { status: "blocked", progress: 0, error: "Waiting for valid scenes" }); return; }
     patchStage("sfx", { status: "running", total: scenes.length, current: 0 });
     const cues: Record<string, string[]> = { ...projectRef.current!.sfxCues };
     for (let i = 0; i < scenes.length; i++) {
