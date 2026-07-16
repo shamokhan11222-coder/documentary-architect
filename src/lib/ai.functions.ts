@@ -601,9 +601,27 @@ function fallbackThumbnailConcepts(topic: string, angle?: string, count = 3): Th
 }
 
 export const generateThumbnails = createServerFn({ method: "POST" })
-  .inputValidator((data: { topic: string; topicId?: string; projectId?: string; script?: string; angle?: string; instructions?: string; knowledge?: string }) => {
-    if (!data?.topic?.trim()) throw new Error("Topic is required");
-    return data;
+  .inputValidator((data: {
+    topicTitle?: string;
+    topic?: string;
+    topicId?: string;
+    projectId?: string;
+    storyTitle?: string;
+    storySummary?: string;
+    script?: string;
+    angle?: string;
+    instructions?: string;
+    knowledge?: string;
+  }) => {
+    // Canonical field is `topicTitle`. Legacy callers may still send `topic`.
+    const title = (data?.topicTitle ?? data?.topic ?? "").trim();
+    if (!title) throw new Error("Topic is required");
+    // Dev-safe server log (never logs keys/PII).
+    console.log("[thumbnail] receivedInputKeys=", Object.keys(data ?? {}),
+      " receivedTopicTitle=", title,
+      " receivedTopicId=", data?.topicId ?? null,
+      " receivedProjectId=", data?.projectId ?? null);
+    return { ...data, topic: title, topicTitle: title };
   })
   .handler(async ({ data }) => {
     const user = `Documentary topic: "${data.topic}"
