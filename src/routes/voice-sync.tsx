@@ -12,8 +12,8 @@ import {
   buildSyncTimeline,
   classifyTimeline,
   deleteSyncTimeline,
-  isReadyForProduction,
   mergeWithNext,
+  readSyncTimeline,
   repairTimeline,
   saveSyncTimeline,
   setSceneBoundary,
@@ -34,36 +34,66 @@ export const Route = createFileRoute("/voice-sync")({
 
 type Filter = "all" | "ready" | "missing" | "long" | "short" | "unmapped" | "locked";
 
-function repairUntilValid(start: SyncTimeline): { timeline: SyncTimeline; summary: ReturnType<typeof repairTimeline>["summary"] } {
-  let current = start;
-  let first: ReturnType<typeof repairTimeline>["summary"] | null = null;
-  let last: ReturnType<typeof repairTimeline>["summary"] | null = null;
-  const splitDetails: ReturnType<typeof repairTimeline>["summary"]["splitDetails"] = [];
-  let prevLong = Infinity;
-  for (let pass = 0; pass < 10; pass++) {
-    const { timeline, summary } = repairTimeline(current);
-    current = timeline;
-    if (!first) first = summary;
-    last = summary;
-    splitDetails.push(...summary.splitDetails);
-    if (summary.after.long === 0 && summary.after.gaps === 0) break;
-    if (summary.after.long >= prevLong && summary.splitDetails.length === 0) break;
-    prevLong = summary.after.long;
-  }
-  const summary = {
-    ...(last ?? first!),
-    before: first!.before,
-    longScenesBefore: first!.longScenesBefore,
-    splitDetails,
-    maxFinalDuration: current.scenes.reduce((max, s) => Math.max(max, s.duration), 0),
-    totalTimelineDifference: current.scenes.length
-      ? Math.abs(current.scenes[current.scenes.length - 1].end - current.totalDuration)
-      : current.totalDuration,
+type TimelineHealth = {
+  validation: ReturnType<typeof validateTimeline>;
+  classified: ReturnType<typeof classifyTimeline>;
+  gaps: number;
+  longScenes: SyncScene[];
+  overlaps: number;
+  unmapped: number;
+  ready: boolean;
+};
+
+type RepairCheck = {
+  source: "recalculate" | "repair" | "force" | "auto" | "save";
+  validation: ReturnType<typeof validateTimeline>;
+  gaps: number;
+  longScenes: { sceneId: string; sceneNumber: number; duration: number }[];
+  overlaps: number;
+  unmapped: number;
+};
+
+function summarizeTimeline(t: SyncTimeline): TimelineHealth {
+  const validation = validateTimeline(t);
+  const classified = classifyTimeline(t);
+  const longScenes = classified.autoFixable.longScenes;
+  const gaps = classified.autoFixable.gaps.length;
+  const overlaps = t.scenes.slice(1).filter((s, index) => s.start + 0.001 < t.scenes[index].end).length;
+  const unmapped = t.scenes.filter((s) => s.duration <= 0.001).length;
+  return {
+    validation,
+    classified,
+    gaps,
+    longScenes,
+    overlaps,
+    unmapped,
+    ready: validation.errors.length === 0 && gaps === 0 && longScenes.length === 0 && overlaps === 0 && unmapped === 0,
   };
-  return { timeline: current, summary };
 }
 
-function logDurationRepair(summary: ReturnType<typeof repairUntilValid>["summary"]) {
+function toRepairCheck(
+  source: RepairCheck["source"],
+  health: TimelineHealth,
+): RepairCheck {
+  return {
+    source,
+    validation: health.validation,
+    gaps: health.gaps,
+    longScenes: health.longScenes.map((s) => ({
+      sceneId: s.sceneId,
+      sceneNumber: s.sceneNumber,
+      duration: s.duration,
+    })),
+    overlaps: health.overlaps,
+    unmapped: health.unmapped,
+  };
+}
+
+function formatLongScenes(longScenes: RepairCheck["longScenes"]) {
+  return longScenes.map((s) => `${s.sceneId} (${s.duration.toFixed(2)}s)`).join(", ");
+}
+
+function logDurationRepair(summary: ReturnType<typeof repairTimeline>["summary"]) {
   console.info("[Voice Sync Duration Repair]", {
     longSceneIdsBeforeRepair: summary.longScenesBefore.map((s) => s.sceneId),
     durationBefore: summary.longScenesBefore.map((s) => ({ sceneId: s.sceneId, duration: s.duration })),
@@ -91,6 +121,8 @@ function VoiceSyncPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [pending, setPending] = useState<SyncTimeline | null>(null);
+  const [appliedTimeline, setAppliedTimeline] = useState<SyncTimeline | null>(null);
+  const [repairCheck, setRepairCheck] = useState<RepairCheck | null>(null);
   const [imageIds, setImageIds] = useState<Set<number>>(new Set());
   const autoRepairKey = useRef<string | null>(null);
 
@@ -110,9 +142,51 @@ function VoiceSyncPage() {
     return () => { cancelled = true; };
   }, [selected?.id, map?.generatedAt, scenes.length]);
 
-  const active = pending ?? stored;
+  useEffect(() => {
+    setPending(null);
+    setAppliedTimeline(null);
+    setRepairCheck(null);
+    autoRepairKey.current = null;
+  }, [selected?.id]);
+
+  const active = pending ?? appliedTimeline ?? stored;
 
   const canRun = !!(selected && map && voice && voice.blocks.length && scenes.length);
+
+  function persistAppliedTimeline(
+    timeline: SyncTimeline,
+    source: RepairCheck["source"],
+  ): { timeline: SyncTimeline; health: TimelineHealth; check: RepairCheck } {
+    const validation = validateTimeline(timeline);
+    saveSyncTimeline(timeline);
+    const reloaded = readSyncTimeline(timeline.projectId) ?? timeline;
+    const health = summarizeTimeline(reloaded);
+    const check = toRepairCheck(source, { ...health, validation });
+    setAppliedTimeline(reloaded);
+    setPending(null);
+    setRepairCheck(check);
+    return { timeline: reloaded, health, check };
+  }
+
+  function applyRepairTimeline(
+    currentTimeline: SyncTimeline,
+    source: "recalculate" | "repair" | "force" | "auto",
+  ) {
+    const result = repairTimeline(currentTimeline);
+    const validation = validateTimeline(result.timeline);
+    const saved = persistAppliedTimeline(result.timeline, source);
+    logDurationRepair(result.summary);
+    if (saved.check.longScenes.length > 0) {
+      toast.error(`Repair saved, but long scenes remain: ${formatLongScenes(saved.check.longScenes)}`);
+    } else if (saved.health.ready) {
+      toast.success("Voice Sync Complete");
+    } else {
+      toast.warning(
+        `${saved.health.gaps} gap(s) remain · ${saved.health.longScenes.length} scene(s) still long · ${saved.health.overlaps} overlap(s) · ${saved.health.unmapped} unmapped`,
+      );
+    }
+    return { ...saved, validation };
+  }
 
   function runSync() {
     if (!selected || !map || !voice) return;
@@ -124,54 +198,49 @@ function VoiceSyncPage() {
       options: { mode, customTarget },
       previous: stored,
     });
-    const repaired = repairUntilValid(timeline);
-    logDurationRepair(repaired.summary);
-    setPending(repaired.timeline);
+    applyRepairTimeline(timeline, "recalculate");
     setWarnings(warnings);
   }
 
   function saveSync() {
     if (!active) return;
-    const c = classifyTimeline(active);
-    if (c.blocking.length) {
-      toast.error(`Cannot save: ${c.blocking[0]}`);
+    const health = summarizeTimeline(active);
+    if (health.classified.blocking.length) {
+      toast.error(`Cannot save: ${health.classified.blocking[0]}`);
       return;
     }
-    saveSyncTimeline(active);
-    setPending(null);
-    toast.success("Sync saved");
+    const saved = persistAppliedTimeline(active, "save");
+    if (saved.health.ready) toast.success("Sync saved");
+    else toast.warning("Sync saved with timing warnings");
   }
 
   function repairSync() {
     if (!active) return;
-    const { timeline, summary } = repairUntilValid(active);
-    saveSyncTimeline(timeline);
-    setPending(null);
-    logDurationRepair(summary);
-    toast.success(
-      `${summary.after.gaps} gap(s) remain · ${summary.after.long} scene(s) still long`,
-    );
+    applyRepairTimeline(active, "repair");
+  }
+
+  function forceApplyRepair() {
+    if (!active) return;
+    applyRepairTimeline(active, "force");
   }
 
   useEffect(() => {
     if (!stored) return;
     const longScenes = classifyTimeline(stored).autoFixable.longScenes;
     if (!longScenes.length) return;
-    const key = `${stored.projectId}:${stored.generatedAt}:${longScenes.map((s) => `${s.sceneId}:${s.duration}`).join("|")}`;
+    const key = `${stored.projectId}:${longScenes.map((s) => `${s.sceneId}:${s.duration}`).join("|")}`;
     if (autoRepairKey.current === key) return;
     autoRepairKey.current = key;
-    const { timeline, summary } = repairUntilValid(stored);
-    saveSyncTimeline(timeline);
-    setPending(null);
+    applyRepairTimeline(stored, "auto");
     setWarnings([]);
-    logDurationRepair(summary);
-    toast.success(`${summary.after.gaps} gap(s) remain · ${summary.after.long} scene(s) still long`);
   }, [stored?.projectId, stored?.generatedAt]);
 
   function resetSync() {
     if (!selected) return;
     deleteSyncTimeline(selected.id);
     setPending(null);
+    setAppliedTimeline(null);
+    setRepairCheck(null);
     setWarnings([]);
     toast.success("Sync cleared");
   }
@@ -187,13 +256,16 @@ function VoiceSyncPage() {
     URL.revokeObjectURL(url);
   }
 
-  const validation = active ? validateTimeline(active) : null;
-  const classified = active ? classifyTimeline(active) : null;
-  const ready = active ? isReadyForProduction(active) : false;
+  const timelineHealth = useMemo(() => active ? summarizeTimeline(active) : null, [active]);
+  const validation = timelineHealth?.validation ?? null;
+  const classified = timelineHealth?.classified ?? null;
+  const ready = timelineHealth?.ready ?? false;
   const needsRepair = !!classified && (
     classified.autoFixable.longScenes.length > 0
     || classified.autoFixable.shortScenes.length > 0
     || classified.autoFixable.gaps.length > 0
+    || (timelineHealth?.overlaps ?? 0) > 0
+    || (timelineHealth?.unmapped ?? 0) > 0
   );
   const displayScenes = useMemo(() => {
     if (!active) return [];
@@ -292,6 +364,14 @@ function VoiceSyncPage() {
               >
                 Repair Sync Issues
               </button>
+              <button
+                onClick={forceApplyRepair}
+                disabled={!active}
+                className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-500/20 disabled:opacity-40"
+                title="Force-save the repaired 4-second capped timeline and reload it"
+              >
+                Force Apply 4s Repair
+              </button>
               <button onClick={saveSync} disabled={!pending} className="rounded-md border border-input px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-40">Save Sync</button>
               <button onClick={exportJSON} disabled={!active} className="rounded-md border border-input px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-40">Export Timing JSON</button>
               <button onClick={resetSync} disabled={!stored} className="rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-40">Reset Sync</button>
@@ -314,8 +394,13 @@ function VoiceSyncPage() {
               <div className="mt-0.5 text-muted-foreground">
                 {ready
                   ? `0 gap(s) remain · 0 scene(s) still long`
-                  : `${classified?.autoFixable.gaps.length ?? 0} gap(s) remain · ${classified?.autoFixable.longScenes.length ?? 0} scene(s) still long`}
+                  : `${timelineHealth?.gaps ?? 0} gap(s) remain · ${timelineHealth?.longScenes.length ?? 0} scene(s) still long · ${timelineHealth?.overlaps ?? 0} overlap(s) · ${timelineHealth?.unmapped ?? 0} unmapped`}
               </div>
+              {!ready && (timelineHealth?.longScenes.length ?? 0) > 0 && (
+                <div className="mt-1 text-muted-foreground">
+                  Long scenes: {formatLongScenes(timelineHealth!.longScenes.map((s) => ({ sceneId: s.sceneId, sceneNumber: s.sceneNumber, duration: s.duration })))}
+                </div>
+              )}
             </div>
           )}
 
@@ -332,9 +417,18 @@ function VoiceSyncPage() {
               <Stat label="Shortest" value={`${stats.min.toFixed(2)}s`} />
               <Stat label="Longest" value={`${stats.max.toFixed(2)}s`} />
               <Stat label="Unmapped" value={`${stats.unmapped}`} />
-              <Stat label="Gaps" value={`${validation?.warnings.filter(w => w.includes("Gap")).length ?? 0}`} />
+              <Stat label="Gaps" value={`${timelineHealth?.gaps ?? 0}`} />
               <Stat label="Status" value={ready ? (pending ? "Preview" : "Complete") : "Warnings"} />
               <Stat label="Mode" value={active!.mode} />
+            </div>
+          )}
+
+          {repairCheck && repairCheck.longScenes.length > 0 && (
+            <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+              <div className="font-medium">Long scenes remain after saved reload.</div>
+              <div className="mt-1 text-muted-foreground">
+                {formatLongScenes(repairCheck.longScenes)}
+              </div>
             </div>
           )}
 
