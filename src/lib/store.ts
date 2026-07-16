@@ -538,6 +538,17 @@ export function useStory(topicId: string | null): Story | null {
 }
 
 export function saveStory(s: Story) {
+  // Sanitize narration text at the persistence boundary so nothing downstream
+  // (TTS, sync, export) ever sees zero-width / control / replacement chars.
+  // Dynamic import keeps this file free of hard cycles.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { sanitizeNarration } = require("./sanitize-narration") as typeof import("./sanitize-narration");
+    if (typeof s.script === "string") s = { ...s, script: sanitizeNarration(s.script) };
+    if (typeof s.hook === "string") s = { ...s, hook: sanitizeNarration(s.hook) };
+  } catch {
+    /* sanitizer unavailable — persist raw */
+  }
   const all = readRecord<Story>(KEYS.story);
   all[s.topicId] = s;
   write(KEYS.story, all);
