@@ -347,6 +347,16 @@ export function useDirectorOrchestrator(topicId: string | null, topic?: string, 
       patchStage("voice-sync", { status: "skipped", progress: 1 });
       return;
     }
+    // Gate voice-sync on real completed audio, not on the voice stage flag.
+    const missing = voice.blocks.filter((b) => !(b.realSeconds && b.realSeconds > 0)).length;
+    if (missing > 0) {
+      patchStage("voice-sync", {
+        status: "pending",
+        progress: 0,
+        error: `Waiting for ${missing} voice block(s) before sync.`,
+      });
+      return;
+    }
     patchStage("voice-sync", { status: "running", progress: 0.4 });
     setTask(id, "voice", "Voice Sync → aligning scenes to narration…");
     const imageIds = new Set<number>();
