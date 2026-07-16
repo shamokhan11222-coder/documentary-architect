@@ -88,10 +88,11 @@ function placeholderThumbnail(title: string): string {
 function ThumbnailPage() {
   const topics = useTopics();
   const selectedId = useSelectedTopicId();
-  const selected = topics.find((t) => t.id === selectedId) ?? null;
-  const story = useStory(selectedId);
-  const research = useResearch(selectedId);
-  const pack = useThumbnails(selectedId);
+  const selected = topics.find((t) => t.id === selectedId) ?? topics[0] ?? null;
+  const activeTopicId = selected?.id ?? null;
+  const story = useStory(activeTopicId);
+  const research = useResearch(activeTopicId);
+  const pack = useThumbnails(activeTopicId);
 
   const gen = useServerFn(generateThumbnails);
   const regen = useServerFn(regenerateThumbnail);
@@ -107,8 +108,8 @@ function ThumbnailPage() {
   const [providerError, setProviderError] = useState<string | null>(null);
   const [conceptProvider, setConceptProvider] = useState<string | null>(null);
   const breaker = useBreaker();
-  const retryJob = useThumbRetry(selectedId ?? null);
-  const visual = useVisualMap(selectedId ?? null);
+  const retryJob = useThumbRetry(activeTopicId);
+  const visual = useVisualMap(activeTopicId);
   const [showScenePicker, setShowScenePicker] = useState(false);
   const telemetry = useTelemetry();
   const pixelProvider =
@@ -126,6 +127,9 @@ function ThumbnailPage() {
   // store has been read at least once.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    if (mounted && selected?.id && selected.id !== selectedId) setSelectedTopicId(selected.id);
+  }, [mounted, selected?.id, selectedId]);
 
   // Canonical active-topic resolver. Priority:
   //   1. Selected id matches a normalized topic in the store  (route/store)
@@ -141,10 +145,7 @@ function ThumbnailPage() {
       topicTitle: clean(t.topic) || clean(t.altTitle) || "Untitled project",
       source,
     });
-    if (selected) return build(selected, selectedId === selected.id ? "store" : "persisted");
-    const persisted = selectedId ? topics.find((t) => t.id === selectedId) : null;
-    if (persisted) return build(persisted, "persisted");
-    if (topics[0]) return build(topics[0], "fallback");
+    if (selected) return build(selected, selectedId === selected.id ? "store" : selectedId ? "fallback" : "fallback");
     return null;
   }, [selected, selectedId, topics]);
 
