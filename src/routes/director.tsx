@@ -293,6 +293,7 @@ function StatusIcon({ status }: { status: StageStatus }) {
   if (status === "done") return <CheckCircle2 className="h-5 w-5 text-primary" />;
   if (status === "running") return <Loader2 className="h-5 w-5 animate-spin text-primary" />;
   if (status === "failed") return <AlertTriangle className="h-5 w-5 text-destructive" />;
+  if (status === "blocked") return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
   if (status === "skipped") return <SkipForward className="h-5 w-5 text-muted-foreground" />;
   return <Circle className="h-5 w-5 text-muted-foreground" />;
 }
