@@ -134,6 +134,7 @@ function DirectorPage() {
                 stage={project.stages[s.id]}
                 onApprove={(v) => api.approveStage(s.id, v)}
                 onReset={() => api.resetStage(s.id)}
+                onRetryNow={() => { void api.retryStage(s.id); }}
               />
             ))}
           </ol>
